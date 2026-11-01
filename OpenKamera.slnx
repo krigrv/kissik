@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/OpenKamera.App/OpenKamera.App.csproj" />
+    <Project Path="src/OpenKamera.Core/OpenKamera.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/OpenKamera.Core.Tests/OpenKamera.Core.Tests.csproj" />
+  </Folder>
+</Solution>

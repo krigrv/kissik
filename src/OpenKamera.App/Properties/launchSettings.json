@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "OpenKamera.App (Package)": {
+      "commandName": "MsixPackage"
+    },
+    "OpenKamera.App (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}

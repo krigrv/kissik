@@ -1,0 +1,28 @@
+# Build output
+bin/
+obj/
+.vs/
+*.user
+*.suo
+*.msix
+*.appx
+AppPackages/
+TestResults/
+
+# Private maintainer notes (machine paths, research notes) — never publish
+HANDOFF.md
+CONTEXT.md
+private/
+
+# Design explorations use real camera frames of a person — kept local
+design-demos/
+
+# Screenshots of the live app may show people
+docs/ui-shell-*.png
+*.window-*.png
+OpenKamera-*.png
+OpenKamera-*.mp4
+
+# Secrets
+*.pfx
+.env

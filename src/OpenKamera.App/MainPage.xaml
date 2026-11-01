@@ -1,0 +1,721 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<!--
+    OpenKamera main window — "Darkroom Glass" (approved 2026-11-02, design-demos/C - Darkroom Glass).
+    Live video fills the window; every control floats over it on glass panels.
+-->
+<Page
+    x:Class="OpenKamera_App.MainPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:core="using:OpenKamera.Core"
+    RequestedTheme="Dark"
+    Background="Black"
+    mc:Ignorable="d">
+
+    <Page.Resources>
+      <ResourceDictionary>
+        <!-- Accent everywhere WinUI uses the system accent (toggles, sliders, selection, tab underline).
+             Control templates look these up as ThemeResources, so they must live in theme dictionaries. -->
+        <ResourceDictionary.ThemeDictionaries>
+            <ResourceDictionary x:Key="Dark">
+                <SolidColorBrush x:Key="AccentFillColorDefaultBrush" Color="#FFFFD36B" />
+                <SolidColorBrush x:Key="AccentFillColorSecondaryBrush" Color="#E6FFD36B" />
+                <SolidColorBrush x:Key="AccentFillColorTertiaryBrush" Color="#CCFFD36B" />
+                <SolidColorBrush x:Key="AccentTextFillColorPrimaryBrush" Color="#FFFFD36B" />
+                <SolidColorBrush x:Key="TextOnAccentFillColorPrimaryBrush" Color="#FF1A1408" />
+                <SolidColorBrush x:Key="ToggleSwitchKnobFillOn" Color="#FF1A1408" />
+                <SolidColorBrush x:Key="SliderTrackValueFill" Color="#FFFFD36B" />
+                <SolidColorBrush x:Key="SliderTrackValueFillPointerOver" Color="#FFFFDC85" />
+                <SolidColorBrush x:Key="SliderTrackValueFillPressed" Color="#FFF2C55A" />
+                <SolidColorBrush x:Key="SliderThumbBackground" Color="#FFFFFFFF" />
+                <SolidColorBrush x:Key="SliderThumbBackgroundPointerOver" Color="#FFFFFFFF" />
+                <SolidColorBrush x:Key="SliderThumbBackgroundPressed" Color="#FFF4F5F7" />
+                <SolidColorBrush x:Key="SelectorBarItemPillFill" Color="#FFFFD36B" />
+                <SolidColorBrush x:Key="SelectorBarItemForegroundSelected" Color="#FFF4F5F7" />
+                <SolidColorBrush x:Key="ToggleButtonBorderBrushChecked" Color="#FFFFD36B" />
+                <SolidColorBrush x:Key="ToggleButtonBorderBrushCheckedPointerOver" Color="#FFFFDC85" />
+                <SolidColorBrush x:Key="ToggleButtonBorderBrushCheckedPressed" Color="#FFF2C55A" />
+                <SolidColorBrush x:Key="ToggleSwitchFillOn" Color="#FFFFD36B" />
+                <SolidColorBrush x:Key="ToggleSwitchFillOnPointerOver" Color="#FFFFDC85" />
+                <SolidColorBrush x:Key="ToggleSwitchFillOnPressed" Color="#FFF2C55A" />
+                <SolidColorBrush x:Key="ToggleButtonBackgroundChecked" Color="#2BFFFFFF" />
+                <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPointerOver" Color="#38FFFFFF" />
+                <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPressed" Color="#24FFFFFF" />
+                <SolidColorBrush x:Key="ToggleButtonForegroundChecked" Color="#FFF4F5F7" />
+                <SolidColorBrush x:Key="ToggleButtonForegroundCheckedPointerOver" Color="#FFF4F5F7" />
+                <SolidColorBrush x:Key="ListViewItemSelectionIndicatorBrush" Color="#FFFFD36B" />
+            </ResourceDictionary>
+        </ResourceDictionary.ThemeDictionaries>
+
+        <!-- Design tokens -->
+        <Color x:Key="DgAccent">#FFFFD36B</Color>
+        <Color x:Key="DgRec">#FFD32F26</Color>
+        <SolidColorBrush x:Key="DgAccentBrush" Color="#FFFFD36B" />
+        <SolidColorBrush x:Key="DgRecBrush" Color="#FFD32F26" />
+        <SolidColorBrush x:Key="DgText" Color="#FFF4F5F7" />
+        <SolidColorBrush x:Key="DgDim" Color="#A8F4F5F7" />
+        <SolidColorBrush x:Key="DgEdge" Color="#24FFFFFF" />
+        <SolidColorBrush x:Key="DgWell" Color="#12FFFFFF" />
+        <SolidColorBrush x:Key="DgWellOn" Color="#2BFFFFFF" />
+        <AcrylicBrush x:Key="DgGlass" TintColor="#FF121418" TintOpacity="0.56" TintLuminosityOpacity="0.6" FallbackColor="#E6121418" />
+
+
+
+        <Style x:Key="Glass" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource DgGlass}" />
+            <Setter Property="BorderBrush" Value="{StaticResource DgEdge}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="22" />
+        </Style>
+        <Style x:Key="SectionLabel" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{StaticResource DgDim}" />
+            <Setter Property="Margin" Value="0,14,0,6" />
+        </Style>
+        <Style x:Key="SectionValue" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource DgText}" />
+            <Setter Property="HorizontalAlignment" Value="Right" />
+            <Setter Property="Margin" Value="0,14,0,6" />
+        </Style>
+        <Style x:Key="HintText" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{StaticResource DgDim}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style x:Key="CapsuleButton" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
+            <Setter Property="Height" Value="38" />
+            <Setter Property="Padding" Value="14,0" />
+            <Setter Property="CornerRadius" Value="19" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="FontWeight" Value="Medium" />
+        </Style>
+        <Style x:Key="IconButton" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Width" Value="34" />
+            <Setter Property="Height" Value="32" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style x:Key="WellButton" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
+            <Setter Property="Background" Value="{StaticResource DgWell}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Height" Value="32" />
+        </Style>
+        <!-- Picture tile (Background modes): selected = accent outline. -->
+        <Style x:Key="Tile" TargetType="ToggleButton" BasedOn="{StaticResource DefaultToggleButtonStyle}">
+            <Setter Property="Height" Value="64" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Background" Value="{StaticResource DgWell}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+        </Style>
+      </ResourceDictionary>
+    </Page.Resources>
+
+    <Grid x:Name="Root">
+        <!-- ═══ Full-bleed stage ═══ -->
+        <Viewbox x:Name="StageViewbox" Stretch="UniformToFill">
+            <Grid x:Name="Stage" Width="1280" Height="720" Background="Black">
+                <Image x:Name="PreviewImage" Stretch="Fill" />
+                <!-- Scene layers: rendered from the scene document; captured into recordings. -->
+                <Canvas x:Name="OverlayCanvas" Background="Transparent"
+                        PointerPressed="Overlay_PointerPressed" PointerMoved="Overlay_PointerMoved"
+                        PointerReleased="Overlay_PointerReleased" PointerCanceled="Overlay_PointerReleased" />
+                <!-- Editor-only: selection outline and resize handle (never captured). -->
+                <Canvas x:Name="AdornerCanvas">
+                    <Rectangle x:Name="SelectionBox" Stroke="#FFFFD36B" StrokeThickness="3" StrokeDashArray="4,3"
+                               Visibility="Collapsed" IsHitTestVisible="False" />
+                    <Border x:Name="ResizeHandle" Width="22" Height="22" CornerRadius="11" Background="#FFFFD36B"
+                            BorderBrush="White" BorderThickness="3" Visibility="Collapsed"
+                            PointerPressed="Resize_PointerPressed" PointerMoved="Resize_PointerMoved"
+                            PointerReleased="Resize_PointerReleased" PointerCanceled="Resize_PointerReleased"
+                            AutomationProperties.Name="Resize layer" />
+                </Canvas>
+            </Grid>
+        </Viewbox>
+
+        <!-- Vignette -->
+        <Rectangle IsHitTestVisible="False">
+            <Rectangle.Fill>
+                <RadialGradientBrush Center="0.5,0.45" RadiusX="0.75" RadiusY="0.7" GradientOrigin="0.5,0.45">
+                    <GradientStop Color="#00000000" Offset="0.6" />
+                    <GradientStop Color="#AA000000" Offset="1" />
+                </RadialGradientBrush>
+            </Rectangle.Fill>
+        </Rectangle>
+
+        <!-- Empty state -->
+        <StackPanel x:Name="EmptyText" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="10" IsHitTestVisible="False">
+            <FontIcon Glyph="&#xE714;" FontSize="48" Foreground="#80FFFFFF" />
+            <TextBlock Foreground="{StaticResource DgText}" FontSize="22" HorizontalAlignment="Center" Text="No camera connected" />
+            <TextBlock Foreground="{StaticResource DgDim}" FontSize="14" HorizontalAlignment="Center"
+                       Text="Pick a device in the Camera panel and press Connect." />
+        </StackPanel>
+
+        <!-- ═══ Top capsule ═══ -->
+        <Border Style="{StaticResource Glass}" CornerRadius="26" Height="52" Margin="0,14,0,0" Padding="18,0,8,0"
+                HorizontalAlignment="Center" VerticalAlignment="Top">
+            <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                <TextBlock VerticalAlignment="Center" FontFamily="Georgia" FontSize="23" Margin="0,0,10,2"
+                           AutomationProperties.Name="OpenKamera">
+                    <Run Text="Open" Foreground="{StaticResource DgText}" /><Run Text="Kamera" FontStyle="Italic" Foreground="{StaticResource DgAccentBrush}" />
+                </TextBlock>
+                <Button x:Name="SnapshotBtn" Style="{StaticResource CapsuleButton}" Click="SnapshotBtn_Click" IsEnabled="False"
+                        AutomationProperties.Name="Snapshot" ToolTipService.ToolTip="Save a still image (Ctrl+Shift+S)">
+                    <StackPanel Orientation="Horizontal" Spacing="7">
+                        <FontIcon Glyph="&#xE722;" FontSize="14" /><TextBlock Text="Snapshot" />
+                    </StackPanel>
+                </Button>
+                <Button x:Name="RecordBtn" Style="{StaticResource CapsuleButton}" Click="RecordBtn_Click" IsEnabled="False"
+                        AutomationProperties.Name="● Record" ToolTipService.ToolTip="Start or stop recording (Ctrl+R)">
+                    <StackPanel Orientation="Horizontal" Spacing="7">
+                        <FontIcon x:Name="RecordIcon" Glyph="&#xE7C8;" FontSize="14" />
+                        <TextBlock x:Name="RecordLabel" Text="Record" FontWeight="SemiBold" />
+                    </StackPanel>
+                </Button>
+                <Button x:Name="StreamBtn" Style="{StaticResource CapsuleButton}" IsEnabled="False"
+                        ToolTipService.ToolTip="Livestreaming arrives in a later batch">
+                    <StackPanel Orientation="Horizontal" Spacing="7">
+                        <FontIcon Glyph="&#xEC05;" FontSize="14" /><TextBlock Text="Stream" />
+                    </StackPanel>
+                </Button>
+                <Rectangle Width="1" Height="22" Fill="{StaticResource DgEdge}" Margin="4,0" VerticalAlignment="Center" />
+                <DropDownButton x:Name="ProfileButton" Height="38" CornerRadius="19" Padding="14,0,10,0"
+                                Background="{StaticResource DgWell}" BorderBrush="{StaticResource DgEdge}" BorderThickness="1"
+                                AutomationProperties.Name="Output profile" ToolTipService.ToolTip="Output resolution and frame rate">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock x:Name="ProfileName" Text="Meetings" FontWeight="Medium" VerticalAlignment="Center" />
+                        <TextBlock VerticalAlignment="Center" FontSize="12" Foreground="{StaticResource DgDim}">
+                            <Run x:Name="ProfilePillTopRun" /><Run Text=" " /><Run x:Name="ProfilePillBottomRun" />
+                        </TextBlock>
+                        <TextBlock x:Name="ProfilePillTop" Visibility="Collapsed" /><TextBlock x:Name="ProfilePillBottom" Visibility="Collapsed" />
+                    </StackPanel>
+                    <DropDownButton.Flyout>
+                        <MenuFlyout x:Name="ProfileMenu" Placement="Bottom" />
+                    </DropDownButton.Flyout>
+                </DropDownButton>
+                <Button x:Name="DonateBtn" Style="{StaticResource CapsuleButton}" Click="DonateBtn_Click" Visibility="Collapsed"
+                        AutomationProperties.Name="Donate" ToolTipService.ToolTip="Support OpenKamera (PayPal or UPI)">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Text="🙏" FontFamily="Segoe UI Emoji" FontSize="14" VerticalAlignment="Center" />
+                        <TextBlock Text="Donate" Foreground="{StaticResource DgAccentBrush}" />
+                    </StackPanel>
+                </Button>
+                <DropDownButton Height="38" Width="44" CornerRadius="19" Padding="0" Background="Transparent" BorderThickness="0"
+                                AutomationProperties.Name="View options" ToolTipService.ToolTip="View options">
+                    <FontIcon Glyph="&#xE713;" FontSize="15" />
+                    <DropDownButton.Flyout>
+                        <MenuFlyout Placement="BottomEdgeAlignedRight">
+                            <MenuFlyoutItem x:Name="LeftPaneToggle" Text="Show or hide the control panel" Click="LeftPaneToggle_Click">
+                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE89F;" /></MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
+                            <MenuFlyoutItem x:Name="RightPaneToggle" Text="Show or hide framing and scenes" Click="RightPaneToggle_Click">
+                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8A9;" /></MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
+                            <MenuFlyoutItem x:Name="SaveWindowPicture" Text="Save a picture of this window" Click="SaveWindowPicture_Click">
+                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE722;" /></MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
+                            <MenuFlyoutItem Text="Open the gallery" Click="GalleryBtn_Click">
+                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xF0E2;" /></MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
+                        </MenuFlyout>
+                    </DropDownButton.Flyout>
+                </DropDownButton>
+            </StackPanel>
+        </Border>
+
+        <!-- ═══ HUD pills (top-right of the video) ═══ -->
+        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" VerticalAlignment="Top"
+                    Margin="0,90,272,0" IsHitTestVisible="False">
+            <Border x:Name="RecPill" Background="{StaticResource DgRecBrush}" CornerRadius="14" Padding="10,5" Visibility="Collapsed">
+                <TextBlock x:Name="RecPillText" Text="● REC" FontSize="12" FontWeight="SemiBold" Foreground="White" />
+            </Border>
+            <Border Background="#88000000" CornerRadius="14" Padding="10,5">
+                <TextBlock x:Name="HudText" FontSize="12" Foreground="{StaticResource DgText}" Text="No device open" />
+            </Border>
+        </StackPanel>
+
+        <!-- ═══ Left sheet ═══ -->
+        <Border x:Name="LeftPane" Style="{StaticResource Glass}" Width="316" Margin="18,86,0,150"
+                HorizontalAlignment="Left" VerticalAlignment="Stretch" Padding="14">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <Border Background="#66000000" CornerRadius="12" Padding="3">
+                    <SelectorBar x:Name="SidebarTabs" SelectionChanged="SidebarTabs_SelectionChanged" HorizontalAlignment="Stretch">
+                        <SelectorBarItem x:Name="TabCamera" Text="Camera" IsSelected="True" ToolTipService.ToolTip="Camera, background, look" />
+                        <SelectorBarItem x:Name="TabAudio" Text="Audio" ToolTipService.ToolTip="Microphones and audio effects" />
+                        <SelectorBarItem x:Name="TabLayers" Text="Layers" ToolTipService.ToolTip="Scene layers" />
+                    </SelectorBar>
+                </Border>
+
+                <!-- Camera tab -->
+                <ScrollViewer x:Name="CameraPanel" Grid.Row="1" Padding="0,0,6,0" VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
+                        <Grid>
+                            <TextBlock Text="Source" Style="{StaticResource SectionLabel}" />
+                            <TextBlock x:Name="SourceInfo" Text="" Style="{StaticResource SectionValue}" />
+                        </Grid>
+                        <Border Background="{StaticResource DgWell}" CornerRadius="12" Padding="10,6">
+                            <Grid ColumnSpacing="6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Ellipse x:Name="SourceDot" Width="8" Height="8" Fill="#66FFFFFF" VerticalAlignment="Center" />
+                                <ComboBox x:Name="DeviceBox" Grid.Column="1" PlaceholderText="Select camera" HorizontalAlignment="Stretch"
+                                          BorderThickness="0" Background="Transparent"
+                                          SelectionChanged="DeviceBox_SelectionChanged" AutomationProperties.Name="Camera device" />
+                                <Button x:Name="ConnectBtn" Grid.Column="2" Content="Connect" Click="ConnectBtn_Click" CornerRadius="10" />
+                            </Grid>
+                        </Border>
+                        <Grid Margin="0,8,0,0">
+                            <TextBlock Text="Focus" FontSize="12" Foreground="{StaticResource DgDim}" VerticalAlignment="Center" />
+                            <SelectorBar x:Name="FocusMode" SelectionChanged="FocusMode_SelectionChanged" IsEnabled="False" HorizontalAlignment="Right">
+                                <SelectorBarItem x:Name="FocusAuto" Text="AF" IsSelected="True" ToolTipService.ToolTip="Autofocus" />
+                                <SelectorBarItem x:Name="FocusManual" Text="MF" ToolTipService.ToolTip="Manual focus (Focus slider under Camera hardware)" />
+                            </SelectorBar>
+                        </Grid>
+
+                        <Grid>
+                            <TextBlock Text="Background" Style="{StaticResource SectionLabel}" />
+                            <TextBlock x:Name="BgValue" Text="Off" Style="{StaticResource SectionValue}" />
+                        </Grid>
+                        <!-- State holder for the code; the tiles below drive it. -->
+                        <SelectorBar x:Name="BgMode" SelectionChanged="BgMode_SelectionChanged" Visibility="Collapsed">
+                            <SelectorBarItem x:Name="BgOff" Text="Off" IsSelected="True" />
+                            <SelectorBarItem x:Name="BgBlur" Text="Blur" />
+                            <SelectorBarItem x:Name="BgReplace" Text="Replace" />
+                            <SelectorBarItem x:Name="BgRemove" Text="Remove" />
+                        </SelectorBar>
+                        <Grid ColumnSpacing="6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition /><ColumnDefinition /><ColumnDefinition /><ColumnDefinition />
+                            </Grid.ColumnDefinitions>
+                            <ToggleButton x:Name="TileOff" Style="{StaticResource Tile}" Tag="off" Click="BgTile_Click"
+                                          AutomationProperties.Name="Background off" ToolTipService.ToolTip="Show the room as it is">
+                                <StackPanel Spacing="4"><FontIcon Glyph="&#xE77B;" FontSize="18" /><TextBlock Text="Off" FontSize="12" HorizontalAlignment="Center" /></StackPanel>
+                            </ToggleButton>
+                            <ToggleButton x:Name="TileBlur" Grid.Column="1" Style="{StaticResource Tile}" Tag="blur" Click="BgTile_Click"
+                                          AutomationProperties.Name="Blur background" ToolTipService.ToolTip="Blur the room behind you">
+                                <StackPanel Spacing="4"><FontIcon Glyph="&#xE7B3;" FontSize="18" /><TextBlock Text="Blur" FontSize="12" HorizontalAlignment="Center" /></StackPanel>
+                            </ToggleButton>
+                            <ToggleButton x:Name="TileReplace" Grid.Column="2" Style="{StaticResource Tile}" Tag="replace" Click="BgTile_Click"
+                                          AutomationProperties.Name="Replace background" ToolTipService.ToolTip="Put a background image behind you">
+                                <StackPanel Spacing="4">
+                                    <Border Width="26" Height="18" CornerRadius="5" HorizontalAlignment="Center">
+                                        <Border.Background>
+                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                                <GradientStop Color="#FF6A4BD8" Offset="0" /><GradientStop Color="#FFD86BC8" Offset="1" />
+                                            </LinearGradientBrush>
+                                        </Border.Background>
+                                    </Border>
+                                    <TextBlock Text="Replace" FontSize="12" HorizontalAlignment="Center" />
+                                </StackPanel>
+                            </ToggleButton>
+                            <ToggleButton x:Name="TileRemove" Grid.Column="3" Style="{StaticResource Tile}" Tag="remove" Click="BgTile_Click"
+                                          AutomationProperties.Name="Remove background" ToolTipService.ToolTip="Transparent background">
+                                <StackPanel Spacing="4">
+                                    <Grid Width="24" Height="18" HorizontalAlignment="Center">
+                                        <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition /><ColumnDefinition /><ColumnDefinition /></Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions><RowDefinition /><RowDefinition /><RowDefinition /></Grid.RowDefinitions>
+                                        <Rectangle Fill="#CCFFFFFF" /><Rectangle Grid.Column="2" Fill="#CCFFFFFF" />
+                                        <Rectangle Grid.Row="1" Grid.Column="1" Fill="#CCFFFFFF" /><Rectangle Grid.Row="1" Grid.Column="3" Fill="#CCFFFFFF" />
+                                        <Rectangle Grid.Row="2" Fill="#CCFFFFFF" /><Rectangle Grid.Row="2" Grid.Column="2" Fill="#CCFFFFFF" />
+                                    </Grid>
+                                    <TextBlock Text="Remove" FontSize="12" HorizontalAlignment="Center" />
+                                </StackPanel>
+                            </ToggleButton>
+                        </Grid>
+                        <Slider x:Name="BgBlurStrength" Minimum="0" Maximum="100" Value="45" Visibility="Collapsed" Margin="0,6,0,0"
+                                ValueChanged="Background_ValueChanged" AutomationProperties.Name="Blur strength (portrait to privacy)"
+                                ToolTipService.ToolTip="Left: portrait softness. Right: privacy blur." />
+                        <Grid x:Name="BgPickerRow" ColumnSpacing="6" Margin="0,8,0,0" Visibility="Collapsed">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <ComboBox x:Name="BgPicker" HorizontalAlignment="Stretch" SelectionChanged="BgPicker_SelectionChanged"
+                                      CornerRadius="10" AutomationProperties.Name="Background image" />
+                            <Button x:Name="BgImportBtn" Grid.Column="1" Style="{StaticResource IconButton}" Click="BgImportBtn_Click"
+                                    ToolTipService.ToolTip="Add your own background image" AutomationProperties.Name="Add background">
+                                <FontIcon Glyph="&#xE710;" FontSize="14" />
+                            </Button>
+                        </Grid>
+                        <Grid Margin="0,8,0,0">
+                            <TextBlock Text="Edge quality" FontSize="12" Foreground="{StaticResource DgDim}" VerticalAlignment="Center" />
+                            <SelectorBar x:Name="BgQuality" HorizontalAlignment="Right" SelectionChanged="BgQuality_SelectionChanged">
+                                <SelectorBarItem x:Name="BgQualityFast" Text="Fast" IsSelected="True" ToolTipService.ToolTip="Lightest on the GPU" />
+                                <SelectorBarItem x:Name="BgQualityHigh" Text="High" ToolTipService.ToolTip="Cleaner hair and edges" />
+                            </SelectorBar>
+                        </Grid>
+
+                        <Grid Margin="0,10,0,0">
+                            <TextBlock Text="Spotlight" FontSize="14" VerticalAlignment="Center" />
+                            <TextBlock x:Name="SpotlightValue" Text="" Margin="0,0,56,0" HorizontalAlignment="Right" VerticalAlignment="Center"
+                                       FontSize="12" Foreground="{StaticResource DgDim}" />
+                            <ToggleSwitch x:Name="SpotlightToggle" HorizontalAlignment="Right" MinWidth="0" OffContent="" OnContent=""
+                                          Toggled="Background_Toggled" AutomationProperties.Name="Spotlight" />
+                        </Grid>
+                        <Slider x:Name="SpotlightAmount" Minimum="0" Maximum="100" Value="40" IsEnabled="False"
+                                ValueChanged="Background_ValueChanged" AutomationProperties.Name="Spotlight amount" />
+                        <Grid>
+                            <TextBlock Text="Retouch" FontSize="14" VerticalAlignment="Center" />
+                            <ToggleSwitch x:Name="RetouchToggle" HorizontalAlignment="Right" MinWidth="0" OffContent="" OnContent=""
+                                          Toggled="Background_Toggled" AutomationProperties.Name="Retouch" />
+                        </Grid>
+                        <Slider x:Name="RetouchAmount" Minimum="0" Maximum="100" Value="50" IsEnabled="False"
+                                ValueChanged="Background_ValueChanged" AutomationProperties.Name="Retouch amount" />
+
+                        <Rectangle Height="1" Fill="{StaticResource DgEdge}" Margin="0,10,0,0" />
+                        <Expander x:Name="AdjustmentsExpander" Margin="0,6,0,0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                                  Background="Transparent" BorderThickness="0">
+                            <Expander.Header>
+                                <Grid>
+                                    <TextBlock VerticalAlignment="Center" Margin="0,0,40,0" TextTrimming="CharacterEllipsis">
+                                        <Run Text="Adjustments" FontSize="14" /><Run Text="  Brightness, colour" FontSize="12" Foreground="{StaticResource DgDim}" />
+                                    </TextBlock>
+                                    <Button x:Name="EnhanceReset" HorizontalAlignment="Right" Style="{StaticResource IconButton}"
+                                            Click="EnhanceReset_Click" ToolTipService.ToolTip="Reset adjustments and look"
+                                            AutomationProperties.Name="Reset adjustments">
+                                        <FontIcon Glyph="&#xE72C;" FontSize="13" />
+                                    </Button>
+                                </Grid>
+                            </Expander.Header>
+                            <StackPanel>
+                                <Slider x:Name="EnhBrightness" Header="Brightness" Minimum="20" Maximum="200" Value="100" ValueChanged="Enhance_ValueChanged" />
+                                <Slider x:Name="EnhContrast" Header="Contrast" Minimum="20" Maximum="200" Value="100" ValueChanged="Enhance_ValueChanged" />
+                                <Slider x:Name="EnhGamma" Header="Gamma" Minimum="40" Maximum="250" Value="100" ValueChanged="Enhance_ValueChanged" />
+                                <Slider x:Name="EnhSaturation" Header="Saturation" Minimum="0" Maximum="200" Value="100" ValueChanged="Enhance_ValueChanged" />
+                                <Slider x:Name="EnhVibrance" Header="Vibrance" Minimum="-100" Maximum="100" Value="0" ValueChanged="Enhance_ValueChanged" />
+                                <Slider x:Name="EnhHue" Header="Hue" Minimum="-180" Maximum="180" Value="0" ValueChanged="Enhance_ValueChanged" />
+                                <Slider x:Name="EnhTemperature" Header="Temperature" Minimum="-100" Maximum="100" Value="0" ValueChanged="Enhance_ValueChanged" />
+                                <Slider x:Name="EnhTint" Header="Tint" Minimum="-100" Maximum="100" Value="0" ValueChanged="Enhance_ValueChanged" />
+                                <Slider x:Name="EnhSharpness" Header="Sharpness" Minimum="0" Maximum="200" Value="0" ValueChanged="Enhance_ValueChanged" />
+                            </StackPanel>
+                        </Expander>
+
+                        <Grid>
+                            <TextBlock Text="Look" Style="{StaticResource SectionLabel}" />
+                            <TextBlock x:Name="LookValue" Text="None" Style="{StaticResource SectionValue}" />
+                        </Grid>
+                        <!-- Live filter previews; FilterBox/LutBox below hold the state. -->
+                        <ScrollViewer HorizontalScrollMode="Enabled" HorizontalScrollBarVisibility="Hidden" VerticalScrollMode="Disabled">
+                            <StackPanel x:Name="LookStrip" Orientation="Horizontal" Spacing="7" />
+                        </ScrollViewer>
+                        <ComboBox x:Name="FilterBox" Visibility="Collapsed" SelectionChanged="FilterBox_SelectionChanged" AutomationProperties.Name="Filter" />
+                        <Grid ColumnSpacing="6" Margin="0,8,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="LUT" FontSize="12" Foreground="{StaticResource DgDim}" VerticalAlignment="Center" />
+                            <ComboBox x:Name="LutBox" Grid.Column="1" HorizontalAlignment="Stretch" PlaceholderText="None" CornerRadius="10"
+                                      SelectionChanged="LutBox_SelectionChanged" AutomationProperties.Name="LUT" />
+                            <Button x:Name="ImportLutBtn" Grid.Column="2" Style="{StaticResource IconButton}" Click="ImportLutBtn_Click"
+                                    ToolTipService.ToolTip="Import a .cube LUT" AutomationProperties.Name="Import LUT">
+                                <FontIcon Glyph="&#xE8B5;" FontSize="14" />
+                            </Button>
+                            <Button x:Name="ClearLutBtn" Grid.Column="3" Style="{StaticResource IconButton}" Click="ClearLutBtn_Click"
+                                    ToolTipService.ToolTip="Remove the LUT" AutomationProperties.Name="Clear LUT">
+                                <FontIcon Glyph="&#xE711;" FontSize="14" />
+                            </Button>
+                        </Grid>
+                        <Slider x:Name="LutStrength" Minimum="0" Maximum="100" Value="100" ValueChanged="Enhance_ValueChanged"
+                                AutomationProperties.Name="LUT strength" ToolTipService.ToolTip="LUT strength" />
+
+                        <Expander Margin="0,6,0,0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                                  Background="Transparent" BorderThickness="0">
+                            <Expander.Header>
+                                <TextBlock Text="Camera hardware" FontSize="14" />
+                            </Expander.Header>
+                            <StackPanel Spacing="6">
+                                <TextBlock x:Name="ControlsHint" Text="Connect a camera to load its real property ranges."
+                                           Style="{StaticResource HintText}" />
+                                <StackPanel x:Name="ControlsPanel" Spacing="8" />
+                            </StackPanel>
+                        </Expander>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- Audio tab -->
+                <ScrollViewer x:Name="AudioPanel" Grid.Row="1" Padding="0,0,6,0" Visibility="Collapsed">
+                    <StackPanel>
+                        <TextBlock Text="Tracks" Style="{StaticResource SectionLabel}" />
+                        <Border Padding="12" CornerRadius="12" Background="{StaticResource DgWell}">
+                            <StackPanel Spacing="6">
+                                <TextBlock Text="Output" FontSize="14" />
+                                <ProgressBar Value="0" IsEnabled="False" />
+                                <TextBlock Text="The mixer, limiter, loudness and equaliser arrive in the audio batch."
+                                           Style="{StaticResource HintText}" />
+                            </StackPanel>
+                        </Border>
+                        <TextBlock Text="Connected" Style="{StaticResource SectionLabel}" />
+                        <ItemsControl x:Name="MicList">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="x:String">
+                                    <Border Margin="0,0,0,6" Padding="10,8" CornerRadius="12" Background="{StaticResource DgWell}">
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <FontIcon Glyph="&#xE720;" FontSize="14" />
+                                            <TextBlock Text="{x:Bind}" TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock x:Name="MicEmpty" Text="No microphones found." Style="{StaticResource HintText}" Visibility="Collapsed" />
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- Layers tab -->
+                <ScrollViewer x:Name="LayersPanel" Grid.Row="1" Padding="0,0,6,0" Visibility="Collapsed">
+                    <StackPanel>
+                        <Grid Margin="0,12,0,0" ColumnSpacing="4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBox x:Name="SceneNameBox" FontWeight="SemiBold" AutomationProperties.Name="Scene name" CornerRadius="10"
+                                     LostFocus="SceneNameBox_LostFocus" KeyDown="SceneNameBox_KeyDown" />
+                            <DropDownButton Grid.Column="1" Padding="6,4" CornerRadius="10" AutomationProperties.Name="Scene actions"
+                                            ToolTipService.ToolTip="Scene actions">
+                                <FontIcon Glyph="&#xE712;" FontSize="13" />
+                                <DropDownButton.Flyout>
+                                    <MenuFlyout Placement="BottomEdgeAlignedRight">
+                                        <MenuFlyoutItem Text="Duplicate scene" Click="SceneDuplicate_Click">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8C8;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem Text="Export as .okscene…" Click="SceneExport_Click">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEDE1;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutSeparator />
+                                        <MenuFlyoutItem x:Name="SceneResetItem" Text="Reset to original" Click="SceneResetOrDelete_Click">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE72C;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                    </MenuFlyout>
+                                </DropDownButton.Flyout>
+                            </DropDownButton>
+                        </Grid>
+                        <Grid Margin="0,8,0,0" ColumnSpacing="6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Background" VerticalAlignment="Center" FontSize="12" Foreground="{StaticResource DgDim}" Margin="0,0,6,0" />
+                            <DropDownButton x:Name="SceneBg1Btn" Grid.Column="1" Padding="4" AutomationProperties.Name="Background top colour"
+                                            ToolTipService.ToolTip="Background colour (top)" />
+                            <DropDownButton x:Name="SceneBg2Btn" Grid.Column="2" Padding="4" HorizontalAlignment="Left" Margin="6,0,0,0"
+                                            AutomationProperties.Name="Background bottom colour" ToolTipService.ToolTip="Background colour (bottom)" />
+                        </Grid>
+
+                        <Grid Margin="0,12,0,4">
+                            <TextBlock Text="Layers" VerticalAlignment="Center" FontSize="14" />
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="2">
+                                <DropDownButton x:Name="AddLayerBtn" Padding="6,4" CornerRadius="10" AutomationProperties.Name="Add layer" ToolTipService.ToolTip="Add a layer">
+                                    <FontIcon Glyph="&#xE710;" FontSize="13" />
+                                    <DropDownButton.Flyout>
+                                        <MenuFlyout Placement="BottomEdgeAlignedRight">
+                                            <MenuFlyoutItem Text="Text" Tag="text" Click="AddLayer_Click">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8D2;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem Text="Image or logo…" Tag="image" Click="AddLayer_Click">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEB9F;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem Text="Rectangle" Tag="rect" Click="AddLayer_Click">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE7EF;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem Text="Circle" Tag="ellipse" Click="AddLayer_Click">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEA3A;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="AddCameraItem" Text="Place video source" Tag="camera" Click="AddLayer_Click">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE714;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                        </MenuFlyout>
+                                    </DropDownButton.Flyout>
+                                </DropDownButton>
+                                <Button x:Name="UndoBtn" Style="{StaticResource IconButton}" Click="Undo_Click" IsEnabled="False"
+                                        ToolTipService.ToolTip="Undo (Ctrl+Z)" AutomationProperties.Name="Undo">
+                                    <FontIcon Glyph="&#xE7A7;" FontSize="13" />
+                                </Button>
+                                <Button x:Name="RedoBtn" Style="{StaticResource IconButton}" Click="Redo_Click" IsEnabled="False"
+                                        ToolTipService.ToolTip="Redo (Ctrl+Y)" AutomationProperties.Name="Redo">
+                                    <FontIcon Glyph="&#xE7A6;" FontSize="13" />
+                                </Button>
+                            </StackPanel>
+                        </Grid>
+                        <ListView x:Name="LayerList" SelectionMode="Single" SelectionChanged="LayerList_SelectionChanged"
+                                  AutomationProperties.Name="Layers">
+                            <ListView.ItemTemplate>
+                                <DataTemplate x:DataType="core:SceneLayer">
+                                    <Grid Padding="0,2" ColumnSpacing="8" Opacity="{x:Bind ListOpacity}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <FontIcon Glyph="{x:Bind Glyph}" FontSize="14" />
+                                        <TextBlock Grid.Column="1" Text="{x:Bind DisplayName}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                        <Button Grid.Column="2" Tag="{x:Bind Id}" Click="LayerEye_Click" Padding="6,2"
+                                                Background="Transparent" BorderThickness="0"
+                                                ToolTipService.ToolTip="Show or hide" AutomationProperties.Name="Show or hide layer">
+                                            <FontIcon Glyph="{x:Bind EyeGlyph}" FontSize="13" />
+                                        </Button>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                        </ListView>
+                        <TextBlock x:Name="LayersHint" Style="{StaticResource HintText}" Margin="0,4,0,0"
+                                   Text="Click a layer on the video or in this list to edit it. Drag to move; drag the gold dot to resize." />
+                        <StackPanel x:Name="PropsPanel" Spacing="6" Margin="0,12,0,0" />
+                    </StackPanel>
+                </ScrollViewer>
+            </Grid>
+        </Border>
+
+        <!-- ═══ Bottom-left: audio ═══ -->
+        <Border x:Name="AudioCard" Style="{StaticResource Glass}" Width="316" Height="118" Margin="18,0,0,18" Padding="16,14"
+                HorizontalAlignment="Left" VerticalAlignment="Bottom">
+            <StackPanel Spacing="6">
+                <Grid>
+                    <TextBlock Text="Audio" FontSize="12" Foreground="{StaticResource DgDim}" ToolTipService.ToolTip="Live levels arrive with the audio batch" />
+                    <TextBlock x:Name="MicName" Text="No microphone" FontSize="12" FontWeight="SemiBold" HorizontalAlignment="Right"
+                               TextTrimming="CharacterEllipsis" MaxWidth="200" />
+                </Grid>
+                <Grid ColumnSpacing="10">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                    <TextBlock Text="L" FontSize="12" Foreground="{StaticResource DgDim}" />
+                    <Border Grid.Column="1" Height="6" CornerRadius="3" Background="#1FFFFFFF" VerticalAlignment="Center" />
+                </Grid>
+                <Grid ColumnSpacing="10">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                    <TextBlock Text="R" FontSize="12" Foreground="{StaticResource DgDim}" />
+                    <Border Grid.Column="1" Height="6" CornerRadius="3" Background="#1FFFFFFF" VerticalAlignment="Center" />
+                </Grid>
+                <TextBlock Text="Levels arrive with the audio batch." FontSize="12" Foreground="{StaticResource DgDim}" TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+        </Border>
+
+        <!-- ═══ Right: framing ═══ -->
+        <Border x:Name="RightPane" Style="{StaticResource Glass}" Width="236" Margin="0,86,18,0" Padding="14"
+                HorizontalAlignment="Right" VerticalAlignment="Top">
+            <StackPanel Spacing="10">
+                <Grid>
+                    <TextBlock Text="Framing" FontSize="12" Foreground="{StaticResource DgDim}" />
+                    <TextBlock x:Name="ZoomLabel" Text="1.0×" FontSize="12" FontWeight="SemiBold" HorizontalAlignment="Right" />
+                </Grid>
+                <!-- Minimap: the box shows the visible part of the camera image. -->
+                <Border x:Name="Minimap" Height="118" CornerRadius="12" Padding="8" Background="#66000000">
+                    <Canvas x:Name="MinimapCanvas" SizeChanged="MinimapCanvas_SizeChanged">
+                        <Border x:Name="MinimapCrop" BorderThickness="2" CornerRadius="8"
+                                BorderBrush="{StaticResource DgAccentBrush}" Background="#22FFD36B" />
+                    </Canvas>
+                </Border>
+                <Slider x:Name="FrZoom" Minimum="100" Maximum="400" Value="100" ValueChanged="Framing_ValueChanged"
+                        AutomationProperties.Name="Zoom" ToolTipService.ToolTip="Zoom" />
+                <Slider x:Name="FrPanX" Minimum="-100" Maximum="100" Value="0" ValueChanged="Framing_ValueChanged"
+                        AutomationProperties.Name="Pan horizontal" ToolTipService.ToolTip="Pan left and right" />
+                <Slider x:Name="FrPanY" Minimum="-100" Maximum="100" Value="0" ValueChanged="Framing_ValueChanged"
+                        AutomationProperties.Name="Pan vertical" ToolTipService.ToolTip="Pan up and down" />
+                <SelectorBar x:Name="FramingMode" HorizontalAlignment="Center">
+                    <SelectorBarItem Text="Manual" IsSelected="True" />
+                    <SelectorBarItem Text="Auto" IsEnabled="False" ToolTipService.ToolTip="Auto-framing arrives with face tracking" />
+                    <SelectorBarItem Text="Smart" IsEnabled="False" ToolTipService.ToolTip="Smart zoom arrives with face tracking" />
+                </SelectorBar>
+                <Grid ColumnSpacing="6">
+                    <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition /><ColumnDefinition /></Grid.ColumnDefinitions>
+                    <ToggleButton x:Name="MirrorToggle" HorizontalAlignment="Stretch" Click="Framing_Changed" CornerRadius="10" FontSize="12"
+                                  Content="Mirror" ToolTipService.ToolTip="Mirror horizontally" AutomationProperties.Name="Mirror" />
+                    <Button x:Name="RotateBtn" Grid.Column="1" Style="{StaticResource WellButton}" Click="RotateBtn_Click"
+                            Content="Rotate" ToolTipService.ToolTip="Rotate 90°" AutomationProperties.Name="Rotate 90°" />
+                    <Button x:Name="FramingReset" Grid.Column="2" Style="{StaticResource WellButton}" Click="FramingReset_Click"
+                            Content="Reset" ToolTipService.ToolTip="Reset framing" AutomationProperties.Name="Reset framing" />
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <!-- ═══ Bottom centre: scene filmstrip ═══ -->
+        <Border x:Name="Filmstrip" Style="{StaticResource Glass}" Height="118" Margin="350,0,350,18" Padding="10"
+                HorizontalAlignment="Center" VerticalAlignment="Bottom">
+            <Grid ColumnSpacing="10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel VerticalAlignment="Center" Spacing="6">
+                    <ComboBox x:Name="SceneCategory" Width="44" SelectedIndex="0" CornerRadius="10" Padding="8,4"
+                              SelectionChanged="SceneCategory_SelectionChanged" AutomationProperties.Name="Scene category"
+                              ToolTipService.ToolTip="Show scenes: all, favourites or a category">
+                        <ComboBoxItem Content="All scenes" Tag="" />
+                        <ComboBoxItem Content="Favourites" Tag="*fav" />
+                        <ComboBoxItem Content="Professional" Tag="Professional" />
+                        <ComboBoxItem Content="Social" Tag="Social" />
+                        <ComboBoxItem Content="Streaming" Tag="Streaming" />
+                        <ComboBoxItem Content="Utility" Tag="Utility" />
+                    </ComboBox>
+                    <Button x:Name="GalleryBtn" Style="{StaticResource IconButton}" Width="44" Click="GalleryBtn_Click"
+                            Background="{StaticResource DgWell}"
+                            ToolTipService.ToolTip="Open the gallery (scenes, backgrounds, filters)" AutomationProperties.Name="Open gallery">
+                        <FontIcon Glyph="&#xF0E2;" FontSize="14" />
+                    </Button>
+                </StackPanel>
+                <ListView x:Name="SceneList" Grid.Column="1" SelectionMode="Single"
+                          ScrollViewer.HorizontalScrollMode="Enabled" ScrollViewer.HorizontalScrollBarVisibility="Hidden"
+                          ScrollViewer.VerticalScrollMode="Disabled"
+                          SelectionChanged="SceneList_SelectionChanged" ContainerContentChanging="SceneList_ContainerContentChanging"
+                          AutomationProperties.Name="Scenes">
+                    <ListView.ItemsPanel>
+                        <ItemsPanelTemplate><ItemsStackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                    </ListView.ItemsPanel>
+                    <ListView.ItemContainerStyle>
+                        <Style TargetType="ListViewItem" BasedOn="{StaticResource DefaultListViewItemStyle}">
+                            <Setter Property="Padding" Value="0" />
+                            <Setter Property="Margin" Value="0,0,10,0" />
+                            <Setter Property="MinWidth" Value="0" />
+                            <Setter Property="Width" Value="156" />
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                        </Style>
+                    </ListView.ItemContainerStyle>
+                    <ListView.ItemTemplate>
+                        <DataTemplate x:DataType="core:SceneDocument">
+                            <Grid Width="148" Height="96" CornerRadius="13" Background="#44000000">
+                                <Viewbox Stretch="UniformToFill">
+                                    <Canvas Width="320" Height="180" />
+                                </Viewbox>
+                                <Border HorizontalAlignment="Right" VerticalAlignment="Top" Margin="6" Padding="6,1" CornerRadius="6"
+                                        Background="#99000000" Opacity="{x:Bind ShortcutOpacity}">
+                                    <TextBlock FontSize="12" Foreground="{StaticResource DgText}">
+                                        <Run Text="Ctrl" /><Run Text=" " /><Run Text="{x:Bind Shortcut}" />
+                                    </TextBlock>
+                                </Border>
+                                <Grid VerticalAlignment="Bottom" Padding="10,16,10,6">
+                                    <Grid.Background>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                            <GradientStop Color="#00000000" Offset="0" /><GradientStop Color="#CC000000" Offset="1" />
+                                        </LinearGradientBrush>
+                                    </Grid.Background>
+                                    <TextBlock Text="{x:Bind Name}" FontSize="12" FontWeight="Medium" TextTrimming="CharacterEllipsis" />
+                                </Grid>
+                            </Grid>
+                        </DataTemplate>
+                    </ListView.ItemTemplate>
+                </ListView>
+                <Button x:Name="NewSceneBtn" Grid.Column="2" Width="64" Height="96" CornerRadius="13" Click="NewSceneBtn_Click"
+                        Background="Transparent" BorderBrush="{StaticResource DgEdge}" BorderThickness="1.5"
+                        ToolTipService.ToolTip="Create a new scene" AutomationProperties.Name="New scene">
+                    <FontIcon Glyph="&#xE710;" FontSize="20" Foreground="{StaticResource DgDim}" />
+                </Button>
+            </Grid>
+        </Border>
+
+        <!-- ═══ Status toast (bottom-right) ═══ -->
+        <Border Background="#99000000" CornerRadius="12" Padding="12,6" Margin="0,0,18,18" MaxWidth="320"
+                HorizontalAlignment="Right" VerticalAlignment="Bottom" IsHitTestVisible="False">
+            <TextBlock x:Name="StatusText" Text="Ready." FontSize="12" Foreground="{StaticResource DgDim}" TextWrapping="Wrap" MaxLines="3" />
+        </Border>
+    </Grid>
+</Page>

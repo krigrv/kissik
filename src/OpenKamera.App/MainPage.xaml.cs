@@ -1,0 +1,824 @@
+using OpenKamera.Core;
+using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
+using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
+using Microsoft.UI.Xaml.Media.Imaging;
+using Windows.Graphics.Imaging;
+using Windows.Storage;
+
+namespace OpenKamera_App;
+
+public sealed partial class MainPage : Page
+{
+    private readonly CameraCatalog _catalog = new();
+    private readonly AppSettings _settings = AppSettings.Load();
+    private CaptureSession? _session;
+    private CameraController? _controller;
+    private bool _updatingPreview;
+    private int _processing, _skipped;
+    private readonly FpsCounter _fps = new();
+    private OutputProfile _profile = OutputProfile.P720;
+    private CompositeRecorder? _recorder;
+    private DonationInfo _donation = new();
+    private readonly System.Diagnostics.Stopwatch _recordClock = new();
+    private DateTimeOffset _lastSaved = DateTimeOffset.MinValue;
+    // Immutable snapshots, swapped on the UI thread and read on the frame thread.
+    private volatile ImageFilters.Adjustments _adj = ImageFilters.Adjustments.Neutral;
+    private volatile FrameTransform _transform = FrameTransform.Identity;
+    private readonly List<Lut3D> _luts = [];
+    private readonly BackgroundPipeline _bgPipeline = new();
+    private volatile BackgroundSettings _bg = BackgroundSettings.Off;
+    private bool _restoring;
+
+    public MainPage()
+    {
+        InitializeComponent();
+        Current = this;
+        Loaded += MainPage_Loaded;
+        Unloaded += async (_, _) => { if (_session is not null) await _session.DisposeAsync(); _bgPipeline.Dispose(); };
+    }
+
+    private async void MainPage_Loaded(object sender, RoutedEventArgs e)
+    {
+        BuildProfileMenu();
+        InitScenes();
+        AddShortcuts();
+        _donation = DonationInfo.Load(Path.Combine(AppContext.BaseDirectory, "donate.json"));
+        DonateBtn.Visibility = _donation.IsConfigured ? Visibility.Visible : Visibility.Collapsed;
+        RestoreLook();
+        BuildLookStrip();
+        await RefreshMicrophonesAsync();
+        await RefreshDevicesAsync();
+    }
+
+    /// <summary>Ctrl+1…9 switch scenes, Ctrl+R records, Ctrl+Shift+S takes a snapshot.</summary>
+    private void AddShortcuts()
+    {
+        for (int i = 0; i < 9; i++)
+        {
+            int n = i + 1;
+            var acc = new Microsoft.UI.Xaml.Input.KeyboardAccelerator
+            {
+                Key = Windows.System.VirtualKey.Number1 + i,
+                Modifiers = Windows.System.VirtualKeyModifiers.Control,
+            };
+            acc.Invoked += (_, a) => { SelectSceneByShortcut(n); a.Handled = true; };
+            KeyboardAccelerators.Add(acc);
+        }
+        foreach (var (key, mods, act) in new (Windows.System.VirtualKey, Windows.System.VirtualKeyModifiers, Action)[]
+        {
+            (Windows.System.VirtualKey.Z, Windows.System.VirtualKeyModifiers.Control, Undo),
+            (Windows.System.VirtualKey.Y, Windows.System.VirtualKeyModifiers.Control, Redo),
+            (Windows.System.VirtualKey.Delete, Windows.System.VirtualKeyModifiers.None, DeleteSelectedLayer),
+        })
+        {
+            var acc = new Microsoft.UI.Xaml.Input.KeyboardAccelerator { Key = key, Modifiers = mods };
+            acc.Invoked += (_, a) =>
+            {
+                // Leave Ctrl+Z / Delete to text boxes while typing.
+                if (Microsoft.UI.Xaml.Input.FocusManager.GetFocusedElement(XamlRoot) is TextBox) return;
+                act(); a.Handled = true;
+            };
+            KeyboardAccelerators.Add(acc);
+        }
+        var rec = new Microsoft.UI.Xaml.Input.KeyboardAccelerator { Key = Windows.System.VirtualKey.R, Modifiers = Windows.System.VirtualKeyModifiers.Control };
+        rec.Invoked += (_, a) => { if (RecordBtn.IsEnabled) RecordBtn_Click(RecordBtn, new RoutedEventArgs()); a.Handled = true; };
+        KeyboardAccelerators.Add(rec);
+        var snap = new Microsoft.UI.Xaml.Input.KeyboardAccelerator
+        {
+            Key = Windows.System.VirtualKey.S,
+            Modifiers = Windows.System.VirtualKeyModifiers.Control | Windows.System.VirtualKeyModifiers.Shift,
+        };
+        snap.Invoked += (_, a) => { if (SnapshotBtn.IsEnabled) SnapshotBtn_Click(SnapshotBtn, new RoutedEventArgs()); a.Handled = true; };
+        KeyboardAccelerators.Add(snap);
+        KeyboardAcceleratorPlacementMode = Microsoft.UI.Xaml.Input.KeyboardAcceleratorPlacementMode.Hidden;
+    }
+
+    private async Task RefreshMicrophonesAsync()
+    {
+        try
+        {
+            var mics = await Windows.Devices.Enumeration.DeviceInformation.FindAllAsync(
+                Windows.Devices.Enumeration.DeviceClass.AudioCapture);
+            var names = mics.Where(m => m.IsEnabled).Select(m => m.Name).ToList();
+            MicList.ItemsSource = names;
+            MicEmpty.Visibility = names.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+            MicName.Text = names.FirstOrDefault() ?? "No microphone";
+        }
+        catch (Exception ex) { Status("Microphone list failed: " + ex.Message); }
+    }
+
+    private void SidebarTabs_SelectionChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args)
+    {
+        if (CameraPanel is null) return; // fires during InitializeComponent
+        var tab = sender.SelectedItem;
+        CameraPanel.Visibility = tab == TabCamera ? Visibility.Visible : Visibility.Collapsed;
+        AudioPanel.Visibility = tab == TabAudio ? Visibility.Visible : Visibility.Collapsed;
+        LayersPanel.Visibility = tab == TabLayers ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    // Glass panels float over the video, so hiding them just reveals more picture.
+    private void LeftPaneToggle_Click(object sender, RoutedEventArgs e) => TogglePanes(LeftPane, AudioCard);
+    private void RightPaneToggle_Click(object sender, RoutedEventArgs e) => TogglePanes(RightPane, Filmstrip);
+
+    private static void TogglePanes(params FrameworkElement[] panes)
+    {
+        bool show = panes[0].Visibility != Visibility.Visible;
+        foreach (var p in panes) p.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void NewSceneBtn_Click(object sender, RoutedEventArgs e)
+    {
+        var s = SceneLibrary.CreateBlank();
+        RefreshSceneRail(s.Id);
+        TabLayers.IsSelected = true;
+        Status("New scene created: add layers in the Layers tab.");
+    }
+
+    // ── Background tiles (drive the BgMode state holder) ──
+    private void BgTile_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not ToggleButton { Tag: string t }) return;
+        BgMode.SelectedItem = t switch { "blur" => BgBlur, "replace" => BgReplace, "remove" => BgRemove, _ => BgOff };
+        UpdateBackground();
+    }
+
+    private void SyncBgTiles(BackgroundMode mode)
+    {
+        var accent = (Microsoft.UI.Xaml.Media.Brush)Resources["DgAccentBrush"];
+        var none = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent);
+        foreach (var (tile, m) in new (ToggleButton, BackgroundMode)[]
+            { (TileOff, BackgroundMode.Off), (TileBlur, BackgroundMode.Blur), (TileReplace, BackgroundMode.Replace), (TileRemove, BackgroundMode.Remove) })
+        {
+            tile.IsChecked = m == mode;
+            tile.BorderBrush = m == mode ? accent : none;
+        }
+        BgValue.Text = mode switch
+        {
+            BackgroundMode.Blur => $"Blur {BgBlurStrength.Value:0}%",
+            BackgroundMode.Replace => (BgPicker.SelectedItem as BackgroundInfo)?.Name ?? "Replace",
+            BackgroundMode.Remove => "Removed",
+            _ => "Off",
+        };
+    }
+
+    /// <summary>Switches profile; a connected camera is restarted in the matching mode.</summary>
+    private async Task ChangeProfileAsync(OutputProfile p)
+    {
+        if (_recorder is not null)
+        {
+            Status("Stop recording before changing the profile.");
+            BuildProfileMenu(); // re-check the current profile
+            return;
+        }
+        ApplyProfile(p);
+        _settings.ProfileName = p.Name; _settings.Save();
+        if (_session is not null && DeviceBox.SelectedItem is CameraDeviceInfo cam)
+        {
+            Status($"Switching camera to suit {p.Name}…");
+            try
+            {
+                await _session.StartAsync(cam.Id, p);
+                _bgPipeline.Dispose(); // masks were sized for the old output
+                Status($"Profile: {p.Name} ({p.Details}) — camera mode {_session.Mode?.ToString() ?? "default"}");
+            }
+            catch (Exception ex) { Status("Profile switch failed: " + ex.Message); }
+        }
+        else Status($"Profile: {p.Name} ({p.Details})");
+    }
+
+    private void ApplyProfile(OutputProfile p)
+    {
+        _profile = p;
+        ProfileName.Text = p.Name;
+        ProfilePillTop.Text = p.PillTop;
+        ProfilePillBottom.Text = p.PillBottom;
+        ProfilePillTopRun.Text = p.PillTop;
+        ProfilePillBottomRun.Text = p.PillBottom.ToLowerInvariant();
+        Stage.Width = p.IsVertical ? 720 : 1280;
+        Stage.Height = p.IsVertical ? 1280 : 720;
+        RenderScene(); // layers are normalised; re-lay them out and re-capture at the new size
+    }
+
+    /// <summary>Radio menu of output profiles; the details ("1080p 16:9 at 30 FPS") sit on the right.</summary>
+    private void BuildProfileMenu()
+    {
+        var current = OutputProfile.All.FirstOrDefault(p => p.Name == _settings.ProfileName) ?? OutputProfile.P720;
+        ProfileMenu.Items.Clear();
+        foreach (var p in OutputProfile.All)
+        {
+            var item = new RadioMenuFlyoutItem
+            {
+                Text = p.Name, GroupName = "profiles", IsChecked = p == current,
+                KeyboardAcceleratorTextOverride = p.Details, Tag = p,
+            };
+            item.Click += async (_, _) => await ChangeProfileAsync(p);
+            ProfileMenu.Items.Add(item);
+        }
+        ApplyProfile(current);
+    }
+
+    private void FocusMode_SelectionChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args)
+    {
+        if (_controller is null || _restoring) return;
+        bool auto = sender.SelectedItem == FocusAuto;
+        bool ok = _controller.TrySet("Focus", _controller.GetProperties().FirstOrDefault(p => p.Name == "Focus")?.Value ?? 0, auto);
+        Status(ok ? $"Focus: {(auto ? "auto" : "manual")}" : "Focus mode rejected by device");
+    }
+
+
+    private void MinimapCanvas_SizeChanged(object sender, SizeChangedEventArgs e) => UpdateMinimap();
+
+    /// <summary>Draws the visible crop window inside the minimap.</summary>
+    private void UpdateMinimap()
+    {
+        if (MinimapCanvas is null || MinimapCrop is null) return;
+        double w = MinimapCanvas.ActualWidth, h = MinimapCanvas.ActualHeight;
+        if (w <= 0 || h <= 0) return;
+        var t = _transform;
+        double zoom = Math.Max(1, t.Zoom);
+        double cw = w / zoom, ch = h / zoom;
+        MinimapCrop.Width = cw; MinimapCrop.Height = ch;
+        Canvas.SetLeft(MinimapCrop, (w - cw) / 2 * (1 + t.PanX));
+        Canvas.SetTop(MinimapCrop, (h - ch) / 2 * (1 + t.PanY));
+        ZoomLabel.Text = $"{zoom:0.0}×";
+    }
+
+    private IEnumerable<Slider> EnhanceSliders =>
+        [EnhBrightness, EnhContrast, EnhGamma, EnhSaturation, EnhVibrance, EnhHue, EnhTemperature, EnhTint, EnhSharpness, LutStrength];
+
+    /// <summary>Loads saved Enhance/Filter/LUT/Framing state and the LUT library.</summary>
+    private void RestoreLook()
+    {
+        _restoring = true;
+        FilterBox.ItemsSource = Enum.GetValues<FilterPreset>().Select(FilterLabel).ToList();
+        FilterBox.SelectedIndex = (int)_settings.Filter;
+        foreach (var s in EnhanceSliders)
+            if (_settings.Enhance.TryGetValue(s.Name, out var v)) s.Value = Math.Clamp(v, s.Minimum, s.Maximum);
+        if (Directory.Exists(AppSettings.LutFolder))
+            foreach (var f in Directory.EnumerateFiles(AppSettings.LutFolder, "*.cube"))
+                try { _luts.Add(Lut3D.Load(f)); } catch (Exception ex) { Status($"Skipped LUT {Path.GetFileName(f)}: {ex.Message}"); }
+        RefreshLutBox(_settings.LutName);
+        MirrorToggle.IsChecked = _settings.Mirror;
+        RestoreBackground();
+        _restoring = false;
+        UpdateBackground();
+        _transform = new FrameTransform(_settings.Mirror, _settings.Rotation);
+        UpdateAdjustments();
+    }
+
+    private static string FilterLabel(FilterPreset f) => f switch
+    {
+        FilterPreset.None => "No filter",
+        FilterPreset.BlackAndWhite => "Black & white",
+        _ => f.ToString(),
+    };
+
+    private void RefreshLutBox(string? select)
+    {
+        LutBox.ItemsSource = _luts.Select(l => l.Name).ToList();
+        LutBox.SelectedItem = _luts.FirstOrDefault(l => l.Name == select)?.Name;
+    }
+
+    private async Task RefreshDevicesAsync()
+    {
+        try
+        {
+            var cams = await _catalog.GetCamerasAsync();
+            DeviceBox.ItemsSource = cams;
+            var last = cams.FirstOrDefault(c => c.Id == _settings.LastDeviceId) ?? cams.FirstOrDefault();
+            DeviceBox.SelectedItem = last;
+            EmptyText.Visibility = cams.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+            Status($"Found {cams.Count} camera(s).");
+        }
+        catch (Exception ex) { Status("Camera enumeration failed: " + ex.Message); }
+    }
+
+    private void Status(string msg) => StatusText.Text = msg;
+
+    private void DeviceBox_SelectionChanged(object sender, SelectionChangedEventArgs e) { }
+
+    private async void ConnectBtn_Click(object sender, RoutedEventArgs e)
+    {
+        if (_session is not null)
+        {
+            if (_recorder is not null) await StopRecordingAsync();
+            await _session.DisposeAsync();
+            _session = null; _controller = null;
+            ConnectBtn.Content = "Connect";
+            SourceDot.Fill = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(102, 255, 255, 255));
+            SourceInfo.Text = "";
+            SnapshotBtn.IsEnabled = RecordBtn.IsEnabled = false;
+            ControlsPanel.Children.Clear();
+            FocusMode.IsEnabled = false;
+            EmptyText.Visibility = Visibility.Visible;
+            PreviewImage.Source = null;
+            HudText.Text = "No device open";
+            Status("Disconnected.");
+            return;
+        }
+        if (DeviceBox.SelectedItem is not CameraDeviceInfo cam)
+        {
+            Status("No device open! Please connect the webcam!");
+            EmptyText.Visibility = Visibility.Visible;
+            return;
+        }
+        try
+        {
+            ConnectBtn.IsEnabled = false;
+            _session = new CaptureSession();
+            _session.FrameAvailable += OnFrame;
+            await _session.StartAsync(cam.Id, _profile);
+            _controller = _session.Controls is { } c ? new CameraController(c) : null;
+            _settings.LastDeviceId = cam.Id;
+            _settings.Save();
+            BuildControls();
+            var focus = _controller?.GetProperties().FirstOrDefault(p => p.Name == "Focus");
+            FocusMode.IsEnabled = focus is { CanAuto: true };
+            if (focus is not null) { _restoring = true; FocusMode.SelectedItem = focus.Auto ? FocusAuto : FocusManual; _restoring = false; }
+            CameraPanel.ChangeView(null, 0, null, disableAnimation: true);
+            ConnectBtn.Content = "Disconnect";
+            SourceDot.Fill = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 91, 255, 143));
+            SnapshotBtn.IsEnabled = RecordBtn.IsEnabled = true;
+            EmptyText.Visibility = Visibility.Collapsed;
+            HudText.Text = cam.Name;
+            Status($"Connected: {cam.Name} — camera mode {_session.Mode?.ToString() ?? "default"} for {_profile.Name} ({_profile.Details})");
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // Windows camera privacy denied (or never answered) for this app.
+            Status("Camera access is off for OpenKamera. Turn it on in Settings → Privacy & security → Camera, then Connect again.");
+            _ = Windows.System.Launcher.LaunchUriAsync(new Uri("ms-settings:privacy-webcam"));
+            if (_session is not null) { await _session.DisposeAsync(); _session = null; }
+        }
+        catch (Exception ex)
+        {
+            Status("Connect failed: " + ex.Message);
+            if (_session is not null) { await _session.DisposeAsync(); _session = null; }
+        }
+        finally { ConnectBtn.IsEnabled = true; }
+    }
+
+    /// <summary>The look for the next frame. Overlays are excluded for the preview (XAML draws them live).</summary>
+    private FrameRecipe CurrentRecipe(bool withOverlay = false)
+    {
+        var p = _profile;
+        var overlay = _overlay;
+        return new FrameRecipe(_adj, _transform, _bg, p.Width, p.Height, _sceneSnapshot,
+            withOverlay && overlay is { Width: var ow, Height: var oh } && ow == p.Width && oh == p.Height ? overlay.Pixels : null);
+    }
+
+    /// <summary>
+    /// Frame-reader thread: process every frame once (at profile size), feed the recorder, then hand the
+    /// result to the preview if the UI is free. Frames that arrive while one is processing are skipped.
+    /// </summary>
+    private void OnFrame(SoftwareBitmap bmp)
+    {
+        if (Interlocked.Exchange(ref _processing, 1) == 1) { Interlocked.Increment(ref _skipped); return; }
+        byte[] pixels; int w, h;
+        try { (pixels, w, h) = FrameProcessor.ProcessPixels(bmp, CurrentRecipe(), _bgPipeline); }
+        catch { Volatile.Write(ref _processing, 0); return; }
+        _fps.Tick();
+        if (_recorder is { } rec)
+        {
+            // Recording gets the scene layers baked in; the preview shows them as live XAML instead.
+            var framePx = pixels;
+            if (_overlay is { } ov && ov.Width == w && ov.Height == h)
+            {
+                framePx = (byte[])pixels.Clone();
+                SceneCompositor.BlendOver(framePx, ov.Pixels);
+            }
+            rec.Push(framePx, w, h, _recordClock.Elapsed);
+        }
+        Volatile.Write(ref _processing, 0);
+
+        if (_updatingPreview) return;
+        _updatingPreview = true;
+        SoftwareBitmap copy;
+        try { copy = FrameProcessor.ToBitmap(pixels, w, h); }
+        catch { _updatingPreview = false; return; }
+        bool queued = DispatcherQueue.TryEnqueue(async () =>
+        {
+            try
+            {
+                var src = new SoftwareBitmapSource();
+                await src.SetBitmapAsync(copy);
+                PreviewImage.Source = src;
+                string fx = _bg.NeedsMask
+                    ? (_bgPipeline.LastError is { } err ? $" · effects error: {err}" : $" · effects {_bgPipeline.LastMs:0} ms{(_bgPipeline.UsesGpu ? " GPU" : " CPU")}")
+                    : "";
+                if (_recorder is not null)
+                {
+                    RecordLabel.Text = $"{_recordClock.Elapsed:mm\\:ss}";
+                    RecPillText.Text = $"● REC {_recordClock.Elapsed:mm\\:ss}";
+                }
+                HudText.Text = $"{copy.PixelHeight}p {_fps.Fps:0} fps{fx}";
+                if (_session?.Mode is { } m) SourceInfo.Text = $"{m.Width}×{m.Height} @ {m.Fps:0}";
+            }
+            catch (Exception ex) when (_session is not null) { Status("Preview error: " + ex.Message); }
+            catch { /* frame raced with disconnect */ }
+            finally { copy.Dispose(); _updatingPreview = false; }
+        });
+        if (!queued) { copy.Dispose(); _updatingPreview = false; }
+    }
+
+    private void BuildControls()
+    {
+        ControlsPanel.Children.Clear();
+        if (_controller is null) { ControlsHint.Text = "This camera exposes no controllable properties."; return; }
+        var props = _controller.GetProperties();
+        ControlsHint.Text = props.Count == 0
+            ? "This camera exposes no controllable properties."
+            : "Ranges come from the device. Focus/Zoom sliders drive while off-centre.";
+        foreach (var p in props)
+        {
+            bool bidirectional = p.Name is "Focus" or "Zoom";
+            var label = new TextBlock { Text = p.Name, FontSize = 12 };
+            ControlsPanel.Children.Add(label);
+            if (bidirectional)
+            {
+                var s = new Slider { Minimum = -100, Maximum = 100, Value = 0, Tag = p.Name };
+                s.ValueChanged += Lens_ValueChanged;
+                s.PointerReleased += (_, _) => s.Value = 0;
+                ControlsPanel.Children.Add(s);
+            }
+            else
+            {
+                var row = new Grid { ColumnSpacing = 8 };
+                row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                var s = new Slider
+                {
+                    Minimum = p.Min, Maximum = p.Max,
+                    StepFrequency = p.Step == 0 ? 1 : p.Step,
+                    Value = Math.Clamp(p.Value, p.Min, p.Max), Tag = p.Name,
+                };
+                s.ValueChanged += Property_ValueChanged;
+                Grid.SetColumn(s, 0);
+                row.Children.Add(s);
+                if (p.CanAuto)
+                {
+                    var auto = new CheckBox { Content = "Auto", IsChecked = p.Auto, Tag = p.Name };
+                    auto.Click += Auto_Click;
+                    Grid.SetColumn(auto, 1);
+                    row.Children.Add(auto);
+                }
+                ControlsPanel.Children.Add(row);
+            }
+        }
+    }
+
+    private void Property_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
+    {
+        if (_controller is null || sender is not Slider { Tag: string name }) return;
+        bool ok = _controller.TrySet(name, e.NewValue, auto: false);
+        var saved = _settings.ForDevice(_settings.LastDeviceId ?? "");
+        saved.Values[name] = e.NewValue;
+        _settings.Save();
+        Status($"{name} → {e.NewValue:0} ({(ok ? "applied" : "rejected by device")})");
+    }
+
+    private void Lens_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
+    {
+        if (_controller is null || sender is not Slider { Tag: string name }) return;
+        int v = (int)e.NewValue;
+        if (v == 0) return;
+        double? applied = _controller.Drive(name, v);
+        Status(applied is null ? $"{name}: not supported" : $"{name} driving… value {applied:0}");
+    }
+
+    private void Auto_Click(object sender, RoutedEventArgs e)
+    {
+        if (_controller is null || sender is not CheckBox { Tag: string name } cb) return;
+        _controller.TrySet(name, 0, auto: cb.IsChecked == true);
+        _settings.ForDevice(_settings.LastDeviceId ?? "").Auto[name] = cb.IsChecked == true;
+        _settings.Save();
+    }
+
+    private ImageFilters.Adjustments CurrentAdjustments() => _adj;
+
+    private void UpdateAdjustments()
+    {
+        if (_restoring) return;
+        _adj = new ImageFilters.Adjustments(
+            Brightness: EnhBrightness.Value / 100.0,
+            Contrast: EnhContrast.Value / 100.0,
+            Saturation: EnhSaturation.Value / 100.0,
+            Sharpness: EnhSharpness.Value / 100.0,
+            Gamma: EnhGamma.Value / 100.0,
+            Hue: EnhHue.Value,
+            Vibrance: EnhVibrance.Value / 100.0,
+            Temperature: EnhTemperature.Value / 100.0,
+            Tint: EnhTint.Value / 100.0,
+            Filter: (FilterPreset)Math.Max(0, FilterBox.SelectedIndex),
+            Lut: _luts.FirstOrDefault(l => l.Name == LutBox.SelectedItem as string),
+            LutStrength: LutStrength.Value / 100.0);
+    }
+
+    private void SaveLook()
+    {
+        if (_restoring) return;
+        foreach (var s in EnhanceSliders) _settings.Enhance[s.Name] = s.Value;
+        _settings.Filter = _adj.Filter;
+        _settings.LutName = _adj.Lut?.Name;
+        _settings.Mirror = _transform.Mirror;
+        _settings.Rotation = _transform.Rotation;
+        _settings.Save();
+    }
+
+    private void Enhance_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
+    {
+        if (_restoring || EnhSharpness is null || LutStrength is null) return; // fires during InitializeComponent
+        UpdateAdjustments(); SaveLook();
+    }
+
+    private void FilterBox_SelectionChanged(object sender, SelectionChangedEventArgs e) { UpdateAdjustments(); SaveLook(); SyncLookTiles(); }
+    private void LutBox_SelectionChanged(object sender, SelectionChangedEventArgs e) { UpdateAdjustments(); SaveLook(); SyncLookTiles(); }
+
+    private void EnhanceReset_Click(object sender, RoutedEventArgs e)
+    {
+        _restoring = true;
+        EnhBrightness.Value = EnhContrast.Value = EnhGamma.Value = EnhSaturation.Value = 100;
+        EnhVibrance.Value = EnhHue.Value = EnhTemperature.Value = EnhTint.Value = EnhSharpness.Value = 0;
+        FilterBox.SelectedIndex = 0;
+        LutBox.SelectedItem = null;
+        LutStrength.Value = 100;
+        _restoring = false;
+        UpdateAdjustments(); SaveLook();
+    }
+
+    private async void ImportLutBtn_Click(object sender, RoutedEventArgs e) => await ImportLutCoreAsync();
+
+    /// <summary>Picks, validates and stores a .cube LUT, then selects it. Returns null when cancelled or invalid.</summary>
+    internal async Task<Lut3D?> ImportLutCoreAsync()
+    {
+        var picker = new Windows.Storage.Pickers.FileOpenPicker();
+        picker.FileTypeFilter.Add(".cube");
+        WinRT.Interop.InitializeWithWindow.Initialize(picker, WinRT.Interop.WindowNative.GetWindowHandle(App.MainWindow));
+        var file = await picker.PickSingleFileAsync();
+        if (file is null) return null;
+        try
+        {
+            var lut = Lut3D.Load(file.Path); // validate before copying
+            Directory.CreateDirectory(AppSettings.LutFolder);
+            File.Copy(file.Path, Path.Combine(AppSettings.LutFolder, Path.GetFileName(file.Path)), overwrite: true);
+            _luts.RemoveAll(l => l.Name == lut.Name);
+            _luts.Add(lut);
+            RefreshLutBox(lut.Name);
+            Status($"LUT imported: {lut.Name} ({lut.Size}³)");
+            return lut;
+        }
+        catch (Exception ex) { Status("LUT import failed: " + ex.Message); return null; }
+    }
+
+    private void ClearLutBtn_Click(object sender, RoutedEventArgs e) => LutBox.SelectedItem = null;
+
+    // ── Background, Spotlight, Retouch ──────────────────────────────────
+
+    private void RestoreBackground()
+    {
+        var b = _settings.Background ?? BackgroundSettings.Off;
+        BgMode.SelectedItem = b.Mode switch
+        {
+            BackgroundMode.Blur => BgBlur, BackgroundMode.Replace => BgReplace, BackgroundMode.Remove => BgRemove, _ => BgOff,
+        };
+        BgBlurStrength.Value = b.BlurStrength * 100;
+        BgQuality.SelectedItem = b.Quality == SegmentationQuality.High ? BgQualityHigh : BgQualityFast;
+        SpotlightToggle.IsOn = b.Spotlight > 0;
+        if (b.Spotlight > 0) SpotlightAmount.Value = b.Spotlight * 100;
+        RetouchToggle.IsOn = b.Retouch > 0;
+        if (b.Retouch > 0) RetouchAmount.Value = b.Retouch * 100;
+        RefreshBackgroundPicker(b.BackgroundId);
+    }
+
+    private void RefreshBackgroundPicker(string? select)
+    {
+        var all = BackgroundLibrary.All();
+        BgPicker.ItemsSource = all;
+        BgPicker.DisplayMemberPath = nameof(BackgroundInfo.Name);
+        BgPicker.SelectedItem = all.FirstOrDefault(b => b.Id == select) ?? all.FirstOrDefault();
+    }
+
+    private void UpdateBackground()
+    {
+        if (_restoring || RetouchAmount is null || BgPicker is null) return; // fires during InitializeComponent
+        var item = BgMode.SelectedItem;
+        var mode = item == BgBlur ? BackgroundMode.Blur : item == BgReplace ? BackgroundMode.Replace
+                 : item == BgRemove ? BackgroundMode.Remove : BackgroundMode.Off;
+        BgBlurStrength.Visibility = mode == BackgroundMode.Blur ? Visibility.Visible : Visibility.Collapsed;
+        BgPickerRow.Visibility = mode == BackgroundMode.Replace ? Visibility.Visible : Visibility.Collapsed;
+        SyncBgTiles(mode);
+        SpotlightAmount.IsEnabled = SpotlightToggle.IsOn;
+        RetouchAmount.IsEnabled = RetouchToggle.IsOn;
+        SpotlightValue.Text = SpotlightToggle.IsOn ? $"{SpotlightAmount.Value:0} %" : "";
+        _bg = new BackgroundSettings(
+            Mode: mode,
+            BlurStrength: BgBlurStrength.Value / 100.0,
+            Spotlight: SpotlightToggle.IsOn ? SpotlightAmount.Value / 100.0 : 0,
+            Retouch: RetouchToggle.IsOn ? RetouchAmount.Value / 100.0 : 0,
+            BackgroundId: (BgPicker.SelectedItem as BackgroundInfo)?.Id,
+            Quality: BgQuality.SelectedItem == BgQualityHigh ? SegmentationQuality.High : SegmentationQuality.Fast);
+        _settings.Background = _bg;
+        _settings.Save();
+    }
+
+    private void BgMode_SelectionChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args) => UpdateBackground();
+    private void BgQuality_SelectionChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args) => UpdateBackground();
+    private void BgPicker_SelectionChanged(object sender, SelectionChangedEventArgs e) => UpdateBackground();
+    private void Background_ValueChanged(object sender, RangeBaseValueChangedEventArgs e) => UpdateBackground();
+    private void Background_Toggled(object sender, RoutedEventArgs e) => UpdateBackground();
+
+    private async void BgImportBtn_Click(object sender, RoutedEventArgs e)
+    {
+        var picker = new Windows.Storage.Pickers.FileOpenPicker();
+        foreach (var ext in new[] { ".png", ".jpg", ".jpeg" }) picker.FileTypeFilter.Add(ext);
+        WinRT.Interop.InitializeWithWindow.Initialize(picker, WinRT.Interop.WindowNative.GetWindowHandle(App.MainWindow));
+        var file = await picker.PickSingleFileAsync();
+        if (file is null) return;
+        try
+        {
+            string id = BackgroundLibrary.Import(file.Path);
+            RefreshBackgroundPicker(id);
+            Status($"Background added: {file.Name}");
+        }
+        catch (Exception ex) { Status("Background import failed: " + ex.Message); }
+    }
+
+    private void UpdateTransform()
+    {
+        if (_restoring || FrPanY is null) return;
+        _transform = new FrameTransform(
+            Mirror: MirrorToggle.IsChecked == true,
+            Rotation: _transform.Rotation,
+            Zoom: FrZoom.Value / 100.0,
+            PanX: FrPanX.Value / 100.0,
+            PanY: FrPanY.Value / 100.0);
+        UpdateMinimap();
+        SaveLook();
+    }
+
+    private void Framing_Changed(object sender, RoutedEventArgs e) => UpdateTransform();
+    private void Framing_ValueChanged(object sender, RangeBaseValueChangedEventArgs e) => UpdateTransform();
+
+    private void RotateBtn_Click(object sender, RoutedEventArgs e)
+    {
+        _transform = _transform with { Rotation = (_transform.Rotation + 90) % 360 };
+        UpdateTransform();
+    }
+
+    private void FramingReset_Click(object sender, RoutedEventArgs e)
+    {
+        _restoring = true;
+        MirrorToggle.IsChecked = false;
+        FrZoom.Value = 100; FrPanX.Value = FrPanY.Value = 0;
+        _restoring = false;
+        _transform = FrameTransform.Identity;
+        UpdateTransform();
+    }
+
+    private async void SnapshotBtn_Click(object sender, RoutedEventArgs e)
+    {
+        if (_session is null) return;
+        try
+        {
+            string folder = string.IsNullOrWhiteSpace(_settings.ImageFolder)
+                ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "OpenKamera")
+                : _settings.ImageFolder;
+            Directory.CreateDirectory(folder);
+            string path = Path.Combine(folder, $"OpenKamera-{DateTime.Now:yyyyMMdd-HHmmss}.png");
+            await _session.SaveSnapshotAsync(path, CurrentRecipe(withOverlay: true), _bgPipeline);
+            _lastSaved = DateTimeOffset.Now;
+            Status("Snapshot saved: " + path);
+        }
+        catch (Exception ex) { Status("Snapshot failed: " + ex.Message); }
+    }
+
+    private async void RecordBtn_Click(object sender, RoutedEventArgs e)
+    {
+        if (_session is null) return;
+        try
+        {
+            if (_recorder is not null) { await StopRecordingAsync(); return; }
+            string folder = string.IsNullOrWhiteSpace(_settings.RecordingFolder)
+                ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyVideos), "OpenKamera")
+                : _settings.RecordingFolder;
+            Directory.CreateDirectory(folder);
+            string path = Path.Combine(folder, $"OpenKamera-{DateTime.Now:yyyyMMdd-HHmmss}.mp4");
+            var rec = new CompositeRecorder(_profile.Width, _profile.Height, _profile.Fps);
+            await rec.StartAsync(path);
+            _recordClock.Restart();
+            _recorder = rec;
+            RecordLabel.Text = "00:00"; RecordIcon.Glyph = "";
+            RecordBtn.Background = (Microsoft.UI.Xaml.Media.Brush)Resources["DgRecBrush"];
+            RecordBtn.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.White);
+            RecPill.Visibility = Visibility.Visible;
+            AutomationProperties.SetName(RecordBtn, "■ Stop");
+            Status($"Recording {rec.Width}×{rec.Height} @ {rec.Fps} fps: {rec.Path}");
+        }
+        catch (Exception ex) { _recorder = null; Status("Record failed: " + ex.Message); }
+    }
+
+    /// <summary>Donation dialog: PayPal link and a scannable UPI QR with copyable UPI ID.</summary>
+    private async void DonateBtn_Click(object sender, RoutedEventArgs e)
+    {
+        var d = _donation;
+        var body = new StackPanel { Spacing = 14, MaxWidth = 380 };
+        if (!string.IsNullOrWhiteSpace(d.Message))
+            body.Children.Add(new TextBlock { Text = d.Message, TextWrapping = TextWrapping.Wrap });
+
+        if (d.HasPayPal)
+        {
+            var paypal = new Button
+            {
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                Style = (Style)Application.Current.Resources["AccentButtonStyle"],
+                Content = new StackPanel
+                {
+                    Orientation = Orientation.Horizontal, Spacing = 8,
+                    Children = { new FontIcon { Glyph = "", FontSize = 14 }, new TextBlock { Text = "Donate with PayPal" } },
+                },
+            };
+            AutomationProperties.SetName(paypal, "Donate with PayPal");
+            paypal.Click += async (_, _) => await Windows.System.Launcher.LaunchUriAsync(new Uri(d.PayPalUrl));
+            body.Children.Add(paypal);
+            body.Children.Add(new TextBlock
+            {
+                Text = d.PayPalUrl, FontSize = 11, HorizontalAlignment = HorizontalAlignment.Center,
+                Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorTertiaryBrush"],
+            });
+        }
+
+        if (d.HasUpi)
+        {
+            body.Children.Add(new TextBlock { Text = "UPI (India)", FontWeight = Microsoft.UI.Text.FontWeights.SemiBold });
+            var qr = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage();
+            using (var ms = new Windows.Storage.Streams.InMemoryRandomAccessStream())
+            {
+                await ms.WriteAsync(System.Runtime.InteropServices.WindowsRuntime.WindowsRuntimeBufferExtensions.AsBuffer(d.UpiQrPng()));
+                ms.Seek(0);
+                await qr.SetSourceAsync(ms);
+            }
+            var qrImage = new Image { Source = qr, Width = 220, Height = 220, HorizontalAlignment = HorizontalAlignment.Center };
+            AutomationProperties.SetName(qrImage, $"UPI QR code for {d.UpiId}");
+            body.Children.Add(new Border
+            {
+                Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.White),
+                CornerRadius = new CornerRadius(8), Padding = new Thickness(8), HorizontalAlignment = HorizontalAlignment.Center,
+                Child = qrImage,
+            });
+            body.Children.Add(new TextBlock
+            {
+                Text = "Scan with any UPI app — Google Pay, PhonePe, Paytm or BHIM.", FontSize = 12,
+                TextWrapping = TextWrapping.Wrap, HorizontalAlignment = HorizontalAlignment.Center,
+            });
+            var row = new Grid { ColumnSpacing = 8 };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            var id = new TextBox { Text = d.UpiId, IsReadOnly = true };
+            AutomationProperties.SetName(id, "UPI ID");
+            var copy = new Button { Content = "Copy" };
+            copy.Click += (_, _) =>
+            {
+                var pkg = new Windows.ApplicationModel.DataTransfer.DataPackage();
+                pkg.SetText(d.UpiId);
+                Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(pkg);
+                copy.Content = "Copied";
+            };
+            Grid.SetColumn(copy, 1);
+            row.Children.Add(id); row.Children.Add(copy);
+            body.Children.Add(row);
+        }
+
+        var dialog = new ContentDialog
+        {
+            Title = "Support OpenKamera",
+            Content = new ScrollViewer { Content = body },
+            CloseButtonText = "Close",
+            XamlRoot = XamlRoot,
+        };
+        await dialog.ShowAsync();
+    }
+
+    private async Task StopRecordingAsync()
+    {
+        var rec = _recorder;
+        if (rec is null) return;
+        _recorder = null; // stop feeding first
+        _recordClock.Stop();
+        RecordLabel.Text = "Record"; RecordIcon.Glyph = "";
+        RecordBtn.ClearValue(Control.BackgroundProperty);
+        RecordBtn.ClearValue(Control.ForegroundProperty);
+        RecPill.Visibility = Visibility.Collapsed;
+        AutomationProperties.SetName(RecordBtn, "● Record");
+        Status("Finishing recording…");
+        try
+        {
+            await rec.StopAsync();
+            Status($"Recording saved: {rec.Path} — {rec.FramesWritten} frames, {_recordClock.Elapsed:mm\\:ss}" +
+                   (rec.FramesDropped > 0 ? $", {rec.FramesDropped} dropped (encoder busy)" : ""));
+        }
+        catch (Exception ex) { Status("Recording failed while saving: " + ex.Message); }
+        finally { await rec.DisposeAsync(); }
+    }
+}

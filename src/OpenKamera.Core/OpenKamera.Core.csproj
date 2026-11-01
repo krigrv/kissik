@@ -1,0 +1,26 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="OpenKamera.Core.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Same Windows ML build the Windows App SDK ships: managed ONNX Runtime + DirectML. -->
+    <PackageReference Include="Microsoft.Windows.AI.MachineLearning" Version="2.4.89" />
+    <!-- QR codes for the UPI donation link (MIT). -->
+    <PackageReference Include="QRCoder" Version="1.6.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Segmentation models (Apache-2.0, see THIRD_PARTY.md). -->
+    <None Include="Models\*.onnx" CopyToOutputDirectory="PreserveNewest" Link="Models\%(Filename)%(Extension)" />
+  </ItemGroup>
+
+</Project>
