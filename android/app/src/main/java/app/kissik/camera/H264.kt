@@ -10,26 +10,30 @@ import java.nio.ByteOrder
 import kotlin.concurrent.thread
 
 /**
- * Hardware H.264 encoder. With [surfaceInput] the camera draws straight into the encoder (zero copy: the main
+ * Hardware video encoder: H.264 ("h264"), H.265 ("hevc", about half the data for the same picture) or 10-bit HLG
+ * H.265 ("hevc-hdr"). With [surfaceInput] the camera draws straight into the encoder (zero copy: the main
  * processor never touches a pixel, so 4K stays smooth and cool). Without it, frames are copied in with [encode],
  * a slower fallback. Each output is sent as one video packet:
  *
- *   'V' | flags (1 = keyframe) | uint64 LE presentation time in µs | H.264 Annex-B bytes
+ *   'V' | flags (1 = keyframe) | uint64 LE presentation time in µs | Annex-B bytes
  *
- * Keyframes carry SPS/PPS in front, so the PC can start decoding at any keyframe.
+ * Keyframes carry the parameter sets (SPS/PPS, plus VPS for H.265) in front, so the PC can start at any keyframe.
  */
-class H264Encoder(val width: Int, val height: Int, fps: Int, surfaceInput: Boolean = false,
+class H264Encoder(val width: Int, val height: Int, fps: Int, surfaceInput: Boolean = false, val kind: String = "h264",
                   private val onPacket: (ByteArray, Boolean) -> Unit) {
-    private val codec = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC)
+    private val hevc = kind.startsWith("hevc")
+    private val hdr = kind == "hevc-hdr"
+    private val mime = if (hevc) MediaFormat.MIMETYPE_VIDEO_HEVC else MediaFormat.MIMETYPE_VIDEO_AVC
+    private val codec = MediaCodec.createEncoderByType(mime)
     private var config: ByteArray? = null
     /** Where the camera draws, in zero-copy mode. */
     val surface: android.view.Surface?
     @Volatile private var running = true
-    private var bitrate = bitrate(width, height, fps)
+    private var bitrate = bitrate(width, height, fps) * (if (hevc) 6 else 10) / 10
     val maxBitrate = bitrate
 
     init {
-        val format = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, width, height).apply {
+        val format = MediaFormat.createVideoFormat(mime, width, height).apply {
             setInteger(MediaFormat.KEY_COLOR_FORMAT,
                 if (surfaceInput) MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface else MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible)
             if (surfaceInput) setLong(MediaFormat.KEY_REPEAT_PREVIOUS_FRAME_AFTER, 100_000) // a still scene keeps sending frames
@@ -41,12 +45,25 @@ class H264Encoder(val width: Int, val height: Int, fps: Int, surfaceInput: Boole
             // Low latency: no B-frames (they make the encoder hold frames back) and output each frame as it's ready.
             if (android.os.Build.VERSION.SDK_INT >= 29) setInteger(MediaFormat.KEY_MAX_B_FRAMES, 0)
             if (android.os.Build.VERSION.SDK_INT >= 30) setInteger(MediaFormat.KEY_LATENCY, 1)
-            setInteger(MediaFormat.KEY_PROFILE, MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline)
-            setInteger(MediaFormat.KEY_LEVEL, MediaCodecInfo.CodecProfileLevel.AVCLevel52)
+            when {
+                hdr -> {
+                    setInteger(MediaFormat.KEY_PROFILE, MediaCodecInfo.CodecProfileLevel.HEVCProfileMain10)
+                    setInteger(MediaFormat.KEY_COLOR_STANDARD, MediaFormat.COLOR_STANDARD_BT2020)
+                    setInteger(MediaFormat.KEY_COLOR_TRANSFER, MediaFormat.COLOR_TRANSFER_HLG)
+                    setInteger(MediaFormat.KEY_COLOR_RANGE, MediaFormat.COLOR_RANGE_LIMITED)
+                }
+                hevc -> setInteger(MediaFormat.KEY_PROFILE, MediaCodecInfo.CodecProfileLevel.HEVCProfileMain)
+                else -> {
+                    setInteger(MediaFormat.KEY_PROFILE, MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline)
+                    setInteger(MediaFormat.KEY_LEVEL, MediaCodecInfo.CodecProfileLevel.AVCLevel52)
+                }
+            }
         }
         runCatching { codec.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE) }.onFailure {
             // Some encoders refuse the low-latency profile settings: retry with the encoder's own defaults.
-            listOf(MediaFormat.KEY_PROFILE, MediaFormat.KEY_LEVEL, MediaFormat.KEY_LATENCY, MediaFormat.KEY_MAX_B_FRAMES).forEach { format.removeKey(it) }
+            // (Keep the 10-bit profile for HDR: without it the picture would be wrong, so let that fail instead.)
+            listOfNotNull(MediaFormat.KEY_PROFILE.takeIf { !hdr }, MediaFormat.KEY_LEVEL, MediaFormat.KEY_LATENCY, MediaFormat.KEY_MAX_B_FRAMES)
+                .forEach { format.removeKey(it) }
             codec.reset()
             codec.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
         }
@@ -126,6 +143,16 @@ class H264Encoder(val width: Int, val height: Int, fps: Int, surfaceInput: Boole
     }
 
     companion object {
+        /** Which formats this phone's hardware can encode: always "h264"; "hevc" and "hevc-hdr" when available. */
+        fun supported(): List<String> {
+            val encoders = android.media.MediaCodecList(android.media.MediaCodecList.REGULAR_CODECS).codecInfos.filter { it.isEncoder }
+            val hevc = encoders.filter { e -> e.supportedTypes.any { it.equals(MediaFormat.MIMETYPE_VIDEO_HEVC, true) } }
+            val main10 = hevc.any { e ->
+                runCatching { e.getCapabilitiesForType(MediaFormat.MIMETYPE_VIDEO_HEVC).profileLevels.any { it.profile == MediaCodecInfo.CodecProfileLevel.HEVCProfileMain10 } }.getOrDefault(false)
+            }
+            return listOfNotNull("h264", "hevc".takeIf { hevc.isNotEmpty() }, "hevc-hdr".takeIf { main10 })
+        }
+
         /** About 0.1 bits per pixel per frame: ~6 Mbps at 1080p30, ~25 Mbps at 4K30. Fine on a home network or USB. */
         fun bitrate(w: Int, h: Int, fps: Int) = (w.toLong() * h * fps / 10).coerceIn(1_000_000, 60_000_000).toInt()
     }

@@ -53,6 +53,8 @@ object Pro {
     val hdr = MutableStateFlow(false)
     /** "jpeg" (works with every KISSIK) or "h264" (hardware encoder; only when the PC asks for it). */
     val codec = MutableStateFlow("jpeg")
+    /** Formats this phone can send: "jpeg" plus what its encoder supports ("hevc-hdr" also needs a 10-bit camera). */
+    val codecs = MutableStateFlow(listOf("jpeg", "h264"))
     /** Phone-maker camera effect: "none", or one of [effects] (what this phone offers for the current camera). */
     val effect = MutableStateFlow("none")
     val effects = MutableStateFlow<List<String>>(emptyList())
@@ -163,7 +165,7 @@ object Pro {
             "fps" -> fps.value = if (value == "auto") 0 else value.toIntOrNull() ?: return true
             "stab" -> stab.value = value == "on"
             "hdr" -> hdr.value = value == "on"
-            "codec" -> if (value == "jpeg" || value == "h264") codec.value = value
+            "codec" -> if (value in codecs.value) codec.value = value
             "effect" -> if (value == "none" || value in effects.value) effect.value = value
             else -> return false
         }
@@ -175,7 +177,7 @@ object Pro {
         val n = JSONObject.NULL
         json.put("lenses", JSONArray(lenses.value.map { JSONObject().put("id", it.id).put("facing", it.facing).put("label", it.label) }))
         json.put("lens", lensId.value ?: n)
-        json.put("codecs", JSONArray(listOf("jpeg", "h264"))).put("codec", codec.value)
+        json.put("codecs", JSONArray(codecs.value)).put("codec", codec.value)
         json.put("effects", JSONArray(effects.value)).put("effect", effect.value)
         val c = caps.value ?: return
         json.put("evMin", c.evMin).put("evMax", c.evMax).put("evStep", c.evStep.toDouble()).put("ev", ev.value)

@@ -151,7 +151,9 @@ class StreamService : LifecycleService() {
 
         // Rebind the camera whenever the lens, the effective quality or the video format changes.
         lifecycleScope.launch {
-            combine(combine(Live.front, Pro.lensId, Live.quality, Live.saving, Pro.codec) { f, l, q, s, c -> BindKey(f, l, if (s) minOf(q, 480) else q, c, "none") }, Pro.effect) { k, e -> k.copy(effect = e) }
+            // Hardware video sets its frame rate when the stream is built, so a new rate rebuilds it (JPEG doesn't need to).
+            combine(combine(Live.front, Pro.lensId, Live.quality, Live.saving, Pro.codec) { f, l, q, s, c -> BindKey(f, l, if (s) minOf(q, 480) else q, c, "none") },
+                Pro.effect, Pro.fps) { k, e, fps -> k.copy(effect = e, fps = if (k.codec == "jpeg") 0 else fps) }
                 .distinctUntilChanged().collect { bindCamera(it) }
         }
         lifecycleScope.launch { merge(Pro.ev, Pro.iso, Pro.shutterNs, Pro.focus, Pro.wb, Pro.fps, Pro.stab, Pro.hdr).collect { applyPro() } }
@@ -195,7 +197,7 @@ class StreamService : LifecycleService() {
         }
     }
 
-    private data class BindKey(val front: Boolean, val lensId: String?, val quality: Int, val codec: String, val effect: String)
+    private data class BindKey(val front: Boolean, val lensId: String?, val quality: Int, val codec: String, val effect: String, val fps: Int = 0)
     private var boundLens: Pair<Boolean, String?>? = null
 
     private fun sizeFor(shortSide: Int) = ResolutionSelector.Builder()
@@ -224,7 +226,11 @@ class StreamService : LifecycleService() {
         }.map { it.first }
         val effectMode = Pro.EFFECTS.firstOrNull { it.first == key.effect && it.first in Pro.effects.value }?.second
         val selector = if (ext != null && effectMode != null) ext.getExtensionEnabledCameraSelector(base, effectMode) else wanted
-        val h264 = key.codec == "h264"
+        val h264 = key.codec != "jpeg" // any hardware video format
+        // 10-bit HDR needs the camera to deliver HLG frames too.
+        val hlg = runCatching { provider.getCameraInfo(base).querySupportedDynamicRanges(setOf(androidx.camera.core.DynamicRange.UNSPECIFIED)) }
+            .getOrNull()?.contains(androidx.camera.core.DynamicRange.HLG_10_BIT) == true
+        Pro.codecs.value = listOf("jpeg") + H264Encoder.supported().filter { it != "hevc-hdr" || hlg }
         // The phone's own screen gets a hardware preview (smooth, no work for the processor).
         // JPEG: frames for the PC come from an analysis stream at the full requested size.
         // H.264: the camera's video stream draws straight into the hardware encoder (zero copy).
@@ -242,15 +248,18 @@ class StreamService : LifecycleService() {
         if (!h264) encoder?.let { encoder = null; it.release() }
         val useCases = mutableListOf<UseCase>(pv)
         an?.let { useCases += it }
-        if (h264) useCases += VideoCapture.withOutput(VideoFeed(key.quality) { request ->
+        val videoFps = key.fps.takeIf { it > 0 } ?: 30
+        if (h264) useCases += VideoCapture.Builder(VideoFeed(key.quality) { request ->
             val size = request.resolution
-            val enc = runCatching { H264Encoder(size.width, size.height, Pro.fps.value.takeIf { it > 0 } ?: 30, surfaceInput = true, onPacket = ::sendVideo) }.getOrNull()
+            val enc = runCatching { H264Encoder(size.width, size.height, videoFps, surfaceInput = true, kind = key.codec, onPacket = ::sendVideo) }.getOrNull()
             if (enc?.surface == null) { request.willNotProvideSurface(); Live.message.value = "This phone's video encoder couldn't start."; return@VideoFeed }
             encoder?.release(); encoder = enc; needKey = true
-            netLog("zero-copy encoder ${size.width}x${size.height}")
+            netLog("zero-copy ${key.codec} encoder ${size.width}x${size.height} @ $videoFps fps")
             request.provideSurface(enc.surface, encoderExecutor) { if (encoder === enc) encoder = null; enc.release() }
             lifecycleScope.launch { sendStatus() }
-        })
+        }).setTargetFrameRate(android.util.Range(videoFps, videoFps))
+            .apply { if (key.codec == "hevc-hdr") setDynamicRange(androidx.camera.core.DynamicRange.HLG_10_BIT) }
+            .build()
         if (previous.isNotEmpty()) provider.unbind(*previous.toTypedArray()) // only our own streams; never the scanner's
         bound = useCases
         camera = runCatching { provider.bindToLifecycle(this, selector, *useCases.toTypedArray()) }
@@ -349,7 +358,7 @@ class StreamService : LifecycleService() {
         var enc = encoder
         if (enc == null || enc.width != image.width || enc.height != image.height) {
             enc?.release()
-            enc = runCatching { H264Encoder(image.width, image.height, Pro.fps.value.takeIf { it > 0 } ?: 30, onPacket = ::sendVideo) }.getOrNull()
+            enc = runCatching { H264Encoder(image.width, image.height, Pro.fps.value.takeIf { it > 0 } ?: 30, kind = Pro.codec.value, onPacket = ::sendVideo) }.getOrNull()
             if (enc == null) { Live.message.value = "This phone's video encoder couldn't start."; return }
             encoder = enc; needKey = true
             lifecycleScope.launch { sendStatus() }
