@@ -34,9 +34,8 @@ public sealed class SegmentedRecorder : IAsyncDisposable
     public SegmentedRecorder(int width, int height, int fps, bool withAudio = false) { _w = width; _h = height; _fps = fps; _audio = withAudio; }
 
     /// <summary>Write pieces with the GPU's hardware encoder when there is one (frames can then stay on the GPU).</summary>
-    // Off for v1: in launch testing the GPU encoder wrote ~1 fps from the webcam and a stop could leave a recording
-    // unfinished. The Windows transcoder is the proven path; turn this back on once GpuRecorder passes the live checks.
-    public bool PreferGpu { get; init; } = false;
+    // GPU encoder: passed the live check (132 s webcam, 3981 frames = 30 fps, audio full length, pieces joined).
+    public bool PreferGpu { get; init; } = true;
 
     /// <summary>True when the piece being written takes GPU frames (<see cref="PushTexture"/>).</summary>
     public bool TakesTextures => _current?.TakesTextures == true;
