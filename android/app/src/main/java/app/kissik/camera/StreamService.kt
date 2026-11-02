@@ -28,7 +28,6 @@ import android.hardware.camera2.CameraCharacteristics
 import androidx.camera.camera2.interop.Camera2CameraControl
 import androidx.camera.camera2.interop.Camera2CameraInfo
 import androidx.camera.core.FocusMeteringAction
-import androidx.camera.core.Preview
 import androidx.camera.core.SurfaceOrientedMeteringPointFactory
 import androidx.camera.core.UseCase
 import kotlinx.coroutines.flow.merge
@@ -192,26 +191,18 @@ class StreamService : LifecycleService() {
             ?: if (key.front) CameraSelector.DEFAULT_FRONT_CAMERA else CameraSelector.DEFAULT_BACK_CAMERA
         val other = if (key.front) CameraSelector.DEFAULT_BACK_CAMERA else CameraSelector.DEFAULT_FRONT_CAMERA
         val h264 = key.codec == "h264"
-        // JPEG: frames come from the analysis stream at full size. H.264: the camera draws straight into the hardware
-        // encoder, and a small analysis stream only feeds the on-phone preview.
-        val an = ImageAnalysis.Builder().setResolutionSelector(sizeFor(if (h264) 480 else key.quality))
-            .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
+        // Frames come from the analysis stream at the full requested size. JPEG needs RGBA; H.264 takes the camera's
+        // own YUV straight into the hardware encoder.
+        val an = ImageAnalysis.Builder().setResolutionSelector(sizeFor(key.quality))
+            .setOutputImageFormat(if (h264) ImageAnalysis.OUTPUT_IMAGE_FORMAT_YUV_420_888 else ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
             .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST).setTargetRotation(deviceRotation).build()
         an.setAnalyzer(analysisExecutor, ::onFrame)
+        val previous = analysis
         analysis = an
-        val useCases = mutableListOf<UseCase>(an)
-        if (h264) {
-            val preview = Preview.Builder().setResolutionSelector(sizeFor(key.quality)).build()
-            preview.setSurfaceProvider(encoderExecutor) { request ->
-                val size = request.resolution
-                val enc = runCatching { H264Encoder(size.width, size.height, Pro.fps.value.takeIf { it > 0 } ?: 30, ::sendVideo) }.getOrNull()
-                if (enc == null) { request.willNotProvideSurface(); Live.message.value = "This phone's video encoder couldn't start."; return@setSurfaceProvider }
-                encoder = enc; needKey = true
-                request.provideSurface(enc.surface, encoderExecutor) { if (encoder === enc) encoder = null; enc.release() }
-            }
-            useCases += preview
-        }
-        provider.unbindAll()
+        useH264 = h264
+        if (!h264) encoder?.let { encoder = null; it.release() }
+        val useCases = listOf<UseCase>(an)
+        previous?.let { provider.unbind(it) } // only our own stream; never the scanner's
         camera = runCatching { provider.bindToLifecycle(this, wanted, *useCases.toTypedArray()) }
             .recoverCatching { provider.bindToLifecycle(this, other, *useCases.toTypedArray()) }.getOrNull()
         if (camera == null) Live.message.value = "Couldn't open the camera. Is another app using it?"
@@ -247,10 +238,32 @@ class StreamService : LifecycleService() {
 
     private fun sendVideo(packet: ByteArray, key: Boolean) {
         val socket = ws ?: return
+        val enc = encoder
+        val queued = socket.queueSize()
+        // Smart bitrate: back off when the link can't keep up, creep back up when it's clear.
+        if (enc != null) {
+            if (queued > 1024 * 1024) enc.setBitrate(enc.currentBitrate * 3 / 4)
+            else if (queued < 64 * 1024 && key) enc.setBitrate(enc.currentBitrate * 9 / 8)
+        }
         if (needKey && !key) return
-        if (socket.queueSize() > 4 * 1024 * 1024) { needKey = true; encoder?.requestKeyframe(); return }
+        if (queued > 4 * 1024 * 1024) { needKey = true; enc?.requestKeyframe(); return }
         needKey = false
         socket.send(packet.toByteString())
+    }
+
+    @Volatile private var useH264 = false
+
+    /** H.264: hand the camera's YUV frame to the hardware encoder (made, or remade, to match the frame size). */
+    private fun encodeFrame(image: ImageProxy) {
+        var enc = encoder
+        if (enc == null || enc.width != image.width || enc.height != image.height) {
+            enc?.release()
+            enc = runCatching { H264Encoder(image.width, image.height, Pro.fps.value.takeIf { it > 0 } ?: 30, ::sendVideo) }.getOrNull()
+            if (enc == null) { Live.message.value = "This phone's video encoder couldn't start."; return }
+            encoder = enc; needKey = true
+            lifecycleScope.launch { sendStatus() }
+        }
+        if (ws != null) enc.encode(image)
     }
 
     /** Largest YUV size and highest frame rate this lens offers, reported to the PC as maxW/maxH/maxFps. */
@@ -268,15 +281,25 @@ class StreamService : LifecycleService() {
     private var frameNo = 0L
     private fun onFrame(image: ImageProxy) {
         image.use {
-            val socket = ws.takeIf { encoder == null && Pro.codec.value == "jpeg" }
             lastRotation = it.imageInfo.rotationDegrees
+            if (useH264) {
+                encodeFrame(it)
+                // The on-phone preview only needs a few frames a second.
+                if (frameNo++ % 6 == 0L) runCatching {
+                    var b = it.toBitmap()
+                    if (lastRotation != 0) b = Bitmap.createBitmap(b, 0, 0, b.width, b.height, Matrix().apply { postRotate(lastRotation.toFloat()) }, true)
+                    Live.preview.value = b
+                }
+                return
+            }
+            val socket = ws.takeIf { Pro.codec.value == "jpeg" }
             val wantPreview = frameNo++ % 3 == 0L
             val canSend = socket != null && socket.queueSize() <= 256 * 1024 // drop frames rather than lag behind
             if (!canSend && !wantPreview) return
             var bmp = it.toBitmap()
             val rot = it.imageInfo.rotationDegrees
             if (rot != 0) bmp = Bitmap.createBitmap(bmp, 0, 0, bmp.width, bmp.height, Matrix().apply { postRotate(rot.toFloat()) }, true)
-            if (encoder == null) Live.frameSize.value = bmp.width to bmp.height
+            Live.frameSize.value = bmp.width to bmp.height
             if (wantPreview) Live.preview.value = bmp
             if (canSend) {
                 val out = ByteArrayOutputStream(128 * 1024)
@@ -318,6 +341,13 @@ class StreamService : LifecycleService() {
                     Live.message.value = if (usb) "Live in KISSIK over USB" else "Live in KISSIK over Wi-Fi"
                     updateNotification(Live.message.value)
                     sendStatus()
+                    // On Wi-Fi: move to USB as soon as the cable is linked (adb reverse), since it's faster and steadier.
+                    if (!usb) lifecycleScope.launch(Dispatchers.IO) {
+                        while (ws === webSocket) {
+                            delay(3000)
+                            if (ws === webSocket && usbReachable(pairing.port + 1)) { netLog("usb appeared"); webSocket.close(1000, "switching to USB"); break }
+                        }
+                    }
                 }
                 override fun onMessage(webSocket: WebSocket, text: String) = onCommand(text)
                 override fun onClosed(webSocket: WebSocket, code: Int, reason: String) { netLog("closed $code $reason"); done.complete("Disconnected.") }
@@ -410,7 +440,7 @@ class StreamService : LifecycleService() {
             .put("zoomMin", zs?.minZoomRatio?.toDouble() ?: JSONObject.NULL)
         // H.264 frames come straight from the sensor: the PC rotates them by "rot" (clockwise degrees). JPEGs are upright.
         val enc = encoder
-        val rot = if (enc != null) camera?.cameraInfo?.getSensorRotationDegrees(deviceRotation) ?: 0 else 0
+        val rot = if (enc != null) lastRotation else 0 // the frame's own rotation: sensor angle plus how the phone is held
         if (enc != null) json.put("w", if (rot % 180 == 0) enc.width else enc.height).put("h", if (rot % 180 == 0) enc.height else enc.width)
         json.put("rot", rot)
         Pro.putStatus(json)
@@ -450,10 +480,12 @@ class StreamService : LifecycleService() {
         Live.preview.value = null
         ws?.close(1000, "stopped"); ws = null
         micJob?.cancel()
-        runCatching { ProcessCameraProvider.getInstance(this).get().unbindAll() }
+        // Release only the stream's own camera use: the scanner may already be using the camera.
+        runCatching { ProcessCameraProvider.getInstance(this).get().unbind(*listOfNotNull(analysis).toTypedArray()) }
         wake?.takeIf { it.isHeld }?.release(); wifiLock?.takeIf { it.isHeld }?.release()
         orientation?.disable()
         analysisExecutor.shutdown(); encoderExecutor.shutdown()
+        encoder?.release(); encoder = null
         super.onDestroy()
     }
 }

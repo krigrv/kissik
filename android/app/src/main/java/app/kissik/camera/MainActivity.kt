@@ -334,13 +334,15 @@ private fun Scan(onBack: () -> Unit, onCode: (String) -> Unit) {
     var granted by remember { mutableStateOf(hasCamera(ctx)) }
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted = it }
     var paste by remember { mutableStateOf(false) }
+    // The scanner needs the camera: stop streaming and wait until the stream has really let go of it.
+    val streaming by Live.running.collectAsState()
     LaunchedEffect(Unit) {
-        if (Live.running.value) StreamService.stop(ctx) // the scanner needs the camera
+        if (Live.running.value) StreamService.stop(ctx)
         if (!granted) launcher.launch(Manifest.permission.CAMERA)
     }
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
-        if (granted) QrCamera(onCode)
+        if (granted && !streaming) QrCamera(onCode)
         ScanMask()
         Column(Modifier.fillMaxSize().systemBarsPadding().padding(20.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -416,6 +418,7 @@ private fun QrCamera(onCode: (String) -> Unit) {
             provider.unbindAll()
             runCatching { provider.bindToLifecycle(owner, CameraSelector.DEFAULT_BACK_CAMERA, preview, analysis) }
                 .recoverCatching { provider.bindToLifecycle(owner, CameraSelector.DEFAULT_FRONT_CAMERA, preview, analysis) }
+                .onFailure { android.widget.Toast.makeText(ctx, "Couldn't open the camera. Close other camera apps and try again.", android.widget.Toast.LENGTH_LONG).show() }
         }, ContextCompat.getMainExecutor(c))
         view
     }, modifier = Modifier.fillMaxSize())
@@ -462,7 +465,7 @@ private fun Settings(pairing: Pairing?, onClose: () -> Unit, onPair: () -> Unit,
                     Text("Battery & heat saver", color = K.text, fontSize = 17.sp)
                     Text("Sends 480p while the phone is hot, or under 20% and not charging.", color = K.muted, fontSize = 13.sp, lineHeight = 18.sp)
                 }
-                Switch(saver, { Live.saver.value = it; Live.save(ctx) }, colors = SwitchDefaults.colors(checkedTrackColor = K.accent))
+                Switch(saver, { Live.saver.value = it; Live.save(ctx) }, colors = SwitchDefaults.colors(checkedTrackColor = K.accent, checkedThumbColor = Color.White))
             }
         }
 
