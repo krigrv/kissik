@@ -802,6 +802,8 @@
                     <TextBlock Text="Audio" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" ToolTipService.ToolTip="Live microphone levels" />
                     <TextBlock x:Name="MicName" Text="No microphone" FontSize="12" FontWeight="SemiBold" HorizontalAlignment="Right"
                                TextTrimming="CharacterEllipsis" MaxWidth="200" />
+                    <TextBlock x:Name="MicMutedBadge" Visibility="Collapsed" FontSize="12" FontWeight="SemiBold" HorizontalAlignment="Right"
+                               Foreground="{ThemeResource SystemFillColorCriticalBrush}" AutomationProperties.LiveSetting="Assertive" />
                 </Grid>
                 <Grid ColumnSpacing="10">
                     <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition /></Grid.ColumnDefinitions>
