@@ -19,7 +19,8 @@ public sealed partial class MainPage
     {
         _thumbTimer = DispatcherQueue.CreateTimer();
         // The framing minimap refreshes ~6× a second so it keeps pace with the preview; scene cards once a second.
-        _thumbTimer.Interval = TimeSpan.FromMilliseconds(160);
+        // With "reduce motion" on: the minimap once a second and scene cards every 10 seconds.
+        _thumbTimer.Interval = ReduceMotion ? TimeSpan.FromSeconds(1) : TimeSpan.FromMilliseconds(160);
         _thumbTimer.Tick += async (_, _) =>
         {
             bool live = _session is not null && _lastFrame is not null;
@@ -28,7 +29,7 @@ public sealed partial class MainPage
             _thumbBusy = true;
             try
             {
-                if (++_thumbTick % 6 == 0)
+                if (++_thumbTick % (ReduceMotion ? 10 : 6) == 0)
                 {
                     var (small, _, _) = await Task.Run(() => OutputFit.Stretch(f.Px, f.W, f.H, 320, 180));
                     using (var stream = System.Runtime.InteropServices.WindowsRuntime.WindowsRuntimeBufferExtensions.AsStream(_thumbSource.PixelBuffer))

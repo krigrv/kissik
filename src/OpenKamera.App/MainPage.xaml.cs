@@ -53,6 +53,7 @@ public sealed partial class MainPage : Page
         try { InitFraming(); } catch { }
         try { InitGuardAndMirror(); } catch { }
         try { InitTheme(); } catch { }
+        try { InitAccess(); } catch { }
         try { InitSystemSound(); } catch { }
         try { InitAudio(); } catch (Exception ex) { Status("Audio unavailable: " + ex.Message); }
         try { InitScreenLight(); } catch (Exception ex) { Status("Screen light unavailable: " + ex.Message); LightBtn.IsEnabled = false; }
@@ -63,7 +64,7 @@ public sealed partial class MainPage : Page
         StartConnectWatch();
         StartSceneThumbs();
         StartAudioWatchdog();
-        _ = ShowWelcomeOnceAsync().ContinueWith(_ => DispatcherQueue.TryEnqueue(() => _ = OfferCrashReportAsync()), TaskScheduler.Default);
+        _ = ShowWelcomeAndModeAsync().ContinueWith(_ => DispatcherQueue.TryEnqueue(() => _ = OfferCrashReportAsync()), TaskScheduler.Default);
         ResumePairedPhone();
         try { InitVertical(); } catch { }
         try { InitTray(); } catch (Exception ex) { Status("Tray icon unavailable: " + ex.Message); }
@@ -159,7 +160,8 @@ public sealed partial class MainPage : Page
     private void UpdateStageMargin()
     {
         bool left = LeftPane.Visibility == Visibility.Visible, right = RightPane.Visibility == Visibility.Visible;
-        StageViewbox.Margin = new Thickness(left ? 340 : 12, 60, right ? 260 : 12, right ? 142 : 12);
+        StageViewbox.Margin = SimplePanel.Visibility == Visibility.Visible ? new Thickness(12, 60, 12, 150)
+            : new Thickness(left ? 340 : 12, 60, right ? 260 : 12, right ? 142 : 12);
         Filmstrip.Margin = new Thickness(left ? 340 : 12, 0, right ? 260 : 12, 12);
     }
 
@@ -339,7 +341,7 @@ public sealed partial class MainPage : Page
         catch (Exception ex) { Status("Camera enumeration failed: " + ex.Message); }
     }
 
-    private void Status(string msg) => StatusText.Text = msg;
+    private void Status(string msg) { StatusText.Text = msg; Announce(msg); SyncSimple(); }
 
     private void DeviceBox_SelectionChanged(object sender, SelectionChangedEventArgs e) { }
 

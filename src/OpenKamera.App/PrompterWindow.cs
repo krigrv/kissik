@@ -46,6 +46,7 @@ public sealed class PrompterWindow : Window
         bar.Children.Add(Btn(_edit, "", "Edit the script", ToggleEdit));
         bar.Children.Add(_info);
 
+        AutomationProperties.SetName(_editor, "Prompter script"); AutomationProperties.SetName(_text, "Prompter script");
         _scroll.Content = _text;
         _scroll.Padding = new Thickness(18, 4, 18, 60);
         var body = new Grid();
@@ -77,10 +78,10 @@ public sealed class PrompterWindow : Window
     private static Button Btn(Button b, string glyph, string tip, Action click)
     {
         b.Content = new FontIcon { Glyph = glyph, FontSize = 14 };
-        b.Width = 34; b.Height = 30; b.Padding = new Thickness(0);
+        b.Width = 40; b.Height = 40; b.Padding = new Thickness(0);
         b.Background = new SolidColorBrush(Colors.Transparent); b.BorderThickness = new Thickness(0);
         b.Foreground = new SolidColorBrush(Colors.White);
-        ToolTipService.SetToolTip(b, tip); AutomationProperties.SetName(b, tip);
+        ToolTipService.SetToolTip(b, tip); AutomationProperties.SetName(b, tip); AutomationProperties.SetHelpText(b, tip);
         b.Click += (_, _) => click();
         return b;
     }

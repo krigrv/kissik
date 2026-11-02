@@ -52,7 +52,7 @@ public sealed partial class MainPage
         LookStrip.Children.Add(new StackPanel { Spacing = 4, Children = { add, new TextBlock { Text = "LUT", FontSize = 12, HorizontalAlignment = HorizontalAlignment.Center } } });
 
         _lookTimer = DispatcherQueue.CreateTimer();
-        _lookTimer.Interval = TimeSpan.FromSeconds(2);
+        _lookTimer.Interval = TimeSpan.FromSeconds(ReduceMotion ? 10 : 2); // reduce motion: previews barely move
         _lookTimer.Tick += (_, _) => RefreshLookThumbs();
         _lookTimer.Start();
         RefreshLookThumbs();

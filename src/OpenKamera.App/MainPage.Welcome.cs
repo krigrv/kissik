@@ -6,6 +6,8 @@ namespace OpenKamera_App;
 // One short welcome on first run: what KISSIK is, three steps, the free promise. Nothing else pops up.
 public sealed partial class MainPage
 {
+    private async Task ShowWelcomeAndModeAsync() { await ShowWelcomeOnceAsync(); await AskUiModeAsync(); }
+
     private async Task ShowWelcomeOnceAsync()
     {
         if (_settings.SeenWelcome) return;
