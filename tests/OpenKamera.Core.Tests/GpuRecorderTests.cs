@@ -85,7 +85,7 @@ public class GpuRecorderTests(ITestOutputHelper log)
         if (!GpuRecorder.Available) { log.WriteLine("No video-capable GPU: skipped."); return; }
         var gpu = GpuEffects.Shared!;
         string path = TempMp4();
-        var rec = new SegmentedRecorder(W, H, Fps) { SegmentLength = TimeSpan.FromSeconds(0.5) };
+        var rec = new SegmentedRecorder(W, H, Fps) { SegmentLength = TimeSpan.FromSeconds(0.5), PreferGpu = true };
         try
         {
             await rec.StartAsync(path);
