@@ -34,7 +34,20 @@ public static class BackgroundEffects
                     break;
                 }
             case BackgroundMode.Replace when background is { } bg && bg.Length == px.Length:
-                Composite(px, w, h, alpha, (x, y) => { int i = (y * w + x) * 4; return (bg[i], bg[i + 1], bg[i + 2]); });
+                // Same-size picture: blend straight from it (a per-pixel delegate was the slow part at 4K).
+                Parallel.For(0, h, y =>
+                {
+                    for (int x = 0, i = y * w * 4, ai = y * w; x < w; x++, i += 4, ai++)
+                    {
+                        float a = alpha[ai];
+                        if (a >= 0.999f) continue;
+                        float ia = 1 - a;
+                        px[i] = (byte)(px[i] * a + bg[i] * ia);
+                        px[i + 1] = (byte)(px[i + 1] * a + bg[i + 1] * ia);
+                        px[i + 2] = (byte)(px[i + 2] * a + bg[i + 2] * ia);
+                        px[i + 3] = 255;
+                    }
+                });
                 break;
             case BackgroundMode.Remove:
                 Parallel.For(0, h, y =>
