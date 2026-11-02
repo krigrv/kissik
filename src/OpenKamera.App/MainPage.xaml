@@ -308,6 +308,9 @@
                             </MenuFlyoutSubItem>
                             <MenuFlyoutSubItem Text="Settings and help">
                                 <MenuFlyoutSubItem.Icon><FontIcon Glyph="&#xE713;" /></MenuFlyoutSubItem.Icon>
+                                <ToggleMenuFlyoutItem x:Name="SponsorToggle" Text="Show sponsored picks" Click="SponsorToggle_Click">
+                                    <ToggleMenuFlyoutItem.Icon><FontIcon Glyph="&#xE719;" /></ToggleMenuFlyoutItem.Icon>
+                                </ToggleMenuFlyoutItem>
                                 <ToggleMenuFlyoutItem x:Name="ControlToggle" Text="Let AI assistants and Stream Deck control KISSIK" Click="ControlToggle_Click">
                                     <ToggleMenuFlyoutItem.Icon><FontIcon Glyph="&#xE99A;" /></ToggleMenuFlyoutItem.Icon>
                                 </ToggleMenuFlyoutItem>
@@ -593,6 +596,35 @@
                                 <StackPanel x:Name="ControlsPanel" Spacing="8" />
                             </StackPanel>
                         </Expander>
+                        <!-- Sponsored pick: subtle, always labelled, never in the video. Hidden when there is none. -->
+                        <Border x:Name="SponsorCard" Visibility="Collapsed" Margin="0,14,0,4" Padding="12,10" CornerRadius="8"
+                                BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}">
+                            <StackPanel Spacing="4">
+                                <Grid>
+                                    <TextBlock x:Name="SponsorBrand" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="2">
+                                        <Button Style="{StaticResource IconButton}" Width="32" Height="32" AutomationProperties.Name="Why am I seeing this?"
+                                                ToolTipService.ToolTip="Why am I seeing this?">
+                                            <FontIcon Glyph="&#xE946;" FontSize="12" />
+                                            <Button.Flyout>
+                                                <Flyout>
+                                                    <TextBlock MaxWidth="280" TextWrapping="Wrap" FontSize="13"
+                                                               Text="Brands sponsor suggestions that fit your setup, such as a sharper camera when yours is below 1080p. KISSIK picks one on this PC; nothing about you is sent. Sponsors help keep KISSIK free. Turn this off in Settings and help." />
+                                                </Flyout>
+                                            </Button.Flyout>
+                                        </Button>
+                                        <Button Style="{StaticResource IconButton}" Width="32" Height="32" Click="SponsorDismiss_Click"
+                                                AutomationProperties.Name="Hide this sponsored pick" ToolTipService.ToolTip="Hide this">
+                                            <FontIcon Glyph="&#xE711;" FontSize="12" />
+                                        </Button>
+                                    </StackPanel>
+                                </Grid>
+                                <TextBlock x:Name="SponsorTitle" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                <TextBlock x:Name="SponsorBody" FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <HyperlinkButton Content="Learn more" Click="SponsorOpen_Click" Padding="0,4" AutomationProperties.Name="Learn more about this sponsored pick" />
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
                 </ScrollViewer>
 

@@ -25,6 +25,9 @@ public sealed class AppSettings
     /// <summary>Mirror only the on-screen preview; meetings and recordings get the true (unmirrored) view.</summary>
     public bool SmartMirror { get; set; }
     public bool PrivacyGuard { get; set; }
+    /// <summary>Show one small, labelled sponsored pick in the Camera panel (never in the video).</summary>
+    public bool SponsoredPicks { get; set; } = true;
+    public List<string> DismissedSponsors { get; set; } = [];
     public BackgroundSettings Background { get; set; } = BackgroundSettings.Off;
     /// <summary>Gallery favourites: "scene:id", "bg:id", "filter:Name", "lut:Name".</summary>
     public HashSet<string> Favourites { get; set; } = [];
