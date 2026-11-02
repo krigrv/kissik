@@ -44,6 +44,14 @@ foreach (var (w, h) in new[] { (1920, 1080), (3840, 2160) })
             Console.WriteLine($"{w}x{h} gpu {name}: {n / sw.Elapsed.TotalSeconds:F1} fps");
         }
         {
+            // As the app runs it with a recording on: full-size bake for the outputs, the preview read back at 1080p.
+            using var bg = new BackgroundPipeline();
+            for (int i = 0; i < 5; i++) FrameProcessor.Process(nv12, blur, bg, bake, (1920, 1080));
+            var sw = Stopwatch.StartNew(); int n = 0;
+            while (sw.Elapsed.TotalSeconds < 3) { FrameProcessor.Process(nv12, blur, bg, bake, (1920, 1080)); n++; }
+            Console.WriteLine($"{w}x{h} gpu nv12 blur+bake, preview at 1080p: {n / sw.Elapsed.TotalSeconds:F1} fps");
+        }
+        {
             // What the same bake costs on the CPU (MainPage's fallback), per frame, on top of the frame path.
             var frame = new byte[w * h * 4];
             bmp.CopyToBuffer(frame.AsBuffer());

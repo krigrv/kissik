@@ -11,7 +11,7 @@ public sealed partial class MainPage
 {
     private static readonly CameraDeviceInfo PhoneDevice = new("openkamera:phone", "Phone (Wi-Fi)");
     private PhoneServer? _phone;
-    private static string PhoneStateDir => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "OpenKamera", "Phone");
+    private static string PhoneStateDir => Path.Combine(AppPaths.Data, "Phone");
     private const string PhoneMicId = "openkamera:phone-mic";
     private AudioTrack? _phoneMicTrack;
     private int _phoneLimitShown;

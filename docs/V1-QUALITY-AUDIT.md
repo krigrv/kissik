@@ -123,8 +123,10 @@ Still to test by hand before v1 (needs a person at the PC):
 - **Best:** frames stay on the GPU from capture to output, zero copies to the CPU.
 - **Now (also):** scene layers listed before the camera are drawn in the GPU scene kernel (no CPU fallback). When
   the meeting camera is the only output, the baked frame is shrunk to its 1080p limit on the GPU, so a 4K
-  frame comes back at 1080p and the CPU shrink (4.4 ms at 4K) goes away. A second-camera layer, or a slide or zoom
-  scene transition, still bakes on the CPU.
+  frame comes back at 1080p and the CPU shrink (4.4 ms at 4K) goes away. The second camera's layer and all scene
+  transitions (fade, slide, zoom) are kernels too, so nothing on the output path falls back to the CPU while the
+  GPU works. The preview, thumbnails and picture checks get the frame at most 1080p (shrunk on the GPU); the
+  outputs keep the full size, so at 4K the second readback is a quarter of the size.
 - **Upgrade (still to do), and why it isn't done yet:**
   - *Capture textures on our device:* MediaCapture picks its own Direct3D device and its textures can't be shared.
     Media Foundation's source reader on our device would fix that, but it loses MediaCapture's camera controls
@@ -137,8 +139,8 @@ Still to test by hand before v1 (needs a person at the PC):
   - *Hardware encoder from textures:* recording already encodes on the hardware (`MediaTranscoder` with hardware
     acceleration). Feeding it textures needs a sink writer with a DXGI device manager; while the meeting camera,
     stream or replay buffer is on, the baked frame is read back for them anyway.
-  - *Preview from a texture:* the full-size processed frame also feeds snapshots, thumbnails and the meeting check,
-    so a preview-size readback needs those moved first.
+  - *Preview from a texture:* the preview now reads back at most 1080p. Drawing it straight from a texture
+    (SwapChainPanel) would save that too, but the thumbnails, auto picture and meeting check still read its bytes.
 
 Frame-path benchmark (`dotnet run -c Release --project tests/OpenKamera.Bench`): a synthetic frame through
 `FrameProcessor` with Fast segmentation on DirectML, RTX 4080 SUPER, frames per second. The effects step only;
@@ -172,6 +174,7 @@ measured in the same run for comparison). The bake is a translucent front overla
 | 4K | NV12 in + bake | 99 |
 | 4K | NV12 in + bake + privacy shutter | 83 |
 | 4K | NV12 in + bake, meeting camera only (shrunk to 1080p on the GPU) | 119 |
+| 4K | NV12 in + full-size bake, preview read back at 1080p (as when recording) | 112 (95 with a 4K preview) |
 
 The same bake with the shutter costs 2.9 ms (1080p) and 10.8 ms (4K) a frame on the CPU, on top of the frame
 path; on the GPU it adds about 3 ms at 4K, most of it the second readback. Not yet measured in the running app:

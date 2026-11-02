@@ -97,6 +97,21 @@ public class GpuEffectsTests(ITestOutputHelper log)
             with { Scene = scene, OutputWidth = W, OutputHeight = H });
     }
 
+    [Theory]
+    [InlineData("rect")]
+    [InlineData("ellipse")]
+    public void SecondCameraPlacedOnTop(string shape)
+    {
+        var scene = new SceneDocument { Background = "#203040" };
+        scene.Layers.Add(new SceneLayer { Kind = "camera", X = 0, Y = 0, W = 1, H = 1 });
+        var layer = new SceneLayer { Kind = "camera2", X = 0.6, Y = 0.55, W = 0.35, H = 0.4, Shape = shape, CornerRadius = 0.03, Opacity = 0.85 };
+        // A second camera of a different shape and size from the frame.
+        const int sw = 96, sh = 128;
+        var second = new byte[sw * sh * 4];
+        for (int i = 0; i < second.Length; i += 4) { second[i] = (byte)(i * 7); second[i + 1] = (byte)(i / 13); second[i + 2] = 200; second[i + 3] = 255; }
+        CompareWhole(Recipe() with { Scene = scene, Placed = [new PlacedSource(second, sw, sh, layer)] });
+    }
+
     /// <summary>FrameProcessor end to end, real segmentation included: GPU path against the CPU path.</summary>
     private void CompareWhole(FrameRecipe r)
     {

@@ -49,7 +49,7 @@ public sealed class GpuEffects : IDisposable
 
         using var stream = typeof(GpuEffects).Assembly.GetManifestResourceStream("OpenKamera.Core.GpuEffects.hlsl")!;
         string source = new StreamReader(stream).ReadToEnd();
-        foreach (var entry in new[] { "Transform", "Fit", "Small", "Upsample", "GuideDown", "GuideBoxH", "GuideBoxV", "GuideAB", "GuideApply", "Retouch", "BlurDown", "BoxH", "BoxV", "Effects", "Sharpen", "Scene", "Nv12", "Yuy2", "Over", "Fade", "Caption", "PixBlock", "PixFill" })
+        foreach (var entry in new[] { "Transform", "Fit", "Small", "Upsample", "GuideDown", "GuideBoxH", "GuideBoxV", "GuideAB", "GuideApply", "Retouch", "BlurDown", "BoxH", "BoxV", "Effects", "Sharpen", "Scene", "Nv12", "Yuy2", "Over", "Fade", "Caption", "PixBlock", "PixFill", "Slide", "Zoom", "Place" })
         {
             var code = Compiler.Compile(source, entry, "GpuEffects.hlsl", "cs_5_0", ShaderFlags.OptimizationLevel3);
             _cs[entry] = _device.CreateComputeShader(code.Span);
@@ -112,7 +112,8 @@ public sealed class GpuEffects : IDisposable
         ProcessOutput(raw, rw, rh, r, background, null) is { } o ? (o.Pixels, o.Width, o.Height) : null;
 
     /// <summary>As <see cref="ProcessFrame"/>, plus the output bake (overlay, fade, captions, shutter) when asked for.</summary>
-    public FrameOutput? ProcessOutput(byte[] raw, int rw, int rh, FrameRecipe r, BackgroundPipeline? background, OutputBake? bake)
+    public FrameOutput? ProcessOutput(byte[] raw, int rw, int rh, FrameRecipe r, BackgroundPipeline? background, OutputBake? bake,
+        (int Width, int Height)? previewWithin = null)
     {
         if (rw * rh == 0) return null;
         lock (_gate)
@@ -120,7 +121,7 @@ public sealed class GpuEffects : IDisposable
             try
             {
                 Upload("raw", raw, 4);
-                return Pipeline("raw", rw, rh, r, background, SceneCompositor.HasTransparency(raw), bake);
+                return Pipeline("raw", rw, rh, r, background, SceneCompositor.HasTransparency(raw), bake, previewWithin);
             }
             catch (Exception) { return null; }
         }
@@ -130,7 +131,8 @@ public sealed class GpuEffects : IDisposable
     /// The frame path straight from the camera's NV12 or YUY2 bitmap: its bytes go up as they are (no CPU colour
     /// conversion, 1.5 or 2 bytes a pixel instead of 4) and become BGRA here. Null if the GPU failed.
     /// </summary>
-    public FrameOutput? ProcessCamera(Windows.Graphics.Imaging.SoftwareBitmap yuv, FrameRecipe r, BackgroundPipeline? background, OutputBake? bake)
+    public FrameOutput? ProcessCamera(Windows.Graphics.Imaging.SoftwareBitmap yuv, FrameRecipe r, BackgroundPipeline? background, OutputBake? bake,
+        (int Width, int Height)? previewWithin = null)
     {
         int w = yuv.PixelWidth, h = yuv.PixelHeight;
         if (w * h == 0 || w * h > 65535 * 256 * 64 || !YuvConvert.IsYuv(yuv)) return null;
@@ -143,7 +145,7 @@ public sealed class GpuEffects : IDisposable
                 SetParams(new Params { I0 = new(w, h, uvOffset, stride) });
                 Ensure("raw", w * h * 4, 4);
                 Run(nv12 ? "Nv12" : "Yuy2", w * h, srv: [("yuv", 0)], uav: [("raw", 0)]);
-                return Pipeline("raw", w, h, r, background, false, bake);
+                return Pipeline("raw", w, h, r, background, false, bake, previewWithin);
             }
             catch (Exception) { return null; }
         }
@@ -153,7 +155,12 @@ public sealed class GpuEffects : IDisposable
     public byte[]? ConvertCamera(Windows.Graphics.Imaging.SoftwareBitmap yuv) =>
         ProcessCamera(yuv, FrameRecipe.Passthrough, null, null)?.Pixels;
 
-    private FrameOutput? Pipeline(string input, int rw, int rh, FrameRecipe r, BackgroundPipeline? background, bool transparent, OutputBake? bake)
+    /// <summary>
+    /// <paramref name="previewWithin"/>: the processed frame comes back shrunk to fit (OutputFit.Stretch maths) when it
+    /// is larger, for a preview that does not need every pixel; the baked output keeps the full size.
+    /// </summary>
+    private FrameOutput? Pipeline(string input, int rw, int rh, FrameRecipe r, BackgroundPipeline? background, bool transparent, OutputBake? bake,
+        (int Width, int Height)? previewWithin)
     {
         var (src, w, h) = Frame(input, rw, rh, r);
         if (w * h > 65535 * 256 * 64) return null;
@@ -163,8 +170,22 @@ public sealed class GpuEffects : IDisposable
         var mask = wantsMask ? background!.ModelMask((iw, ih) => Small(src, w, h, iw, ih), s) : null;
         byte[]? bg = s.NeedsMask ? background?.ReplacementFor(s, w, h) : null; // pictures or a looping video
         string cur = Effects(src, w, h, r, mask, bg, transparent);
+        if (previewWithin is var (mw, mh) && Shrunk(w, h, mw, mh) is var (pw, ph) && (pw != w || ph != h))
+        {
+            Resample(cur, w, h, pw, ph, (double)pw / w, (double)ph / h, "preview");
+            var preview = Download("preview", pw * ph * 4);
+            return new FrameOutput(preview, pw, ph, bake is null ? null : Bake(cur, w, h, bake, null));
+        }
         var pixels = Download(cur, w * h * 4);
         return new FrameOutput(pixels, w, h, bake is null ? null : Bake(cur, w, h, bake, pixels));
+    }
+
+    /// <summary>The size a w x h frame shrinks to so it fits within mw x mh (even sides; unchanged when it fits).</summary>
+    public static (int Width, int Height) Shrunk(int w, int h, int mw, int mh)
+    {
+        if (w <= mw && h <= mh) return (w, h);
+        double s = Math.Min((double)mw / w, (double)mh / h);
+        return (Math.Max(2, (int)(w * s)) & ~1, Math.Max(2, (int)(h * s)) & ~1);
     }
 
     /// <summary>
@@ -172,7 +193,7 @@ public sealed class GpuEffects : IDisposable
     /// CPU: front overlay (SceneCompositor.BlendOver), scene cross-fade, burned-in captions (CaptionBurn.Blend) and the
     /// privacy shutter (PrivacyShutter.Apply). Returns <paramref name="pixels"/> itself when there is nothing to add.
     /// </summary>
-    private BakedFrame Bake(string cur, int w, int h, OutputBake b, byte[] pixels)
+    private BakedFrame Bake(string cur, int w, int h, OutputBake b, byte[]? pixels)
     {
         int n = w * h;
         string? k = null;
@@ -185,12 +206,38 @@ public sealed class GpuEffects : IDisposable
             k = o;
         }
         if (b.Front?.Invoke(w, h) is { } front && front.Length == n * 4) { UploadCached("front", front); Pass("Over", "front"); }
-        if (b.FadeT is double t && t < 1 && _fadeFrom == n)
+        // SceneTransitions.Apply, from the copy BeginFade took.
+        void Transition(SceneTransition kind, double t)
         {
-            double e = t * t * (3 - 2 * t); // smoothstep
-            p.I1 = new((int)Math.Clamp(e * 256, 0, 256), 0, 0, 0);
-            Pass("Fade", "fadeFrom");
+            double e = Math.Clamp(t, 0, 1); e = e * e * (3 - 2 * e); // smoothstep
+            switch (kind)
+            {
+                case SceneTransition.Fade:
+                    p.I1 = new((int)Math.Clamp(e * 256, 0, 256), 0, 0, 0);
+                    Pass("Fade", "fadeFrom");
+                    break;
+                case SceneTransition.Slide:
+                    int shift = (int)Math.Round(w * (1 - e));
+                    if (shift <= 0) break;
+                    p.I1 = new(shift, 0, 0, 0);
+                    Pass("Slide", "fadeFrom");
+                    break;
+                case SceneTransition.Zoom:
+                    double s = 1 + 0.25 * e;
+                    float cx = w / 2f, cy = h / 2f;
+                    var map = new uint[w + h];
+                    for (int x = 0; x < w; x++) map[x] = (uint)(int)Math.Clamp(cx + (x - cx) / s, 0, w - 1);
+                    for (int y = 0; y < h; y++) map[w + y] = (uint)(int)Math.Clamp(cy + (y - cy) / s, 0, h - 1);
+                    Upload("map", map, 4);
+                    p.I1 = new((int)Math.Clamp((1 - e) * 256, 0, 256), 0, 0, 0);
+                    SetParams(p);
+                    string o = k == "k0" ? "k1" : "k0"; Ensure(o, n * 4, 4);
+                    Run("Zoom", n, srv: [(k ?? cur, 0), ("fadeFrom", 2), ("map", 8)], uav: [(o, 0)]);
+                    k = o;
+                    break;
+            }
         }
+        if (b.FadeT is double t && t < 1 && _fadeFrom == n) Transition(b.Transition, t);
         // The next scene change fades from this (captions and shutter excluded, as on the CPU).
         Copy(k ?? cur, "lastBaked", n * 4); _lastBaked = n;
         if (b.Caption is { } cap && b.CaptionWidth <= w && b.CaptionHeight <= h && cap.Length == b.CaptionWidth * b.CaptionHeight * 4)
@@ -211,15 +258,14 @@ public sealed class GpuEffects : IDisposable
         // Only the meeting camera wants it: shrink to its size here, so less comes back (VirtualCameraChannel's maths).
         if (b.FitWithin is var (mw, mh) && (w > mw || h > mh))
         {
-            double s = Math.Min((double)mw / w, (double)mh / h);
-            int nw = Math.Max(2, (int)(w * s)) & ~1, nh = Math.Max(2, (int)(h * s)) & ~1;
+            var (nw, nh) = Shrunk(w, h, mw, mh);
             // The pause sign is drawn at the size that comes back, as the CPU draws it before the meeting camera shrinks it.
             Resample(k ?? cur, w, h, nw, nh, (double)nw / w, (double)nh / h, "fitout");
             var small = Download("fitout", nw * nh * 4);
             if (b.Shutter == ShutterMode.Away) PrivacyShutter.DrawPause(small, nw, nh);
             return new BakedFrame(small, nw, nh);
         }
-        if (k is null) return new BakedFrame(pixels, w, h);
+        if (k is null) return new BakedFrame(pixels ?? Download(cur, n * 4), w, h);
         var baked = Download(k, n * 4);
         if (b.Shutter == ShutterMode.Away) PrivacyShutter.DrawPause(baked, w, h);
         return new BakedFrame(baked, w, h);
@@ -415,6 +461,28 @@ public sealed class GpuEffects : IDisposable
             if (under) UploadCached("under", r.UnderOverlay!);
             string o = Next(); Ensure(o, n * 4, 4);
             Run("Scene", n, srv: [(cur, 0), ("aux", 2), (under ? "under" : cur, 3)], uav: [(o, 0)]);
+            cur = o;
+        }
+
+        // Other sources placed on top (a second camera), as SceneCompositor.PlaceSource.
+        foreach (var src in r.Placed ?? [])
+        {
+            if (src.Pixels.Length != src.Width * src.Height * 4 || src.Width * src.Height == 0) continue;
+            var c = src.Layer;
+            int rx = (int)Math.Round(c.X * w), ry = (int)Math.Round(c.Y * h);
+            int rw = Math.Max(1, (int)Math.Round(c.W * w)), rh = Math.Max(1, (int)Math.Round(c.H * h));
+            double scale = Math.Max((double)rw / src.Width, (double)rh / src.Height);
+            var q = new Params
+            {
+                I0 = new(w, h, 0, 0), I1 = new(src.Width, src.Height, 0, 0), I3 = new(rx, ry, rw, rh),
+                I4 = new(c.Shape == "ellipse" ? (int)Sf.Ellipse : 0, 0, 0, 0),
+                F4 = new(0, (float)Math.Clamp(c.Opacity, 0, 1), (float)(c.CornerRadius * h), 0),
+                F9 = new((float)((src.Width - rw / scale) / 2), (float)((src.Height - rh / scale) / 2), (float)scale, 0),
+            };
+            SetParams(q);
+            Upload("placed", src.Pixels, 4);
+            string o = Next(); Ensure(o, n * 4, 4);
+            Run("Place", n, srv: [(cur, 0), ("placed", 2)], uav: [(o, 0)]);
             cur = o;
         }
 

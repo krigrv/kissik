@@ -9,7 +9,7 @@ namespace OpenKamera_App;
 public sealed partial class MainPage
 {
     private ControlApi? _control;
-    private static string ControlTokenFile => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "OpenKamera", "control-token.txt");
+    private static string ControlTokenFile => Path.Combine(AppPaths.Data, "control-token.txt");
 
     private void InitControl() { if (_settings.ControlApiOn) StartControl(); ControlToggle.IsChecked = _control is not null; }
 

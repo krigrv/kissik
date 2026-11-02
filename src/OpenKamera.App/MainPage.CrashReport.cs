@@ -29,7 +29,7 @@ public sealed partial class MainPage
 
     private async Task OfferCrashReportAsync()
     {
-        string log = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "OpenKamera", "crash.log");
+        string log = Path.Combine(AppPaths.LocalData, "crash.log");
         if (!File.Exists(log)) return;
         long size = new FileInfo(log).Length;
         if (size <= _settings.CrashLogSeen) return;

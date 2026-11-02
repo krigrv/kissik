@@ -95,16 +95,12 @@ public sealed partial class MainPage
         return (OutputFit.Stretch(px, w, h, 960, nh).Pixels, 960, nh);
     }
 
-    /// <summary>Frame thread: draws the second camera into the processed frame.</summary>
-    /// <summary>True when a second-camera layer is drawn into this frame (on the CPU, after processing).</summary>
-    private bool SecondCameraShown => _secondFrame is not null && _sceneSnapshot is { } scene
-        && scene.Layers.Any(l => l.Kind == "camera2" && l.Visible && l.Source == _secondSource);
-
-    private void DrawSecondCamera(byte[] pixels, int w, int h)
+    /// <summary>The second camera for each scene layer that shows it, placed on top of the frame by FrameProcessor.</summary>
+    private IReadOnlyList<PlacedSource>? SecondCameraLayers()
     {
-        if (_secondFrame is not { } f || _sceneSnapshot is not { } scene) return;
-        foreach (var l in scene.Layers)
-            if (l.Kind == "camera2" && l.Visible && l.Source == _secondSource)
-                SceneCompositor.PlaceSource(pixels, w, h, f.Px, f.W, f.H, l);
+        if (_secondFrame is not { } f || _sceneSnapshot is not { } scene) return null;
+        var list = scene.Layers.Where(l => l.Kind == "camera2" && l.Visible && l.Source == _secondSource)
+            .Select(l => new PlacedSource(f.Px, f.W, f.H, l)).ToList();
+        return list.Count > 0 ? list : null;
     }
 }

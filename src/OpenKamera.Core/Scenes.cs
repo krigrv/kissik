@@ -218,7 +218,7 @@ public sealed class SceneDocument
 public static class SceneLibrary
 {
     public static string Root => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "OpenKamera", "Scenes");
+        AppPaths.Data, "Scenes");
 
     /// <summary>Overrides the folder (tests).</summary>
     public static string? RootOverride { get; set; }

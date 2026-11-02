@@ -634,3 +634,56 @@ void PixFill(uint3 id : SV_DispatchThreadID)
     if (p >= (uint)(W * H)) return;
     Dst[p] = Aux[(p / (uint)W / (uint)I1.x) * (uint)I1.y + (p % (uint)W) / (uint)I1.x];
 }
+
+// SceneTransitions.Slide: I1.x columns of the old scene (Aux) still visible on the left, the new one (Src) after.
+[numthreads(256, 1, 1)]
+void Slide(uint3 id : SV_DispatchThreadID)
+{
+    uint p = Index(id);
+    if (p >= (uint)(W * H)) return;
+    uint x = p % (uint)W, shift = (uint)I1.x;
+    Dst[p] = x < shift ? Aux[p + (uint)W - shift] : Src[p - shift];
+}
+
+// SceneTransitions.Zoom: the old scene (Aux) scaled up and fading out. Map: source column per x, then row per y
+// (worked out on the CPU with its exact maths); I1.x is the old scene's weight out of 256.
+[numthreads(256, 1, 1)]
+void Zoom(uint3 id : SV_DispatchThreadID)
+{
+    uint p = Index(id);
+    if (p >= (uint)(W * H)) return;
+    uint x = p % (uint)W, y = p / (uint)W, k = (uint)I1.x;
+    uint4 d = UnpackU(Src[p]), f = UnpackU(Aux[Map[W + y] * (uint)W + Map[x]]);
+    Dst[p] = Pack(uint4((f.xyz * k + d.xyz * (256 - k)) >> 8, d.w));
+}
+
+// SceneCompositor.PlaceSource: another source (Aux, I1.x by I1.y, e.g. a second camera) cover-fitted into the layer
+// rectangle I3, shaped (I4.x S_ELLIPSE, F4.z corner radius) and blended at opacity F4.y. F9: fit left, top, scale.
+[numthreads(256, 1, 1)]
+void Place(uint3 id : SV_DispatchThreadID)
+{
+    uint p = Index(id);
+    if (p >= (uint)(W * H)) return;
+    int x = p % W, y = p / W, sw = I1.x, sh = I1.y;
+    uint4 o = UnpackU(Src[p]);
+    int lx = x - I3.x, ly = y - I3.y, rw = I3.z, rh = I3.w;
+    if (lx >= 0 && ly >= 0 && lx < rw && ly < rh)
+    {
+        float cover = (I4.x & S_ELLIPSE) ? EllipseCoverage(lx + 0.5f, ly + 0.5f, rw, rh) : RoundRectCoverage(lx + 0.5f, ly + 0.5f, rw, rh, F4.z);
+        if (cover > 0)
+        {
+            float scale = F9.z;
+            float fy = clamp(F9.y + (ly + 0.5f) / scale - 0.5f, 0, sh - 1);
+            int y0 = (int)fy, y1 = min(y0 + 1, sh - 1); float dy = fy - y0;
+            float fx = clamp(F9.x + (lx + 0.5f) / scale - 0.5f, 0, sw - 1);
+            int x0 = (int)fx, x1 = min(x0 + 1, sw - 1); float dx = fx - x0;
+            float4 a = Unpack(Aux[y0 * sw + x0]), b = Unpack(Aux[y0 * sw + x1]), c = Unpack(Aux[y1 * sw + x0]), d = Unpack(Aux[y1 * sw + x1]);
+            float4 top = a + (b - a) * dx, bot = c + (d - c) * dx;
+            float4 fit = RoundEven(top + (bot - top) * dy);
+            float k = cover * F4.y;
+            float al = k * fit.w / 255;
+            o = uint4(Sat3(fit.xyz * k + o.xyz * (1 - al)), 255);
+        }
+    }
+    Dst[p] = Pack(o);
+}

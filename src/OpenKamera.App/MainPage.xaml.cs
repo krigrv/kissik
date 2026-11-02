@@ -479,7 +479,7 @@ public sealed partial class MainPage : Page
         int ow = half ? (p.Width / 2) & ~1 : p.Width, oh = half ? (p.Height / 2) & ~1 : p.Height;
         return new FrameRecipe(_adj, steady ? _stabilizer.Apply(_transform) : _transform, bg, ow, oh, _sceneSnapshot,
             withOverlay && overlay is { Width: var vw, Height: var vh } && vw == ow && vh == oh ? overlay.Pixels : null,
-            BehindAt(ow, oh), UnderAt(ow, oh));
+            BehindAt(ow, oh), UnderAt(ow, oh), SecondCameraLayers());
     }
 
     /// <summary>
@@ -508,10 +508,13 @@ public sealed partial class MainPage : Page
     /// <summary>Starts a cross-fade from the current output to whatever comes next (call when the scene changes).</summary>
     private void BeginSceneFade()
     {
-        _fadeFrom = _lastBaked; _fadeStart = DateTime.UtcNow;
-        if (FrameProcessor.GpuActive && _settings.Transition == SceneTransition.Fade) { GpuEffects.Shared!.BeginFade(); _gpuFadeStart = _fadeStart; }
+        // While the GPU bakes, the CPU's last baked frame is stale: the GPU keeps its own copy to transition from.
+        _fadeFrom = _gpuBaking ? null : _lastBaked; _fadeStart = DateTime.UtcNow;
+        if (FrameProcessor.GpuActive && _settings.Transition != SceneTransition.Cut) { GpuEffects.Shared!.BeginFade(); _gpuFadeStart = _fadeStart; }
     }
     private DateTime? _gpuFadeStart;
+    private volatile bool _gpuBaking;
+    private static readonly (int, int) PreviewMax = (1920, 1080);
     private ShutterMode ShutterNow => _shutter != ShutterMode.Off ? _shutter : _guardHiding ? ShutterMode.Blur : ShutterMode.Off;
     private readonly SmoothGovernor _smooth = new();
 
@@ -521,22 +524,28 @@ public sealed partial class MainPage : Page
         if (Interlocked.Exchange(ref _processing, 1) == 1) { Interlocked.Increment(ref _skipped); return; }
         byte[] pixels; int w, h;
         long t0 = System.Diagnostics.Stopwatch.GetTimestamp();
-        // On the GPU the outputs' layers (front overlay, scene fade, captions, shutter) are baked there too, unless
-        // something only the CPU draws is in play (a second camera, a slide or zoom transition).
+        // On the GPU the outputs' layers (front overlay, scene transition, captions, shutter) are baked there too.
+        // The outputs are read once here so the bake's size matches what each of them gets below.
+        bool vcam = _vcam.HasClients;
+        var live = _live; var rec = _recorder is { } r0 && !_recPaused ? r0 : null; var replay = _replay;
+        bool fullSize = live is not null || rec is not null || replay is not null;
         OutputBake? bake = null;
-        bool recording = _recorder is not null && !_recPaused, fullSize = _live is not null || recording || _replay is not null;
         double? fadeT = _gpuFadeStart is { } fs ? (DateTime.UtcNow - fs) / SceneTransitions.Duration : null;
         if (fadeT >= 1) { _gpuFadeStart = null; fadeT = null; }
-        if (FrameProcessor.GpuActive && (_vcam.HasClients || fullSize) && !SecondCameraShown && (fadeT is null || _settings.Transition == SceneTransition.Fade))
+        if (FrameProcessor.GpuActive && (vcam || fullSize))
         {
             var cap = _captionImage;
             // The meeting camera alone takes at most 1080p: shrink on the GPU so only that much comes back.
             (int, int)? fit = fullSize ? null : (VirtualCameraChannel.MaxWidth, VirtualCameraChannel.MaxHeight);
-            bake = new OutputBake(FrontAt, fadeT, cap?.Pixels, cap?.Width ?? 0, cap?.Height ?? 0, ShutterNow, fit);
+            bake = new OutputBake(FrontAt, fadeT, cap?.Pixels, cap?.Width ?? 0, cap?.Height ?? 0, ShutterNow, fit, _settings.Transition);
         }
         FrameOutput output;
-        try { output = FrameProcessor.Process(bmp, CurrentRecipe(), _bgPipeline, bake); (pixels, w, h) = (output.Pixels, output.Width, output.Height); }
+        // On the GPU the preview, thumbnails and picture checks get at most 1080p; the outputs keep full size.
+        try { output = FrameProcessor.Process(bmp, CurrentRecipe(), _bgPipeline, bake, PreviewMax); (pixels, w, h) = (output.Pixels, output.Width, output.Height); }
         catch { Volatile.Write(ref _processing, 0); return; }
+        var onGpu = output.Baked;
+        _gpuBaking = onGpu is not null;
+        int ow = onGpu?.Width ?? w, oh = onGpu?.Height ?? h; // the outputs' size
         // Smoothed effects time per frame: the delay OpenKamera adds on top of the camera itself.
         double ms = System.Diagnostics.Stopwatch.GetElapsedTime(t0).TotalMilliseconds;
         _procMs = _procMs <= 0 ? ms : _procMs * 0.9 + ms * 0.1;
@@ -552,14 +561,13 @@ public sealed partial class MainPage : Page
             }));
         }
         _fps.Tick();
-        DrawSecondCamera(pixels, w, h);
         _lastFrame = (pixels, w, h);
         // Meeting camera and recordings get the scene layers baked in; the preview shows them as live XAML.
         byte[]? baked = null;
         byte[] Baked()
         {
             if (baked is not null) return baked;
-            if (output.Baked is { } onGpu && onGpu.Width == w) return baked = onGpu.Pixels;
+            if (onGpu is not null) return baked = onGpu.Pixels;
             baked = pixels;
             if (FrontAt(w, h) is { } front) { baked = (byte[])pixels.Clone(); SceneCompositor.BlendOver(baked, front); }
             // Scene switch: cross-fade from the last frame of the old scene.
@@ -574,18 +582,11 @@ public sealed partial class MainPage : Page
             baked = PrivacyShutter.Apply(baked, w, h, ShutterNow);
             return baked;
         }
-        if (_vcam.HasClients)
-        {
-            if (output.Baked is { } small && small.Width != w) FeedVirtualCamera(small.Pixels, small.Width, small.Height);
-            else FeedVirtualCamera(Baked(), w, h);
-        }
-        if (_live is { } live) live.Push(Baked(), w, h);
-        if (_recorder is { } rec)
-        {
-            // Recording gets the scene layers baked in; the preview shows them as live XAML instead.
-            if (!_recPaused) { var b = Baked(); rec.Push(b, w, h, _recordClock.Elapsed); PushVertical(b, w, h); }
-        }
-        _replay?.Push(Baked(), w, h, _replayClock.Elapsed);
+        if (vcam) FeedVirtualCamera(Baked(), ow, oh);
+        live?.Push(Baked(), ow, oh);
+        // Recording gets the scene layers baked in; the preview shows them as live XAML instead.
+        if (rec is not null) { var b = Baked(); rec.Push(b, ow, oh, _recordClock.Elapsed); PushVertical(b, ow, oh); }
+        replay?.Push(Baked(), ow, oh, _replayClock.Elapsed);
         Volatile.Write(ref _processing, 0);
 
         if (_updatingPreview) return;
@@ -601,6 +602,7 @@ public sealed partial class MainPage : Page
             _exposureNote = clip > 0.08 ? "Too bright in places: lower Light or move away from the window."
                           : crush > 0.25 ? "Large dark areas: add light in front of you." : "Exposure looks good.";
         }
+        int outH = oh;
         try { copy = FrameProcessor.ToBitmap(shown, w, h); }
         catch { _updatingPreview = false; return; }
         bool queued = DispatcherQueue.TryEnqueue(async () =>
@@ -621,7 +623,7 @@ public sealed partial class MainPage : Page
                     RecordLabel.Text = $"{_recordClock.Elapsed:mm\\:ss}";
                     RecPillText.Text = _recPaused ? $"❚❚ PAUSED {_recordClock.Elapsed:mm\\:ss}" : $"● REC {_recordClock.Elapsed:mm\\:ss}";
                 }
-                HudText.Text = $"{copy.PixelHeight}p {_fps.Fps:0} fps · {_procMs:0} ms{(_latencyMs > 0 && DeviceBox.SelectedItem != PhoneDevice ? $" · delay {_latencyMs:0} ms" : "")}{PhoneRates()}{(_smooth.Level > 0 ? " · smooth-first" : "")}{fx}{(_exposureCheck ? " · " + _exposureNote : "")}";
+                HudText.Text = $"{outH}p {_fps.Fps:0} fps · {_procMs:0} ms{(_latencyMs > 0 && DeviceBox.SelectedItem != PhoneDevice ? $" · delay {_latencyMs:0} ms" : "")}{PhoneRates()}{(_smooth.Level > 0 ? " · smooth-first" : "")}{fx}{(_exposureCheck ? " · " + _exposureNote : "")}";
                 if (_session?.Mode is { } m) { SourceInfo.Text = $"{m.Width}×{m.Height} @ {m.Fps:0}"; RefreshSponsor(); }
             }
             catch (Exception ex) when (_session is not null) { Status("Preview error: " + ex.Message); }
@@ -923,7 +925,7 @@ public sealed partial class MainPage : Page
         try
         {
             string folder = string.IsNullOrWhiteSpace(_settings.ImageFolder)
-                ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "OpenKamera")
+                ? AppPaths.Pictures
                 : _settings.ImageFolder;
             Directory.CreateDirectory(folder);
             string path = Path.Combine(folder, $"OpenKamera-{DateTime.Now:yyyyMMdd-HHmmss}.png");
@@ -1062,7 +1064,7 @@ public sealed partial class MainPage : Page
     }
 
     private string RecordingFolder() => string.IsNullOrWhiteSpace(_settings.RecordingFolder)
-        ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyVideos), "OpenKamera")
+        ? AppPaths.Videos
         : _settings.RecordingFolder;
 
     /// <summary>Joins pieces left by a recording that was cut off by a crash or power loss.</summary>
