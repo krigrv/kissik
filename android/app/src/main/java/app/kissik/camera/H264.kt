@@ -59,6 +59,9 @@ class H264Encoder(val width: Int, val height: Int, fps: Int, surfaceInput: Boole
             } else setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 2)
             setInteger(MediaFormat.KEY_PRIORITY, 0) // real-time
             setInteger(MediaFormat.KEY_OPERATING_RATE, fps)
+            // Vendor low-latency modes (ignored by encoders that don't know them): Qualcomm and MediaTek.
+            setInteger("vendor.qti-ext-enc-low-latency.enable", 1)
+            setInteger("vendor.mtk.ext.enc.low-latency.enable", 1)
             // Low latency: no B-frames (they make the encoder hold frames back) and output each frame as it's ready.
             if (android.os.Build.VERSION.SDK_INT >= 29) setInteger(MediaFormat.KEY_MAX_B_FRAMES, 0)
             if (android.os.Build.VERSION.SDK_INT >= 30) setInteger(MediaFormat.KEY_LATENCY, 1)
@@ -80,7 +83,7 @@ class H264Encoder(val width: Int, val height: Int, fps: Int, surfaceInput: Boole
             // Some encoders refuse the low-latency profile settings: retry with the encoder's own defaults.
             // (Keep the 10-bit profile for HDR: without it the picture would be wrong, so let that fail instead.)
             listOfNotNull(MediaFormat.KEY_PROFILE.takeIf { !hdr }, MediaFormat.KEY_LEVEL, MediaFormat.KEY_LATENCY, MediaFormat.KEY_MAX_B_FRAMES,
-                MediaFormat.KEY_INTRA_REFRESH_PERIOD)
+                MediaFormat.KEY_INTRA_REFRESH_PERIOD, "vendor.qti-ext-enc-low-latency.enable", "vendor.mtk.ext.enc.low-latency.enable")
                 .forEach { format.removeKey(it) }
             codec.reset()
             codec.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)

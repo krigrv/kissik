@@ -192,7 +192,7 @@ class StreamService : LifecycleService() {
             while (isActive) {
                 delay(1000)
                 txFps = txSent; val dropped = txDropped; txSent = 0; txDropped = 0
-                if (ws != null) netLog("tx ${txFps} fps, dropped $dropped, queue ${(ws?.queueSize() ?: 0) / 1024} KB, bitrate ${(encoder?.currentBitrate ?: 0) / 1000} kbps, capture->encoded ${encoder?.captureToEncodedUs?.averageMs()?.let { "%.0f ms".format(it) } ?: "-"}")
+                if (ws != null) netLog("tx ${txFps} fps, dropped $dropped, queue ${(ws?.queueSize() ?: 0) / 1024} KB, bitrate ${(encoder?.currentBitrate ?: 0) / 1000} kbps, capture->encoded ${encoder?.captureToEncodedUs?.averageMs()?.let { "%.0f ms".format(it) } ?: "-"} (exposure ${exposureUs.averageMs()?.let { "%.0f".format(it) } ?: "-"}, readout ${readoutUs.averageMs()?.let { "%.0f".format(it) } ?: "-"}, camera done ${cameraDoneUs.averageMs()?.let { "%.0f".format(it) } ?: "-"} ms)")
             }
         }
     }
@@ -261,7 +261,7 @@ class StreamService : LifecycleService() {
             netLog("zero-copy ${key.codec} encoder ${size.width}x${size.height} @ $videoFps fps (asked ${key.quality}p; lens can do ${videoSizes.joinToString { "${it.width}x${it.height}" }}), intra refresh ${enc.intraRefresh}")
             request.provideSurface(enc.surface, encoderExecutor) { if (encoder === enc) encoder = null; enc.release() }
             lifecycleScope.launch { sendStatus() }
-        }).setTargetFrameRate(android.util.Range(videoFps, videoFps))
+        }).also { attachTiming(it) }.setTargetFrameRate(android.util.Range(videoFps, videoFps))
             .apply { if (key.codec == "hevc-hdr") setDynamicRange(androidx.camera.core.DynamicRange.HLG_10_BIT) }
             .build()
         if (previous.isNotEmpty()) provider.unbind(*previous.toTypedArray()) // only our own streams; never the scanner's
@@ -373,8 +373,31 @@ class StreamService : LifecycleService() {
         if (ws != null) enc.encode(image)
     }
 
+    // Where the phone's delay goes, per frame (rolling averages, ms): exposure, sensor readout (rolling-shutter skew),
+    // and how long after exposure began the camera finished processing the frame.
+    private val exposureUs = H264Encoder.Window()
+    private val readoutUs = H264Encoder.Window()
+    private val cameraDoneUs = H264Encoder.Window()
+
+    @androidx.annotation.OptIn(ExperimentalCamera2Interop::class)
+    private fun attachTiming(builder: androidx.camera.video.VideoCapture.Builder<VideoFeed>) {
+        androidx.camera.camera2.interop.Camera2Interop.Extender(builder).setSessionCaptureCallback(object : android.hardware.camera2.CameraCaptureSession.CaptureCallback() {
+            override fun onCaptureCompleted(session: android.hardware.camera2.CameraCaptureSession, request: android.hardware.camera2.CaptureRequest,
+                                            result: android.hardware.camera2.TotalCaptureResult) {
+                val ts = result.get(android.hardware.camera2.CaptureResult.SENSOR_TIMESTAMP) ?: return
+                result.get(android.hardware.camera2.CaptureResult.SENSOR_EXPOSURE_TIME)?.let { exposureUs.add(it / 1000) }
+                result.get(android.hardware.camera2.CaptureResult.SENSOR_ROLLING_SHUTTER_SKEW)?.let { readoutUs.add(it / 1000) }
+                // Same clock as the frame timestamps the encoder sees (the camera's own), so no offset needed here.
+                val now = if (timestampsRealtime) android.os.SystemClock.elapsedRealtimeNanos() else System.nanoTime()
+                cameraDoneUs.add((now - ts) / 1000)
+            }
+        })
+    }
+    @Volatile private var timestampsRealtime = false
+
     /** Video sizes this lens can stream as hardware video (CameraX's own table), largest first: "videoSizes" in status. */
     @Volatile private var videoSizes: List<android.util.Size> = emptyList()
+    @Volatile private var lensVideoSizes: Map<String, List<String>> = emptyMap()
     private fun readVideoSizes() {
         val info = camera?.cameraInfo ?: return
         videoSizes = runCatching {
@@ -384,6 +407,21 @@ class StreamService : LifecycleService() {
             }.sortedByDescending { it.width * it.height }
         }.getOrDefault(emptyList())
         netLog("video sizes for this lens: ${videoSizes.joinToString { "${it.width}x${it.height}" }}")
+        timestampsRealtime = runCatching {
+            Camera2CameraInfo.from(info).getCameraCharacteristic(CameraCharacteristics.SENSOR_INFO_TIMESTAMP_SOURCE) ==
+                CameraCharacteristics.SENSOR_INFO_TIMESTAMP_SOURCE_REALTIME
+        }.getOrDefault(false)
+        // Every lens, so the PC can tell which one can do 4K without switching to it.
+        lensVideoSizes = runCatching {
+            ProcessCameraProvider.getInstance(this).get().availableCameraInfos.associate { ci ->
+                Camera2CameraInfo.from(ci).cameraId to runCatching {
+                    androidx.camera.video.Recorder.getVideoCapabilities(ci).getSupportedQualities(androidx.camera.core.DynamicRange.SDR)
+                        .mapNotNull { androidx.camera.video.QualitySelector.getResolution(ci, it) }
+                        .sortedByDescending { it.width * it.height }.map { "${maxOf(it.width, it.height)}x${minOf(it.width, it.height)}" }
+                }.getOrDefault(emptyList())
+            }
+        }.getOrDefault(emptyMap())
+        netLog("video sizes per lens: $lensVideoSizes")
     }
 
     /** Largest YUV size and highest frame rate this lens offers, reported to the PC as maxW/maxH/maxFps. */
@@ -593,6 +631,11 @@ class StreamService : LifecycleService() {
         json.put("videoSizes", org.json.JSONArray(videoSizes.map { "${maxOf(it.width, it.height)}x${minOf(it.width, it.height)}" }))
         videoSizes.firstOrNull()?.let { json.put("videoMaxW", maxOf(it.width, it.height)).put("videoMaxH", minOf(it.width, it.height)) }
         encoder?.let { json.put("intraRefresh", it.intraRefresh) }
+        json.put("lensVideoSizes", JSONObject(lensVideoSizes.mapValues { org.json.JSONArray(it.value) }))
+        fun ms(w: H264Encoder.Window) = w.averageMs()?.let { "%.1f".format(java.util.Locale.ROOT, it).toDouble() }
+        ms(exposureUs)?.let { json.put("expMs", it) }
+        ms(readoutUs)?.let { json.put("readoutMs", it) }
+        ms(cameraDoneUs)?.let { json.put("camDoneMs", it) }
         json.put("txFps", txFps).put("txQueueKB", (socket?.queueSize() ?: 0) / 1024)
         // Where the phone's share of the delay goes: sensor capture → encoded, then waiting in the send queue.
         encoder?.let { e ->
