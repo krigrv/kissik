@@ -32,6 +32,23 @@ public static class VirtualCamera
         }
     }
 
+    /// <summary>The installed component is an older build than the one in this app (e.g. before a fix): offer an update.</summary>
+    public static bool IsOutdated
+    {
+        get
+        {
+            try
+            {
+                if (!IsInstalled || !File.Exists(BundledDll)) return false;
+                var a = new FileInfo(InstalledDll); var b = new FileInfo(BundledDll);
+                if (a.Length != b.Length) return true;
+                using var sa = a.OpenRead(); using var sb = b.OpenRead();
+                return !System.Security.Cryptography.SHA256.HashData(sa).AsSpan().SequenceEqual(System.Security.Cryptography.SHA256.HashData(sb));
+            }
+            catch { return false; }
+        }
+    }
+
     /// <summary>Runs the one-time install elevated (UAC). Returns false if the user declined or it failed.</summary>
     public static async Task<bool> InstallAsync()
     {

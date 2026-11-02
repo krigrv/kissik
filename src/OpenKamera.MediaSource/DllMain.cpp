@@ -1,5 +1,5 @@
 // COM in-process server for the OpenKamera virtual camera media source.
-#include "MediaSource.h"
+#include "Activator.h"
 #include <string>
 
 static HMODULE g_module = nullptr;
@@ -16,6 +16,13 @@ public:
         if (!object) return E_POINTER;
         *object = nullptr;
         if (outer) return CLASS_E_NOAGGREGATION;
+        // The camera service asks for IMFActivate (or IUnknown, then IMFActivate); the test harness asks for the source.
+        if (riid == __uuidof(IUnknown) || riid == __uuidof(IMFActivate) || riid == __uuidof(IMFAttributes))
+        {
+            ComPtr<Activator> activator;
+            RETURN_IF_FAILED(Microsoft::WRL::MakeAndInitialize<Activator>(&activator));
+            return activator->QueryInterface(riid, object);
+        }
         ComPtr<MediaSource> source;
         RETURN_IF_FAILED(Microsoft::WRL::MakeAndInitialize<MediaSource>(&source));
         return source->QueryInterface(riid, object);
