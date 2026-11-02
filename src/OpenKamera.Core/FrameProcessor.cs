@@ -19,10 +19,14 @@ public sealed record FrameRecipe(
 /// </summary>
 public sealed record OutputBake(
     Func<int, int, byte[]?>? Front = null, double? FadeT = null,
-    byte[]? Caption = null, int CaptionWidth = 0, int CaptionHeight = 0, ShutterMode Shutter = ShutterMode.Off);
+    byte[]? Caption = null, int CaptionWidth = 0, int CaptionHeight = 0, ShutterMode Shutter = ShutterMode.Off,
+    (int Width, int Height)? FitWithin = null);
+
+/// <summary>The baked output frame; smaller than the processed frame when <see cref="OutputBake.FitWithin"/> shrank it.</summary>
+public sealed record BakedFrame(byte[] Pixels, int Width, int Height);
 
 /// <summary>A processed frame; Baked is the output bake, or null when it wasn't asked for or the CPU path ran.</summary>
-public sealed record FrameOutput(byte[] Pixels, int Width, int Height, byte[]? Baked);
+public sealed record FrameOutput(byte[] Pixels, int Width, int Height, BakedFrame? Baked);
 
 /// <summary>Runs framing → output fit → background → Enhance → scene. Used for preview, snapshots and recording.</summary>
 public static class FrameProcessor

@@ -172,7 +172,7 @@ public sealed class GpuEffects : IDisposable
     /// CPU: front overlay (SceneCompositor.BlendOver), scene cross-fade, burned-in captions (CaptionBurn.Blend) and the
     /// privacy shutter (PrivacyShutter.Apply). Returns <paramref name="pixels"/> itself when there is nothing to add.
     /// </summary>
-    private byte[] Bake(string cur, int w, int h, OutputBake b, byte[] pixels)
+    private BakedFrame Bake(string cur, int w, int h, OutputBake b, byte[] pixels)
     {
         int n = w * h;
         string? k = null;
@@ -208,10 +208,21 @@ public sealed class GpuEffects : IDisposable
             Run("PixBlock", bx * by, srv: [(k ?? cur, 0)], uav: [("blocks", 0)]);
             Pass("PixFill", "blocks");
         }
-        if (k is null) return pixels;
+        // Only the meeting camera wants it: shrink to its size here, so less comes back (VirtualCameraChannel's maths).
+        if (b.FitWithin is var (mw, mh) && (w > mw || h > mh))
+        {
+            double s = Math.Min((double)mw / w, (double)mh / h);
+            int nw = Math.Max(2, (int)(w * s)) & ~1, nh = Math.Max(2, (int)(h * s)) & ~1;
+            // The pause sign is drawn at the size that comes back, as the CPU draws it before the meeting camera shrinks it.
+            Resample(k ?? cur, w, h, nw, nh, (double)nw / w, (double)nh / h, "fitout");
+            var small = Download("fitout", nw * nh * 4);
+            if (b.Shutter == ShutterMode.Away) PrivacyShutter.DrawPause(small, nw, nh);
+            return new BakedFrame(small, nw, nh);
+        }
+        if (k is null) return new BakedFrame(pixels, w, h);
         var baked = Download(k, n * 4);
         if (b.Shutter == ShutterMode.Away) PrivacyShutter.DrawPause(baked, w, h);
-        return baked;
+        return new BakedFrame(baked, w, h);
     }
 
     /// <summary>Start a scene cross-fade from the last baked output frame (then pass <see cref="OutputBake.FadeT"/>).</summary>
@@ -265,7 +276,17 @@ public sealed class GpuEffects : IDisposable
         if (r.OutputWidth is int fw && r.OutputHeight is int fh && (fw != w || fh != h))
         {
             double scale = Math.Max((double)fw / w, (double)fh / h);
-            double left = (w - fw / scale) / 2, top = (h - fh / scale) / 2;
+            Resample(src, w, h, fw, fh, scale, scale, "fitted");
+            (src, w, h) = ("fitted", fw, fh);
+        }
+        return (src, w, h);
+    }
+
+    /// <summary>OutputFit's resample (Cover when the scales match, Stretch when not) into <paramref name="dst"/>.</summary>
+    private void Resample(string src, int w, int h, int fw, int fh, double scaleX, double scaleY, string dst)
+    {
+        {
+            double left = (w - fw / scaleX) / 2, top = (h - fh / scaleY) / 2;
             // Per column then per row: index, weight as double (two words); then the weights as float for the fallback.
             var map = new uint[(fw + fh) * 4];
             void Tap(int o, int n, int at, int fl, double pos, int size)
@@ -275,15 +296,13 @@ public sealed class GpuEffects : IDisposable
                 map[at + o] = (uint)(int)f; map[at + n + o] = (uint)bits; map[at + 2 * n + o] = (uint)(bits >> 32);
                 map[fl + o] = BitConverter.SingleToUInt32Bits((float)d);
             }
-            for (int o = 0; o < fw; o++) Tap(o, fw, 0, 3 * (fw + fh), left + (o + 0.5) / scale - 0.5, w);
-            for (int o = 0; o < fh; o++) Tap(o, fh, 3 * fw, 3 * (fw + fh) + fw, top + (o + 0.5) / scale - 0.5, h);
+            for (int o = 0; o < fw; o++) Tap(o, fw, 0, 3 * (fw + fh), left + (o + 0.5) / scaleX - 0.5, w);
+            for (int o = 0; o < fh; o++) Tap(o, fh, 3 * fw, 3 * (fw + fh) + fw, top + (o + 0.5) / scaleY - 0.5, h);
             Upload("map", map, 4);
             SetParams(new Params { I0 = new(fw, fh, 0, 0), I1 = new(w, h, 0, 0) });
-            Ensure("fitted", fw * fh * 4, 4);
-            Run(_cs.ContainsKey("FitDouble") ? "FitDouble" : "Fit", fw * fh, srv: [(src, 0), ("map", 8)], uav: [("fitted", 0)]);
-            (src, w, h) = ("fitted", fw, fh);
+            Ensure(dst, fw * fh * 4, 4);
+            Run(_cs.ContainsKey("FitDouble") ? "FitDouble" : "Fit", fw * fh, srv: [(src, 0), ("map", 8)], uav: [(dst, 0)]);
         }
-        return (src, w, h);
     }
 
     /// <summary>The segmentation model's input: the frame sampled (nearest) at iw x ih, as PersonSegmenter samples it.</summary>

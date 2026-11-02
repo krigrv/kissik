@@ -96,6 +96,10 @@ public sealed partial class MainPage
     }
 
     /// <summary>Frame thread: draws the second camera into the processed frame.</summary>
+    /// <summary>True when a second-camera layer is drawn into this frame (on the CPU, after processing).</summary>
+    private bool SecondCameraShown => _secondFrame is not null && _sceneSnapshot is { } scene
+        && scene.Layers.Any(l => l.Kind == "camera2" && l.Visible && l.Source == _secondSource);
+
     private void DrawSecondCamera(byte[] pixels, int w, int h)
     {
         if (_secondFrame is not { } f || _sceneSnapshot is not { } scene) return;

@@ -35,7 +35,7 @@ foreach (var (w, h) in new[] { (1920, 1080), (3840, 2160) })
         var front = Layer(w, h, 40); var caption = Layer(w / 2, h / 10, 200);
         var bake = new OutputBake((_, _) => front, null, caption, w / 2, h / 10);
         var blur = cases[0].Recipe;
-        foreach (var (name, input, b) in new[] { ("nv12 blur", nv12, (OutputBake?)null), ("bgra blur+bake", bmp, bake), ("nv12 blur+bake", nv12, bake), ("nv12 blur+bake+shutter", nv12, bake with { Shutter = ShutterMode.Blur }) })
+        foreach (var (name, input, b) in new[] { ("nv12 blur", nv12, (OutputBake?)null), ("bgra blur+bake", bmp, bake), ("nv12 blur+bake", nv12, bake), ("nv12 blur+bake+shutter", nv12, bake with { Shutter = ShutterMode.Blur }), ("nv12 blur+bake, meeting camera size", nv12, bake with { FitWithin = (1920, 1080) }) })
         {
             using var bg = new BackgroundPipeline();
             for (int i = 0; i < 5; i++) FrameProcessor.Process(input, blur, bg, b);
@@ -55,6 +55,9 @@ foreach (var (w, h) in new[] { (1920, 1080), (3840, 2160) })
                 PrivacyShutter.Apply(c, w, h, ShutterMode.Blur); n++;
             }
             Console.WriteLine($"{w}x{h} cpu bake+shutter alone: {sw.Elapsed.TotalMilliseconds / n:F1} ms per frame");
+            sw.Restart(); n = 0;
+            while (sw.Elapsed.TotalSeconds < 2) { OutputFit.Stretch(frame, w, h, Math.Min(w, 1920), Math.Min(h, 1080)); n++; }
+            Console.WriteLine($"{w}x{h} cpu shrink to meeting camera size: {sw.Elapsed.TotalMilliseconds / n:F1} ms per frame");
         }
     }
 }
