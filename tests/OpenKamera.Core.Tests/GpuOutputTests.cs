@@ -101,6 +101,37 @@ public class GpuOutputTests(ITestOutputHelper log)
         Assert.Equal(small, o.Baked.Pixels);
     }
 
+    [Theory]
+    [InlineData(SceneTransition.Slide, 0.2)]
+    [InlineData(SceneTransition.Slide, 0.7)]
+    [InlineData(SceneTransition.Zoom, 0.3)]
+    [InlineData(SceneTransition.Zoom, 0.8)]
+    [InlineData(SceneTransition.Fade, 0.5)]
+    public void TransitionsMatchCpu(SceneTransition kind, double t)
+    {
+        if (GpuEffects.Shared is not { } gpu) { log.WriteLine("No Direct3D 11 GPU: skipped."); return; }
+        byte[] a = Opaque(8), b = Opaque(9);
+        gpu.ProcessOutput(a, W, H, FrameRecipe.Passthrough, null, new OutputBake());
+        gpu.BeginFade();
+        var o = gpu.ProcessOutput(b, W, H, FrameRecipe.Passthrough, null, new OutputBake(FadeT: t, Transition: kind));
+        var cpu = (byte[])b.Clone();
+        SceneTransitions.Apply(cpu, a, W, H, t, kind);
+        Assert.Equal(cpu, o!.Baked!.Pixels);
+    }
+
+    [Fact]
+    public void PreviewComesBackSmallOutputsFull()
+    {
+        if (GpuEffects.Shared is not { } gpu) { log.WriteLine("No Direct3D 11 GPU: skipped."); return; }
+        byte[] a = Opaque(10);
+        var o = gpu.ProcessOutput(a, W, H, FrameRecipe.Passthrough, null, new OutputBake(), previewWithin: (160, 120));
+        var (pw, ph) = GpuEffects.Shrunk(W, H, 160, 120);
+        Assert.Equal((pw, ph), (o!.Width, o.Height));
+        Assert.Equal(OutputFit.Stretch(a, W, H, pw, ph).Pixels, o.Pixels);
+        Assert.Equal(a, o.Baked!.Pixels); // nothing to bake: the full frame
+        Assert.Equal((W, H), (o.Baked.Width, o.Baked.Height));
+    }
+
     private static byte[] Opaque(int seed)
     {
         var px = new byte[W * H * 4];

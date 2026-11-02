@@ -8,10 +8,14 @@ namespace OpenKamera.Core;
 public sealed record FrameRecipe(
     ImageFilters.Adjustments Adjustments, FrameTransform Transform,
     BackgroundSettings Background, int? OutputWidth = null, int? OutputHeight = null,
-    SceneDocument? Scene = null, byte[]? Overlay = null, byte[]? BehindOverlay = null, byte[]? UnderOverlay = null)
+    SceneDocument? Scene = null, byte[]? Overlay = null, byte[]? BehindOverlay = null, byte[]? UnderOverlay = null,
+    IReadOnlyList<PlacedSource>? Placed = null)
 {
     public static readonly FrameRecipe Passthrough = new(ImageFilters.Adjustments.Neutral, FrameTransform.Identity, BackgroundSettings.Off);
 }
+
+/// <summary>Another picture placed into a scene layer on top of the composed frame (a second camera).</summary>
+public sealed record PlacedSource(byte[] Pixels, int Width, int Height, SceneLayer Layer);
 
 /// <summary>
 /// What the outputs (meeting camera, stream, recording) get on top of the processed frame: the front overlay at a
@@ -20,7 +24,7 @@ public sealed record FrameRecipe(
 public sealed record OutputBake(
     Func<int, int, byte[]?>? Front = null, double? FadeT = null,
     byte[]? Caption = null, int CaptionWidth = 0, int CaptionHeight = 0, ShutterMode Shutter = ShutterMode.Off,
-    (int Width, int Height)? FitWithin = null);
+    (int Width, int Height)? FitWithin = null, SceneTransition Transition = SceneTransition.Fade);
 
 /// <summary>The baked output frame; smaller than the processed frame when <see cref="OutputBake.FitWithin"/> shrank it.</summary>
 public sealed record BakedFrame(byte[] Pixels, int Width, int Height);
@@ -51,9 +55,11 @@ public static class FrameProcessor
     /// Processes a frame and, on the GPU, also bakes the outputs' layers (<paramref name="bake"/>) before reading back.
     /// NV12 / YUY2 camera frames go to the GPU as they are; the CPU path converts them first.
     /// </summary>
-    public static FrameOutput Process(SoftwareBitmap frame, FrameRecipe r, BackgroundPipeline? background, OutputBake? bake)
+    /// <param name="previewWithin">On the GPU, return the processed frame shrunk to fit this (the bake keeps full size).</param>
+    public static FrameOutput Process(SoftwareBitmap frame, FrameRecipe r, BackgroundPipeline? background, OutputBake? bake,
+        (int Width, int Height)? previewWithin = null)
     {
-        if (UseGpu && !r.Background.GreenScreen && YuvConvert.IsYuv(frame) && GpuEffects.Shared is { } g && g.ProcessCamera(frame, r, background, bake) is { } fast)
+        if (UseGpu && !r.Background.GreenScreen && YuvConvert.IsYuv(frame) && GpuEffects.Shared is { } g && g.ProcessCamera(frame, r, background, bake, previewWithin) is { } fast)
             return fast;
         var bgra = frame.BitmapPixelFormat == BitmapPixelFormat.Bgra8
             ? frame
@@ -63,7 +69,7 @@ public static class FrameProcessor
             int w = bgra.PixelWidth, h = bgra.PixelHeight;
             var pixels = new byte[w * h * 4];
             bgra.CopyToBuffer(pixels.AsBuffer());
-            if (UseGpu && !r.Background.GreenScreen && GpuEffects.Shared is { } gpu && gpu.ProcessOutput(pixels, w, h, r, background, bake) is { } done)
+            if (UseGpu && !r.Background.GreenScreen && GpuEffects.Shared is { } gpu && gpu.ProcessOutput(pixels, w, h, r, background, bake, previewWithin) is { } done)
                 return done;
             (pixels, w, h) = r.Transform.Apply(pixels, w, h);
             // Fit before the expensive steps so they run at output size, not camera size.
@@ -79,6 +85,7 @@ public static class FrameProcessor
             }
             ImageFilters.Apply(pixels, w, h, r.Adjustments); // camera only: overlays keep their true colours
             if (r.Scene is { } scene) pixels = SceneCompositor.Compose(pixels, w, h, scene, r.Overlay, r.UnderOverlay);
+            foreach (var src in r.Placed ?? []) SceneCompositor.PlaceSource(pixels, w, h, src.Pixels, src.Width, src.Height, src.Layer);
             return new FrameOutput(pixels, w, h, null);
         }
         finally { if (!ReferenceEquals(bgra, frame)) bgra.Dispose(); }
