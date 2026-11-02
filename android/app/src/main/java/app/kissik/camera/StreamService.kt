@@ -127,7 +127,8 @@ class StreamService : LifecycleService() {
             combine(Live.front, Live.quality, Live.saving) { f, q, s -> f to (if (s) minOf(q, 480) else q) }
                 .distinctUntilChanged().collect { (f, q) -> bindCamera(f, q) }
         }
-        lifecycleScope.launch { Live.torch.collect { camera?.cameraControl?.enableTorch(it) } }
+        lifecycleScope.launch { Live.torch.collect { camera?.cameraControl?.enableTorch(it); sendStatus() } }
+        lifecycleScope.launch { Live.zoom.collect { camera?.cameraControl?.setZoomRatio(it); sendStatus() } }
         lifecycleScope.launch {
             combine(Live.mic, Live.link) { m, l -> m && (l == Link.Wifi || l == Link.Usb) }.distinctUntilChanged().collect { setMic(it) }
         }
@@ -135,7 +136,10 @@ class StreamService : LifecycleService() {
         lifecycleScope.launch { while (isActive) { checkSaver(); sendStatus(); delay(15_000) } }
     }
 
+    private var boundFront: Boolean? = null
     private suspend fun bindCamera(front: Boolean, quality: Int) {
+        if (boundFront != null && boundFront != front) Live.zoom.value = 1f
+        boundFront = front
         val provider = withContext(Dispatchers.IO) { ProcessCameraProvider.getInstance(this@StreamService).get() }
         val long = when (quality) { 1080 -> 1920; 480 -> 640; else -> 1280 }
         val analysis = ImageAnalysis.Builder()
@@ -151,6 +155,7 @@ class StreamService : LifecycleService() {
             .recoverCatching { provider.bindToLifecycle(this, other, analysis) }.getOrNull()
         if (camera == null) Live.message.value = "Couldn't open the camera. Is another app using it?"
         camera?.cameraControl?.enableTorch(Live.torch.value)
+        camera?.cameraControl?.setZoomRatio(Live.zoom.value)
         sendStatus()
     }
 
@@ -222,6 +227,12 @@ class StreamService : LifecycleService() {
             text == "front" -> Live.front.value = true
             text == "back" -> Live.front.value = false
             text.startsWith("q:") -> text.drop(2).toIntOrNull()?.takeIf { it in setOf(480, 720, 1080) }?.let { Live.quality.value = it }
+            text == "torch:on" || text == "torch:off" -> { Live.torch.value = text == "torch:on"; return }
+            text.startsWith("zoom:") -> {
+                val info = camera?.cameraInfo?.zoomState?.value
+                text.drop(5).toFloatOrNull()?.let { Live.zoom.value = it.coerceIn(info?.minZoomRatio ?: 1f, info?.maxZoomRatio ?: it) }
+                return
+            }
             else -> return
         }
         Live.save(this)
@@ -251,6 +262,11 @@ class StreamService : LifecycleService() {
         val json = JSONObject().put("device", "${Build.MANUFACTURER} ${Build.MODEL}".trim())
             .put("w", w).put("h", h).put("battery", level ?: JSONObject.NULL).put("charging", charging ?: JSONObject.NULL)
             .put("facing", if (Live.front.value) "front" else "back")
+        // Lets the PC enable its Torch button and zoom slider only when this lens supports them.
+        val info = camera?.cameraInfo
+        json.put("torch", if (info?.hasFlashUnit() == true) Live.torch.value else JSONObject.NULL)
+        val zs = info?.zoomState?.value
+        json.put("zoomMax", zs?.maxZoomRatio?.toDouble() ?: JSONObject.NULL).put("zoom", Live.zoom.value.toDouble())
         socket.send(json.toString())
     }
 

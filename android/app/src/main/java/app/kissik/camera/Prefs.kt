@@ -17,6 +17,8 @@ object Live {
     val mic = MutableStateFlow(false)
     val torch = MutableStateFlow(false)
     val quality = MutableStateFlow(720)
+    /** Zoom factor the PC asked for (1 = no zoom); clamped to what the lens offers. */
+    val zoom = MutableStateFlow(1f)
     val saver = MutableStateFlow(true)
     /** True while the saver has dropped quality to 480p (hot phone or low battery). */
     val saving = MutableStateFlow(false)
