@@ -63,7 +63,7 @@ public sealed partial class MainPage : Page
         StartConnectWatch();
         StartSceneThumbs();
         StartAudioWatchdog();
-        _ = ShowWelcomeOnceAsync();
+        _ = ShowWelcomeOnceAsync().ContinueWith(_ => DispatcherQueue.TryEnqueue(() => _ = OfferCrashReportAsync()), TaskScheduler.Default);
         ResumePairedPhone();
         try { InitVertical(); } catch { }
         try { InitTray(); } catch (Exception ex) { Status("Tray icon unavailable: " + ex.Message); }
@@ -349,6 +349,7 @@ public sealed partial class MainPage : Page
         {
             if (_recorder is not null) await StopRecordingAsync();
             // The phone server keeps running so a paired phone can come back by itself.
+            PhoneControls.Visibility = Visibility.Collapsed;
             await _session.DisposeAsync();
             _session = null; _controller = null;
             ConnectBtn.Content = "Connect";

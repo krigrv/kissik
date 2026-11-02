@@ -78,7 +78,7 @@ More from reviews of the desktop + iPhone apps (2026-11-02; see docs/research/co
 12. [ ] Honest money if store builds are ever sold: one-time price, no auto-renew, one-click refunds
 13. [~] Clean uninstall: "Remove the camera" now also removes every registration (old names too), and start-up clears registrations left from renames. Checking it in Zoom/Teams after removal still to do
 14. [~] Release checklist written (docs/RELEASE-CHECKLIST.md); run it and publish results each release
-15. [ ] Opt-in crash reporting
+15. [x] Opt-in crash reports: after an unexpected close, offer to copy the report and open a GitHub issue; nothing sent automatically
 16. [x] Main app needs no admin; admin only for the optional meeting camera and phone firewall rule; IT guide in docs/IT-DEPLOYMENT.md
 17. [~] Audio-drop watchdog: engine stall or Windows audio error → restart within ~3 s and warn, recording keeps going (done). Phone mic: dropped with a reason when it stops sending (done). Device mics rely on the engine watchdog
 18. [x] Explain resolution limits: camera ("supports up to 1080p, scaled up") and phone ("sending 720p; pick 1080p on the phone")
@@ -101,7 +101,7 @@ everything from the PC, switching between paired phones/PCs.
 - [ ] P1 Recently connected device list
 - [x] P5 Phone as webcam — browser page over HTTPS/WebSocket (QR pairing, verified on a real phone); native Android app later
 - [x] P5 Phone over Wi-Fi and USB (Android: adb reverse to a localhost-only listener, page opens on the phone, no certificate warning)
-- [ ] P5 Control phone camera settings from desktop (lens, focus, exposure, flash, stabilisation)
+- [~] P5 Control the phone from the PC: lens flip, torch, zoom (done). Focus/exposure still to do
 - [ ] P2 DSLR/mirrorless/action cameras — via their UVC webcam mode or an HDMI capture card (both appear as normal sources)
 - [ ] P2 HDMI capture-card sources (UVC; same path)
 - ⚠ Apple Continuity Camera — macOS-only API; needs a Mac build

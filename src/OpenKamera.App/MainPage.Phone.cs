@@ -88,6 +88,7 @@ public sealed partial class MainPage
             string battery = st.Battery is { } b ? $" · battery {b:P0}{(st.Charging == true ? " charging" : "")}" : "";
             HudText.Text = $"Phone {st.Facing} camera {st.Width}×{st.Height}{battery}";
             if (st.Width > 0) SourceInfo.Text = $"{st.Width}×{st.Height} · phone";
+            UpdatePhoneControls(st);
             if (st.Height > 0 && st.Height < _profile.Height && _phoneLimitShown != st.Height)
             {
                 _phoneLimitShown = st.Height;
@@ -219,5 +220,33 @@ public sealed partial class MainPage
     private async void PhoneFlip_Click(object sender, RoutedEventArgs e)
     {
         if (_phone is { } p) await p.SendAsync(p.LastStatus?.Facing == "front" ? "back" : "front");
+    }
+
+    private bool _phoneZoomLoading;
+    private DateTime _phoneZoomSent;
+
+    private void UpdatePhoneControls(PhoneStatus st)
+    {
+        PhoneControls.Visibility = DeviceBox.SelectedItem == PhoneDevice && _session is not null ? Visibility.Visible : Visibility.Collapsed;
+        PhoneTorchBtn.IsEnabled = st.Torch is not null;
+        PhoneTorchBtn.IsChecked = st.Torch == true;
+        ToolTipService.SetToolTip(PhoneTorchBtn, st.Torch is null ? "This camera has no torch (try the back camera)" : "Phone torch");
+        _phoneZoomLoading = true;
+        PhoneZoom.IsEnabled = st.ZoomMax is > 1;
+        PhoneZoom.Maximum = Math.Max(1, Math.Min(st.ZoomMax ?? 1, 10));
+        if (DateTime.UtcNow - _phoneZoomSent > TimeSpan.FromSeconds(2) && st.Zoom is { } z) PhoneZoom.Value = z;
+        _phoneZoomLoading = false;
+    }
+
+    private async void PhoneTorch_Click(object sender, RoutedEventArgs e)
+    {
+        if (_phone is { } p) await p.SendAsync(PhoneTorchBtn.IsChecked == true ? "torch:on" : "torch:off");
+    }
+
+    private async void PhoneZoom_ValueChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
+    {
+        if (_phoneZoomLoading || _phone is not { } p) return;
+        _phoneZoomSent = DateTime.UtcNow;
+        await p.SendAsync($"zoom:{e.NewValue.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)}");
     }
 }
