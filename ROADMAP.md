@@ -88,7 +88,7 @@ From desktop studio reviews (Windows + Mac):
 21. [ ] Never touch the real webcam's driver: built-in camera still works after install and uninstall (test on laptops)
 22. [ ] App and camera/mic plug-ins ship and update as one version; detect and repair a mismatch; uninstall removes the plug-in
 23. [ ] Survive OS updates: current system camera APIs only; test on OS previews before release
-24. [~] Soak test: 3 min of 4K blur + recording, memory flat (~1.7 GB), handles flat; found and fixed a lost-recording bug (empty last piece). Still to do: 2-hour run, camera unplug, and GPU effects (4K blur while recording runs ~11 fps on CPU)
+24. [~] Soak test: 3 min of 4K blur + recording, memory flat (~1.7 GB), handles flat; found and fixed a lost-recording bug (empty last piece). Camera unplug: detected and auto-reconnects when plugged back (built, not yet tested by unplugging). Still to do: 2-hour run and GPU effects (4K blur while recording runs ~11 fps on CPU)
 25. [ ] (Mac) treat the OS's own phone-camera device as a normal source and add our effects on top
 Requests: keep streaming with the phone screen off / page in background; PC button for the phone torch; external mic plugged
 into the phone as a source; front/back switch always visible on the PC. Keep: QR pairing in minutes, low PC load, control

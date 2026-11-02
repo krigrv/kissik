@@ -373,6 +373,7 @@ public sealed partial class MainPage : Page
             _session.FrameAvailable += OnFrame;
             if (cam == PhoneDevice) { await _session.StartExternalAsync(); await StartPhoneAsync(); }
             else await _session.StartAsync(cam.Id, _profile);
+            if (cam != PhoneDevice) WatchCamera(_session, cam);
             _controller = _session.Controls is { } c ? new CameraController(c) : null;
             if (cam != PhoneDevice) _settings.LastDeviceId = cam.Id;
             _settings.Save();

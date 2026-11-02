@@ -19,6 +19,9 @@ public sealed class CaptureSession : IAsyncDisposable
     /// <summary>The most recent raw frame (do not dispose; it is replaced as frames arrive).</summary>
     public SoftwareBitmap? Latest => _latest;
     public event Action<SoftwareBitmap>? FrameAvailable;
+    /// <summary>The camera stopped working (unplugged, taken by another app, driver reset). Raised once, off the UI thread.</summary>
+    public event Action<string>? Lost;
+    private int _lost;
 
     /// <summary>The camera mode in use, e.g. "1920×1080 @ 30 fps NV12".</summary>
     public CaptureMode? Mode { get; private set; }
@@ -35,6 +38,7 @@ public sealed class CaptureSession : IAsyncDisposable
             MemoryPreference = MediaCaptureMemoryPreference.Cpu,
         });
         Controls = _capture.VideoDeviceController;
+        _capture.Failed += (_, e) => { if (Interlocked.Exchange(ref _lost, 1) == 0) Lost?.Invoke(e.Message); };
 
         var source = _capture.FrameSources.Values
             .FirstOrDefault(s => s.Info.SourceKind == MediaFrameSourceKind.Color)
