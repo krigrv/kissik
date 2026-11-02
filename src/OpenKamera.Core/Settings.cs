@@ -60,6 +60,8 @@ public sealed class AppSettings
     public bool ControlApiOn { get; set; }
     /// <summary>Record a 9:16 vertical copy next to the normal recording.</summary>
     public bool RecordVertical { get; set; }
+    /// <summary>Show the frame-rate and delay details over the picture.</summary>
+    public bool ShowPictureStats { get; set; }
     /// <summary>Size of the crash log when the user last saw the "KISSIK closed unexpectedly" note.</summary>
     public long CrashLogSeen { get; set; }
     /// <summary>Livestream destinations (keys encrypted for this Windows user).</summary>

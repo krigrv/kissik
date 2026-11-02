@@ -28,10 +28,10 @@
 
 
 
-        <!-- Target size: every control at least 40 x 40 unless its own style says more. -->
-        <Style TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}"><Setter Property="MinHeight" Value="40" /><Setter Property="MinWidth" Value="40" /></Style>
-        <Style TargetType="ToggleButton" BasedOn="{StaticResource DefaultToggleButtonStyle}"><Setter Property="MinHeight" Value="40" /><Setter Property="MinWidth" Value="40" /></Style>
-        <Style TargetType="ComboBox" BasedOn="{StaticResource DefaultComboBoxStyle}"><Setter Property="MinHeight" Value="40" /></Style>
+        <!-- Target size: every control at least 36 x 36 (well above the 24 px minimum) unless its own style says more. -->
+        <Style TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}"><Setter Property="MinHeight" Value="36" /><Setter Property="MinWidth" Value="36" /></Style>
+        <Style TargetType="ToggleButton" BasedOn="{StaticResource DefaultToggleButtonStyle}"><Setter Property="MinHeight" Value="36" /><Setter Property="MinWidth" Value="36" /></Style>
+        <Style TargetType="ComboBox" BasedOn="{StaticResource DefaultComboBoxStyle}"><Setter Property="MinHeight" Value="36" /></Style>
         <Style TargetType="ToggleSwitch" BasedOn="{StaticResource DefaultToggleSwitchStyle}"><Setter Property="MinHeight" Value="40" /></Style>
 
         <Style x:Key="Glass" TargetType="Border">
@@ -43,14 +43,14 @@
         <Style x:Key="SectionLabel" TargetType="TextBlock">
             <Setter Property="FontSize" Value="12" />
             <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
-            <Setter Property="Margin" Value="0,14,0,6" />
+            <Setter Property="Margin" Value="0,16,0,6" />
         </Style>
         <Style x:Key="SectionValue" TargetType="TextBlock">
             <Setter Property="FontSize" Value="12" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Foreground" Value="{ThemeResource TextFillColorPrimaryBrush}" />
             <Setter Property="HorizontalAlignment" Value="Right" />
-            <Setter Property="Margin" Value="0,14,0,6" />
+            <Setter Property="Margin" Value="0,16,0,6" />
         </Style>
         <Style x:Key="HintText" TargetType="TextBlock">
             <Setter Property="FontSize" Value="12" />
@@ -275,6 +275,9 @@
                             <ToggleMenuFlyoutItem x:Name="VerticalToggle" Text="Also record a vertical (9:16) copy" Click="VerticalToggle_Click">
                                 <ToggleMenuFlyoutItem.Icon><FontIcon Glyph="&#xE8C4;" /></ToggleMenuFlyoutItem.Icon>
                             </ToggleMenuFlyoutItem>
+                            <ToggleMenuFlyoutItem x:Name="StatsToggle" Text="Show picture stats (frame rate and delay)" Click="StatsToggle_Click">
+                                <ToggleMenuFlyoutItem.Icon><FontIcon Glyph="&#xE9D9;" /></ToggleMenuFlyoutItem.Icon>
+                            </ToggleMenuFlyoutItem>
                             <MenuFlyoutItem Text="Prompter under the webcam" Click="PrompterBtn_Click">
                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8D2;" /></MenuFlyoutItem.Icon>
                             </MenuFlyoutItem>
@@ -370,7 +373,7 @@
             <Border x:Name="RecPill" Background="{StaticResource DgRecBrush}" CornerRadius="14" Padding="10,5" Visibility="Collapsed">
                 <TextBlock x:Name="RecPillText" AutomationProperties.LiveSetting="Polite" Text="● REC" FontSize="12" FontWeight="SemiBold" Foreground="White" />
             </Border>
-            <Border Background="#88000000" CornerRadius="14" Padding="10,5">
+            <Border x:Name="HudPill" Background="#88000000" CornerRadius="14" Padding="10,5" Opacity="0">
                 <TextBlock x:Name="HudText" FontSize="12" Foreground="White" Text="No device open" />
             </Border>
         </StackPanel>
@@ -385,9 +388,9 @@
                 </Grid.RowDefinitions>
                 <Border Background="{ThemeResource ControlFillColorDefaultBrush}" CornerRadius="12" Padding="3">
                     <SelectorBar x:Name="SidebarTabs" SelectionChanged="SidebarTabs_SelectionChanged" HorizontalAlignment="Stretch">
-                        <SelectorBarItem x:Name="TabCamera" Text="Camera" IsSelected="True" ToolTipService.ToolTip="Camera, background, look" AutomationProperties.HelpText="Camera, background, look" />
-                        <SelectorBarItem x:Name="TabAudio" Text="Audio" ToolTipService.ToolTip="Microphones and audio effects" AutomationProperties.HelpText="Microphones and audio effects" />
-                        <SelectorBarItem x:Name="TabLayers" Text="Layers" ToolTipService.ToolTip="Scene layers" AutomationProperties.HelpText="Scene layers" />
+                        <SelectorBarItem x:Name="TabCamera" AutomationProperties.Name="Camera" IsSelected="True" ToolTipService.ToolTip="Camera, background, look" AutomationProperties.HelpText="Camera, background, look"><SelectorBarItem.Icon><FontIcon Glyph="&#xE714;" /></SelectorBarItem.Icon></SelectorBarItem>
+                        <SelectorBarItem x:Name="TabAudio" AutomationProperties.Name="Audio" ToolTipService.ToolTip="Microphones and audio effects" AutomationProperties.HelpText="Microphones and audio effects"><SelectorBarItem.Icon><FontIcon Glyph="&#xE720;" /></SelectorBarItem.Icon></SelectorBarItem>
+                        <SelectorBarItem x:Name="TabLayers" AutomationProperties.Name="Layers" ToolTipService.ToolTip="Scene layers" AutomationProperties.HelpText="Scene layers"><SelectorBarItem.Icon><FontIcon Glyph="&#xE81E;" /></SelectorBarItem.Icon></SelectorBarItem>
                     </SelectorBar>
                 </Border>
 

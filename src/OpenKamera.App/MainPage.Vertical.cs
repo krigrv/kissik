@@ -10,7 +10,18 @@ public sealed partial class MainPage
     private SegmentedRecorder? _vertical;
     private int _verticalBusy;
 
-    private void InitVertical() => VerticalToggle.IsChecked = _settings.RecordVertical;
+    private void InitVertical()
+    {
+        VerticalToggle.IsChecked = _settings.RecordVertical;
+        StatsToggle.IsChecked = _settings.ShowPictureStats;
+        HudPill.Opacity = _settings.ShowPictureStats ? 1 : 0; // stays readable by screen readers either way
+    }
+
+    private void StatsToggle_Click(object sender, RoutedEventArgs e)
+    {
+        _settings.ShowPictureStats = StatsToggle.IsChecked; _settings.Save();
+        HudPill.Opacity = _settings.ShowPictureStats ? 1 : 0;
+    }
 
     private void VerticalToggle_Click(object sender, RoutedEventArgs e)
     {
