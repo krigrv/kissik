@@ -276,6 +276,13 @@
                                 <ToggleMenuFlyoutItem.Icon><FontIcon Glyph="&#xED1E;" /></ToggleMenuFlyoutItem.Icon>
                             </ToggleMenuFlyoutItem>
                             <MenuFlyoutSeparator />
+                            <ToggleMenuFlyoutItem x:Name="ReplayToggle" Text="Replay buffer (keeps the last 30 seconds)" Click="ReplayToggle_Click">
+                                <ToggleMenuFlyoutItem.Icon><FontIcon Glyph="&#xE81C;" /></ToggleMenuFlyoutItem.Icon>
+                            </ToggleMenuFlyoutItem>
+                            <MenuFlyoutItem x:Name="SaveReplayItem" Text="Save the last 30 seconds" Click="SaveReplay_Click" IsEnabled="False">
+                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE74E;" /></MenuFlyoutItem.Icon>
+                                <MenuFlyoutItem.KeyboardAccelerators><KeyboardAccelerator Modifiers="Control,Menu" Key="S" /></MenuFlyoutItem.KeyboardAccelerators>
+                            </MenuFlyoutItem>
                             <MenuFlyoutItem x:Name="UpdateItem" Text="Check for updates" Click="UpdateItem_Click">
                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE895;" /></MenuFlyoutItem.Icon>
                             </MenuFlyoutItem>
@@ -305,6 +312,13 @@
                                     <RadioMenuFlyoutItem Text="Red-green (deuteranopia, most common)" GroupName="Cvd" Tag="Deuteranopia" Click="Cvd_Click" />
                                     <RadioMenuFlyoutItem Text="Red-green (protanopia)" GroupName="Cvd" Tag="Protanopia" Click="Cvd_Click" />
                                     <RadioMenuFlyoutItem Text="Blue-yellow (tritanopia)" GroupName="Cvd" Tag="Tritanopia" Click="Cvd_Click" />
+                                </MenuFlyoutSubItem>
+                                <MenuFlyoutSubItem Text="Scene transition">
+                                    <MenuFlyoutSubItem.Icon><FontIcon Glyph="&#xE8AB;" /></MenuFlyoutSubItem.Icon>
+                                    <RadioMenuFlyoutItem x:Name="TrFade" Text="Fade" GroupName="Transition" Tag="Fade" Click="Transition_Click" />
+                                    <RadioMenuFlyoutItem x:Name="TrSlide" Text="Slide" GroupName="Transition" Tag="Slide" Click="Transition_Click" />
+                                    <RadioMenuFlyoutItem x:Name="TrZoom" Text="Zoom" GroupName="Transition" Tag="Zoom" Click="Transition_Click" />
+                                    <RadioMenuFlyoutItem x:Name="TrCut" Text="Cut (instant)" GroupName="Transition" Tag="Cut" Click="Transition_Click" />
                                 </MenuFlyoutSubItem>
                                 <MenuFlyoutSubItem Text="Theme">
                                     <MenuFlyoutSubItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutSubItem.Icon>

@@ -70,6 +70,7 @@ public sealed partial class MainPage : Page
         try { InitTray(); } catch (Exception ex) { Status("Tray icon unavailable: " + ex.Message); }
         _ = CheckForUpdateAsync(quiet: true);
         _ = InitSponsorsAsync();
+        InitTransitions();
         try { InitControl(); } catch (Exception ex) { Status("Remote control unavailable: " + ex.Message); }
         Unloaded += async (_, _) => { if (_control is { } c) await c.DisposeAsync(); };
         try { InitGlobalHotkeys(); } catch (Exception ex) { Status("Global shortcuts unavailable: " + ex.Message); }
@@ -531,9 +532,9 @@ public sealed partial class MainPage : Page
             // Scene switch: cross-fade from the last frame of the old scene.
             if (_fadeFrom is { } from && from.Length == baked.Length)
             {
-                double t = (DateTime.UtcNow - _fadeStart).TotalSeconds / 0.4;
-                if (t >= 1) _fadeFrom = null;
-                else { if (ReferenceEquals(baked, pixels)) baked = (byte[])pixels.Clone(); SceneCompositor.CrossFade(baked, from, t); }
+                double t = (DateTime.UtcNow - _fadeStart) / SceneTransitions.Duration;
+                if (t >= 1 || _settings.Transition == SceneTransition.Cut) _fadeFrom = null;
+                else { if (ReferenceEquals(baked, pixels)) baked = (byte[])pixels.Clone(); SceneTransitions.Apply(baked, from, w, h, t, _settings.Transition); }
             }
             _lastBaked = baked;
             baked = BurnCaptions(baked, w, h);
@@ -547,6 +548,7 @@ public sealed partial class MainPage : Page
             // Recording gets the scene layers baked in; the preview shows them as live XAML instead.
             if (!_recPaused) { var b = Baked(); rec.Push(b, w, h, _recordClock.Elapsed); PushVertical(b, w, h); }
         }
+        _replay?.Push(Baked(), w, h, _replayClock.Elapsed);
         Volatile.Write(ref _processing, 0);
 
         if (_updatingPreview) return;
