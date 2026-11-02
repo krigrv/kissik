@@ -168,6 +168,13 @@
                         <TextBlock x:Name="RecordLabel" Text="Record" FontWeight="SemiBold" />
                     </StackPanel>
                 </Button>
+                <Button x:Name="LiveBtn" Style="{StaticResource CapsuleButton}" Click="LiveBtn_Click" IsEnabled="False"
+                        AutomationProperties.Name="Go live" ToolTipService.ToolTip="Livestream to YouTube, Twitch, Facebook or any RTMP server">
+                    <StackPanel Orientation="Horizontal" Spacing="7">
+                        <FontIcon Glyph="&#xE93E;" FontSize="14" />
+                        <TextBlock x:Name="LiveLabel" Text="Go live" />
+                    </StackPanel>
+                </Button>
                 <Button x:Name="PauseBtn" Style="{StaticResource CapsuleButton}" Click="PauseBtn_Click" Visibility="Collapsed"
                         AutomationProperties.Name="Pause recording" ToolTipService.ToolTip="Pause or resume recording (Ctrl+Shift+R)">
                     <StackPanel Orientation="Horizontal" Spacing="7">

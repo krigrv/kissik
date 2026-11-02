@@ -40,6 +40,8 @@ public sealed class AppSettings
     public string Theme { get; set; } = "System";
     /// <summary>The one-time welcome has been shown.</summary>
     public bool SeenWelcome { get; set; }
+    /// <summary>Livestream destinations (keys encrypted for this Windows user).</summary>
+    public List<StreamDestination> StreamDestinations { get; set; } = [];
     /// <summary>The user picked a meeting output themselves (so we stop auto-picking a virtual cable).</summary>
     public bool MeetOutChosen { get; set; }
     public int Rotation { get; set; }

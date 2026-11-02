@@ -2,6 +2,7 @@ using Xunit.Abstractions;
 
 namespace OpenKamera.Core.Tests;
 
+[Collection("Encoding")]
 public class AudioTests(ITestOutputHelper output)
 {
     [Fact]

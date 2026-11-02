@@ -1,5 +1,6 @@
 namespace OpenKamera.Core.Tests;
 
+[Collection("Encoding")]
 public class SegmentedRecorderTests
 {
     private static string Dir()

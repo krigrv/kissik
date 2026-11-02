@@ -172,9 +172,9 @@ everything from the PC, switching between paired phones/PCs.
 - [ ] P3 Isolated per-source recordings
 
 ## 8. Livestreaming
-- [ ] P4 RTMP/RTMPS output (custom destinations)
-- [ ] P4 Presets: YouTube, Twitch, Kick, Facebook, Instagram (stream key entry; ⚠ eligibility is the platform's)
-- [ ] P4 Multistreaming to several destinations at once
+- [x] P4 RTMP/RTMPS output via FFmpeg (GPU encoder when available, ≤1080p, frames dropped not queued so it stays live)
+- [x] P4 Presets: YouTube, Twitch, Facebook, Kick, custom; stream keys stored encrypted (DPAPI)
+- [x] P4 Multistreaming: one encode, several destinations (tee; one failing doesn't stop the others)
 - [ ] P4 Destination manager; bitrate control with warnings
 - [ ] P4 Stream panels (chat, info), dockable/detachable
 - [ ] P4 Web overlays for alerts/widgets; chat-message layers, highlighted messages

@@ -347,6 +347,8 @@ public sealed partial class MainPage : Page
             SourceDot.Fill = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(102, 255, 255, 255));
             SourceInfo.Text = "";
             SnapshotBtn.IsEnabled = RecordBtn.IsEnabled = false;
+            if (_live is not null) await StopLiveAsync();
+            LiveBtn.IsEnabled = false;
             ControlsPanel.Children.Clear();
             FocusMode.IsEnabled = false;
             EmptyText.Visibility = Visibility.Visible;
@@ -378,7 +380,7 @@ public sealed partial class MainPage : Page
             CameraPanel.ChangeView(null, 0, null, disableAnimation: true);
             ConnectBtn.Content = "Disconnect";
             SourceDot.Fill = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 91, 255, 143));
-            SnapshotBtn.IsEnabled = RecordBtn.IsEnabled = true;
+            SnapshotBtn.IsEnabled = RecordBtn.IsEnabled = LiveBtn.IsEnabled = true;
             EmptyText.Visibility = Visibility.Collapsed;
             EmptyBusy.Text = "";
             HudText.Text = cam.Name;
@@ -460,6 +462,7 @@ public sealed partial class MainPage : Page
             return baked;
         }
         if (_vcam.HasClients) FeedVirtualCamera(Baked(), w, h);
+        if (_live is { } live) live.Push(Baked(), w, h);
         if (_recorder is { } rec)
         {
             // Recording gets the scene layers baked in; the preview shows them as live XAML instead.

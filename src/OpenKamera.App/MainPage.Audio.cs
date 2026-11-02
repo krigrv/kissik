@@ -25,7 +25,7 @@ public sealed partial class MainPage
         var eq = new[] { Eq0, Eq1, Eq2, Eq3 };
         for (int i = 0; i < 4; i++) eq[i].Value = Mix.EqDb.ElementAtOrDefault(i);
         AudioOnToggle.IsOn = _settings.AudioOn;
-        _audio.MixReady += samples => { if (!_recPaused) _recorder?.PushAudio(samples, _recordClock.Elapsed); };
+        _audio.MixReady += samples => { if (!_recPaused) _recorder?.PushAudio(samples, _recordClock.Elapsed); _live?.PushAudio(samples); };
 
         _meterTimer = DispatcherQueue.CreateTimer();
         _meterTimer.Interval = TimeSpan.FromMilliseconds(50);
