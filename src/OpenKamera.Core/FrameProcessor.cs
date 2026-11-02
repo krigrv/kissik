@@ -8,7 +8,7 @@ namespace OpenKamera.Core;
 public sealed record FrameRecipe(
     ImageFilters.Adjustments Adjustments, FrameTransform Transform,
     BackgroundSettings Background, int? OutputWidth = null, int? OutputHeight = null,
-    SceneDocument? Scene = null, byte[]? Overlay = null, byte[]? BehindOverlay = null)
+    SceneDocument? Scene = null, byte[]? Overlay = null, byte[]? BehindOverlay = null, byte[]? UnderOverlay = null)
 {
     public static readonly FrameRecipe Passthrough = new(ImageFilters.Adjustments.Neutral, FrameTransform.Identity, BackgroundSettings.Off);
 }
@@ -40,7 +40,7 @@ public static class FrameProcessor
                 SceneCompositor.BlendBehind(pixels, bo, alpha);
             }
             ImageFilters.Apply(pixels, w, h, r.Adjustments); // camera only: overlays keep their true colours
-            if (r.Scene is { } scene) pixels = SceneCompositor.Compose(pixels, w, h, scene, r.Overlay);
+            if (r.Scene is { } scene) pixels = SceneCompositor.Compose(pixels, w, h, scene, r.Overlay, r.UnderOverlay);
             return (pixels, w, h);
         }
         finally { if (!ReferenceEquals(bgra, frame)) bgra.Dispose(); }

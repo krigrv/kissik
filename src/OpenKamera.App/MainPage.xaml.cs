@@ -434,15 +434,21 @@ public sealed partial class MainPage : Page
     }
 
     /// <summary>The "behind me" layers at the size frames are processed at (smooth-first may halve it), cached per size.</summary>
-    private byte[]? BehindAt(int w, int h)
+    private byte[]? BehindAt(int w, int h) => ScaledLayers(_overlayBehind, w, h, ref _behindCache);
+
+    /// <summary>The "under the camera" layers at processing size, cached per size.</summary>
+    private byte[]? UnderAt(int w, int h) => ScaledLayers(_overlayUnder, w, h, ref _underCache);
+    private (byte[] Src, int W, int H, byte[] Scaled)? _underCache;
+
+    private byte[]? ScaledLayers(byte[]? src, int w, int h, ref (byte[] Src, int W, int H, byte[] Scaled)? cache)
     {
-        if (_overlayBehind is not { } src) return null;
+        if (src is null) return null;
         if (src.Length == w * h * 4) return src;
-        if (_behindCache is { } c && ReferenceEquals(c.Src, src) && c.W == w && c.H == h) return c.Scaled;
+        if (cache is { } c && ReferenceEquals(c.Src, src) && c.W == w && c.H == h) return c.Scaled;
         var p = _profile;
         if (src.Length != p.Width * p.Height * 4) return null;
         var scaled = OutputFit.Stretch(src, p.Width, p.Height, w, h).Pixels;
-        _behindCache = (src, w, h, scaled);
+        cache = (src, w, h, scaled);
         return scaled;
     }
 
@@ -458,7 +464,7 @@ public sealed partial class MainPage : Page
         int ow = half ? (p.Width / 2) & ~1 : p.Width, oh = half ? (p.Height / 2) & ~1 : p.Height;
         return new FrameRecipe(_adj, steady ? _stabilizer.Apply(_transform) : _transform, bg, ow, oh, _sceneSnapshot,
             withOverlay && overlay is { Width: var vw, Height: var vh } && vw == ow && vh == oh ? overlay.Pixels : null,
-            BehindAt(ow, oh));
+            BehindAt(ow, oh), UnderAt(ow, oh));
     }
 
     /// <summary>
