@@ -21,6 +21,8 @@ import android.os.BatteryManager
 import android.os.Build
 import android.os.PowerManager
 import android.util.Size
+import android.view.OrientationEventListener
+import android.view.Surface
 import android.graphics.ImageFormat
 import android.hardware.camera2.CameraCharacteristics
 import androidx.camera.camera2.interop.Camera2CameraControl
@@ -95,6 +97,9 @@ class StreamService : LifecycleService() {
     /** After dropping video on a slow link, skip until the next keyframe so the PC never sees a broken picture. */
     @Volatile private var needKey = true
     private val encoderExecutor = Executors.newSingleThreadExecutor()
+    /** Which way up the phone is held (Surface.ROTATION_*). A service has no screen to ask, so the motion sensor tells us. */
+    @Volatile private var deviceRotation = Surface.ROTATION_0
+    private var orientation: OrientationEventListener? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
@@ -151,6 +156,17 @@ class StreamService : LifecycleService() {
         lifecycleScope.launch {
             combine(Live.mic, Live.link) { m, l -> m && (l == Link.Wifi || l == Link.Usb) }.distinctUntilChanged().collect { setMic(it) }
         }
+        // Keep the picture upright as the phone turns: frames are rotated by sensor angle + how the phone is held.
+        orientation = object : OrientationEventListener(this) {
+            override fun onOrientationChanged(deg: Int) {
+                if (deg == ORIENTATION_UNKNOWN) return
+                val r = when (deg) { in 45..134 -> Surface.ROTATION_270; in 135..224 -> Surface.ROTATION_180; in 225..314 -> Surface.ROTATION_90; else -> Surface.ROTATION_0 }
+                if (r == deviceRotation) return
+                deviceRotation = r
+                analysis?.targetRotation = r
+                lifecycleScope.launch { delay(400); sendStatus() } // after a frame at the new size
+            }
+        }.apply { if (canDetectOrientation()) enable() }
         lifecycleScope.launch(Dispatchers.IO) { connectLoop() }
         lifecycleScope.launch { while (isActive) { checkSaver(); sendStatus(); delay(15_000) } }
     }
@@ -180,7 +196,7 @@ class StreamService : LifecycleService() {
         // encoder, and a small analysis stream only feeds the on-phone preview.
         val an = ImageAnalysis.Builder().setResolutionSelector(sizeFor(if (h264) 480 else key.quality))
             .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
-            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST).build()
+            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST).setTargetRotation(deviceRotation).build()
         an.setAnalyzer(analysisExecutor, ::onFrame)
         analysis = an
         val useCases = mutableListOf<UseCase>(an)
@@ -375,7 +391,7 @@ class StreamService : LifecycleService() {
             .put("zoomMin", zs?.minZoomRatio?.toDouble() ?: JSONObject.NULL)
         // H.264 frames come straight from the sensor: the PC rotates them by "rot" (clockwise degrees). JPEGs are upright.
         val enc = encoder
-        val rot = if (enc != null) camera?.cameraInfo?.sensorRotationDegrees ?: 0 else 0
+        val rot = if (enc != null) camera?.cameraInfo?.getSensorRotationDegrees(deviceRotation) ?: 0 else 0
         if (enc != null) json.put("w", if (rot % 180 == 0) enc.width else enc.height).put("h", if (rot % 180 == 0) enc.height else enc.width)
         json.put("rot", rot)
         Pro.putStatus(json)
@@ -417,6 +433,7 @@ class StreamService : LifecycleService() {
         micJob?.cancel()
         runCatching { ProcessCameraProvider.getInstance(this).get().unbindAll() }
         wake?.takeIf { it.isHeld }?.release(); wifiLock?.takeIf { it.isHeld }?.release()
+        orientation?.disable()
         analysisExecutor.shutdown(); encoderExecutor.shutdown()
         super.onDestroy()
     }
