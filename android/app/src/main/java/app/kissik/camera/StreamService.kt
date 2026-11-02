@@ -196,6 +196,8 @@ class StreamService : LifecycleService() {
             val request = Request.Builder().url(if (usb) pairing.usbUrl else pairing.wifiUrl).build()
             attempt = builder.build().newWebSocket(request, object : WebSocketListener() {
                 override fun onOpen(webSocket: WebSocket, response: Response) {
+                    // Re-paired while this connect was in flight: drop it so the loop uses the new pairing.
+                    if (Pairing.load(this@StreamService)?.token != pairing.token) { webSocket.cancel(); return }
                     ws = webSocket; backoff = 500L
                     Live.link.value = if (usb) Link.Usb else Link.Wifi
                     Live.message.value = if (usb) "Live in KISSIK over USB" else "Live in KISSIK over Wi-Fi"

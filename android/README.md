@@ -23,8 +23,8 @@ It speaks the same protocol as the phone web page KISSIK already serves, so noth
 |---|---|
 | phone → PC, binary | JPEG frame |
 | phone → PC, binary | `'A'` + uint32 LE sample rate + mono float32 LE samples (20 ms at 48 kHz) |
-| phone → PC, text | `{"device","w","h","battery","charging","facing"}` on connect, on lens change, and every 15 s |
-| PC → phone, text | `front`, `back`, `q:480` / `q:720` / `q:1080` |
+| phone → PC, text | `{"device","w","h","battery","charging","facing","torch","zoomMax","zoom"}` on connect, on lens/torch/zoom change, and every 15 s. `torch` is null when the lens has no light |
+| PC → phone, text | `front`, `back`, `q:480` / `q:720` / `q:1080`, `torch:on` / `torch:off`, `zoom:<factor>` (clamped to the lens) |
 
 ## Build
 

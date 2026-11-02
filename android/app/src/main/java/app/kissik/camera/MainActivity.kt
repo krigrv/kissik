@@ -106,7 +106,7 @@ private fun App(incoming: MutableState<String?>) {
     LaunchedEffect(incoming.value) { incoming.value?.let { pairWith(it); incoming.value = null } }
     // Connect every time: a paired phone starts streaming as soon as the app opens.
     LaunchedEffect(Unit) {
-        if (pairing != null && hasCamera(ctx) && !Live.running.value && prefs.getBoolean("onboarded", false)) StreamService.start(ctx)
+        if (incoming.value == null && pairing != null && hasCamera(ctx) && !Live.running.value && prefs.getBoolean("onboarded", false)) StreamService.start(ctx)
     }
     BackHandler(screen == Screen.Scan || screen == Screen.Settings) { screen = Screen.Home }
 
