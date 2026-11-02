@@ -44,7 +44,7 @@ public sealed class PhoneServer : IAsyncDisposable
         {
             try { saved = File.ReadAllText(Path.Combine(stateDir, "phone-token.txt")).Trim(); } catch { }
         }
-        Token = saved is { Length: 16 } && saved.All(Uri.IsHexDigit) ? saved : Convert.ToHexString(RandomNumberGenerator.GetBytes(8)).ToLowerInvariant();
+        Token = saved is { Length: 32 } && saved.All(Uri.IsHexDigit) ? saved : Convert.ToHexString(RandomNumberGenerator.GetBytes(16)).ToLowerInvariant(); // 128-bit
         if (stateDir is not null && saved != Token)
             try { Directory.CreateDirectory(stateDir); File.WriteAllText(Path.Combine(stateDir, "phone-token.txt"), Token); } catch { }
     }
@@ -125,6 +125,24 @@ public sealed class PhoneServer : IAsyncDisposable
         return list.Distinct().ToList();
     }
 
+    private const int MaxConnections = 16;
+    private int _open;
+    private readonly Dictionary<string, (int Count, DateTime Since)> _wrongTries = [];
+
+    /// <summary>True when this address has guessed wrong links too often in the last minute (locked out for a minute).</summary>
+    private bool LockedOut(string? ip, bool wrongNow)
+    {
+        if (ip is null) return false;
+        lock (_wrongTries)
+        {
+            var now = DateTime.UtcNow;
+            var (count, since) = _wrongTries.TryGetValue(ip, out var e) && now - e.Since < TimeSpan.FromMinutes(1) ? e : (0, now);
+            if (wrongNow) count++;
+            _wrongTries[ip] = (count, since);
+            return count > 10;
+        }
+    }
+
     private async Task AcceptLoop(TcpListener listener, bool tls, CancellationToken ct)
     {
         while (!ct.IsCancellationRequested)
@@ -132,7 +150,9 @@ public sealed class PhoneServer : IAsyncDisposable
             TcpClient client;
             try { client = await listener.AcceptTcpClientAsync(ct); }
             catch { return; }
-            _ = Task.Run(() => Serve(client, tls, ct), ct);
+            // Flood guard: a phone needs one or two connections; refuse beyond a small cap.
+            if (Interlocked.Increment(ref _open) > MaxConnections) { Interlocked.Decrement(ref _open); client.Dispose(); continue; }
+            _ = Task.Run(async () => { try { await Serve(client, tls, ct); } finally { Interlocked.Decrement(ref _open); } }, ct);
         }
     }
 
@@ -156,6 +176,8 @@ public sealed class PhoneServer : IAsyncDisposable
             var (path, query) = SplitTarget(target);
             bool authorised = query.TryGetValue("t", out var t) && CryptographicOperations.FixedTimeEquals(Encoding.ASCII.GetBytes(t), Encoding.ASCII.GetBytes(Token));
 
+            string? ip = (client.Client.RemoteEndPoint as IPEndPoint)?.Address.ToString();
+            if (LockedOut(ip, wrongNow: !authorised)) return; // too many wrong guesses from this device: drop silently
             if (method != "GET") { await Respond(ssl, 405, "text/plain", "Method not allowed"u8.ToArray(), ct); return; }
             if (!authorised) { WrongLinkVisits++; await Respond(ssl, 403, "text/plain; charset=utf-8", Encoding.UTF8.GetBytes("This link has expired. Scan the QR code in KISSIK again."), ct); return; }
             if (path == "/") { PageLoads++; await Respond(ssl, 200, "text/html; charset=utf-8", Encoding.UTF8.GetBytes(PhonePage.Html), ct); return; }
@@ -283,10 +305,19 @@ public sealed class PhoneServer : IAsyncDisposable
         return (first.ElementAtOrDefault(0) ?? "", first.ElementAtOrDefault(1) ?? "/", headers);
     }
 
+    /// <summary>The page is self-contained: nothing loads from elsewhere, nothing can frame it, the link never leaks as a referrer.</summary>
+    internal const string SecurityHeaders =
+        "Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; " +
+        "img-src 'self' data: blob:; media-src 'self' blob: mediastream:; connect-src 'self' wss: ws:; " +
+        "frame-ancestors 'none'; base-uri 'none'; form-action 'none'\r\n" +
+        "Referrer-Policy: no-referrer\r\nX-Content-Type-Options: nosniff\r\nX-Frame-Options: DENY\r\n" +
+        "Permissions-Policy: geolocation=(), payment=(), usb=()\r\n";
+
     private static async Task Respond(Stream s, int code, string type, byte[] body, CancellationToken ct)
     {
         string reason = code switch { 200 => "OK", 403 => "Forbidden", 404 => "Not Found", _ => "Error" };
-        var head = $"HTTP/1.1 {code} {reason}\r\nContent-Type: {type}\r\nContent-Length: {body.Length}\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n";
+        var head = $"HTTP/1.1 {code} {reason}\r\nContent-Type: {type}\r\nContent-Length: {body.Length}\r\nCache-Control: no-store\r\n" +
+                   SecurityHeaders + "Connection: close\r\n\r\n";
         await s.WriteAsync(Encoding.ASCII.GetBytes(head), ct);
         await s.WriteAsync(body, ct);
         await s.FlushAsync(ct);
@@ -308,7 +339,10 @@ public sealed class PhoneServer : IAsyncDisposable
         {
             try
             {
-                var c = X509CertificateLoader.LoadPkcs12FromFile(path, null, X509KeyStorageFlags.Exportable);
+                byte[] raw = File.ReadAllBytes(path);
+                try { raw = System.Security.Cryptography.ProtectedData.Unprotect(raw, null, System.Security.Cryptography.DataProtectionScope.CurrentUser); }
+                catch (CryptographicException) { /* written by an older version, unencrypted */ }
+                var c = X509CertificateLoader.LoadPkcs12(raw, null, X509KeyStorageFlags.Exportable);
                 // Reuse it while it's valid and still covers this PC's current addresses.
                 var san = c.Extensions.OfType<X509SubjectAlternativeNameExtension>().FirstOrDefault();
                 var ips = san?.EnumerateIPAddresses().Select(i => i.ToString()).ToHashSet() ?? [];
@@ -318,7 +352,8 @@ public sealed class PhoneServer : IAsyncDisposable
             catch { }
         }
         var cert = CreateCertificate(addresses);
-        if (path is not null) try { File.WriteAllBytes(path, cert.Export(X509ContentType.Pfx)); } catch { }
+        // The private key never sits on disk in the clear: encrypted for this Windows user only (DPAPI).
+        if (path is not null) try { File.WriteAllBytes(path, System.Security.Cryptography.ProtectedData.Protect(cert.Export(X509ContentType.Pfx), null, System.Security.Cryptography.DataProtectionScope.CurrentUser)); } catch { }
         return cert;
     }
 

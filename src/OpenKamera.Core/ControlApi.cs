@@ -65,6 +65,8 @@ public sealed class ControlApi : IAsyncDisposable
             bool ok = headers.TryGetValue("authorization", out var auth) && auth.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)
                       && CryptographicOperations.FixedTimeEquals(Encoding.ASCII.GetBytes(auth[7..].Trim()), Encoding.ASCII.GetBytes(Token));
             if (!ok) { await WriteAsync(s, 401, Json(new { error = "Missing or wrong token." }), ct); return; }
+            string host = headers.TryGetValue("host", out var hv) ? hv.Split(':')[0].Trim('[', ']').ToLowerInvariant() : "";
+            if (host is not ("127.0.0.1" or "localhost" or "::1")) { await WriteAsync(s, 403, Json(new { error = "Only this PC may connect." }), ct); return; }
             if (method == "GET" && path == "/tools")
                 await WriteAsync(s, 200, JsonSerializer.Serialize(_tools.Values.Select(t => new { name = t.Name, description = t.Description, inputSchema = t.InputSchema })), ct);
             else if (method == "POST" && path.StartsWith("/tools/") && _tools.TryGetValue(path[7..], out var tool))

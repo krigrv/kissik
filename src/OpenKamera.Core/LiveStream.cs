@@ -82,6 +82,12 @@ public sealed class LiveStream : IAsyncDisposable
     }
 
     /// <summary>Kbps for the video: about 6 Mbps at 1080p30, scaled by pixels and frame rate, 1.5–9 Mbps.</summary>
+    /// <summary>A destination may be an rtmp(s)/srt URL or a local file path, never quotes or control characters.</summary>
+    public static bool IsSafeDestination(string o) =>
+        !string.IsNullOrWhiteSpace(o) && o.Length < 2048 && !o.Any(ch => ch == '"' || char.IsControl(ch))
+        && (o.StartsWith("rtmp://", StringComparison.OrdinalIgnoreCase) || o.StartsWith("rtmps://", StringComparison.OrdinalIgnoreCase)
+            || o.StartsWith("srt://", StringComparison.OrdinalIgnoreCase) || Path.IsPathFullyQualified(o));
+
     public static int VideoKbps(int w, int h, int fps) => (int)Math.Clamp(w * (long)h * fps * 6000L / (1920L * 1080 * 30), 1500, 9000);
 
     /// <summary>FFmpeg arguments: raw video on stdin, f32le audio on a pipe, H.264 (GPU encoder if any) + AAC, to one or many outputs.</summary>
@@ -100,6 +106,8 @@ public sealed class LiveStream : IAsyncDisposable
         a.Append(videoCodec == "libx264" ? "-preset veryfast -tune zerolatency " : "");
         a.Append($"-b:v {kbps}k -maxrate {kbps}k -bufsize {kbps * 2}k -g {fps * 2} -pix_fmt yuv420p ");
         a.Append("-c:a aac -b:a 160k -ar 48000 -af aresample=async=1 -vsync cfr ");
+        foreach (var o in outputs)
+            if (!IsSafeDestination(o)) throw new ArgumentException("That stream address has characters a stream address can't have.");
         if (outputs.Count == 1) a.Append($"-f flv \"{outputs[0]}\"");
         else a.Append("-map 0:v -map 1:a -f tee \"" + string.Join("|", outputs.Select(o => $"[f=flv:onfail=ignore]{o.Replace("|", "%7C")}")) + "\"");
         return a.ToString();
