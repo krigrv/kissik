@@ -58,7 +58,7 @@ Build order:
 9. [x] ★ Live captions burnt into the video, fully offline (Vosk model downloaded once; English, English India, Hindi, Spanish, French, German)
 10. [x] ★ Smooth-first mode + latency meter (effects ms in HUD; auto steps down: lighter edges → pause steady/face tracking → half-size processing when not recording; steps back up with headroom)
 11. [~] Auto-framing done; crash-safe recordings done (1-minute pieces joined on Stop, leftovers rescued on launch); phone battery shown in the HUD; phone temperature still to do
-12. [~] Native Android app done (`android/`: Kotlin, Compose, CameraX; QR pairing with pinned certificate, Wi-Fi or USB, reconnects by itself, streams with the screen off, lens/torch/quality/mic, battery & heat saver). Checked on the emulator against KISSIK's phone server; still to do: a real phone, Play Store listing. iOS app (funded by donations) still to do
+12. [~] Native Android app done (`android/`: Kotlin, Compose, CameraX; QR pairing with pinned certificate, Wi-Fi or USB, reconnects by itself, streams with the screen off, lens/torch/quality/mic, battery & heat saver; pro controls for every lens, EV, ISO/shutter, focus, white balance, frame rate, stabilization, HDR; opt-in hardware H.264). PC side still has to decode H.264 and show the pro controls. Checked on the emulator against KISSIK's phone server; still to do: a real phone, Play Store listing. iOS app (funded by donations) still to do
 
 ## 0d. From phone-webcam app reviews (2026-11-02, ~40 Google Play reviews of a competing app)
 What users expect, in order: it connects every time; setup in under 2 minutes (QR + same Wi-Fi); honest pricing

@@ -23,7 +23,13 @@ import android.os.PowerManager
 import android.util.Size
 import android.graphics.ImageFormat
 import android.hardware.camera2.CameraCharacteristics
+import androidx.camera.camera2.interop.Camera2CameraControl
 import androidx.camera.camera2.interop.Camera2CameraInfo
+import androidx.camera.core.FocusMeteringAction
+import androidx.camera.core.Preview
+import androidx.camera.core.SurfaceOrientedMeteringPointFactory
+import androidx.camera.core.UseCase
+import kotlinx.coroutines.flow.merge
 import androidx.camera.camera2.interop.ExperimentalCamera2Interop
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
@@ -60,7 +66,7 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
 /**
- * Streams the camera (JPEG frames) and, when switched on, the mic to KISSIK on the PC. Runs as a foreground service so
+ * Streams the camera (JPEG frames, or hardware H.264 when the PC asks for it) and, when switched on, the mic to KISSIK on the PC. Runs as a foreground service so
  * it keeps going with the screen off; the notification says so and has a Stop button.
  */
 class StreamService : LifecycleService() {
@@ -83,6 +89,12 @@ class StreamService : LifecycleService() {
     private var wifiLock: WifiManager.WifiLock? = null
     private var micJob: Job? = null
     private var started = false
+    private var analysis: ImageAnalysis? = null
+    @Volatile private var lastRotation = 0
+    @Volatile private var encoder: H264Encoder? = null
+    /** After dropping video on a slow link, skip until the next keyframe so the PC never sees a broken picture. */
+    @Volatile private var needKey = true
+    private val encoderExecutor = Executors.newSingleThreadExecutor()
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
@@ -127,11 +139,13 @@ class StreamService : LifecycleService() {
         wifiLock = (applicationContext.getSystemService(WIFI_SERVICE) as WifiManager)
             .createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "kissik:stream").apply { acquire() }
 
-        // Rebind the camera whenever the lens or the effective quality changes.
+        // Rebind the camera whenever the lens, the effective quality or the video format changes.
         lifecycleScope.launch {
-            combine(Live.front, Live.quality, Live.saving) { f, q, s -> f to (if (s) minOf(q, 480) else q) }
-                .distinctUntilChanged().collect { (f, q) -> bindCamera(f, q) }
+            combine(Live.front, Pro.lensId, Live.quality, Live.saving, Pro.codec) { f, l, q, s, c -> BindKey(f, l, if (s) minOf(q, 480) else q, c) }
+                .distinctUntilChanged().collect { bindCamera(it) }
         }
+        lifecycleScope.launch { merge(Pro.ev, Pro.iso, Pro.shutterNs, Pro.focus, Pro.wb, Pro.fps, Pro.stab, Pro.hdr).collect { applyPro() } }
+        lifecycleScope.launch { Live.focusTap.collect { (x, y) -> focusAt(x, y) } }
         lifecycleScope.launch { Live.torch.collect { camera?.cameraControl?.enableTorch(it); sendStatus() } }
         lifecycleScope.launch { Live.zoom.collect { camera?.cameraControl?.setZoomRatio(it); sendStatus() } }
         lifecycleScope.launch {
@@ -141,32 +155,86 @@ class StreamService : LifecycleService() {
         lifecycleScope.launch { while (isActive) { checkSaver(); sendStatus(); delay(15_000) } }
     }
 
-    private var boundFront: Boolean? = null
-    private suspend fun bindCamera(front: Boolean, quality: Int) {
-        if (boundFront != null && boundFront != front) Live.zoom.value = 1f
-        boundFront = front
+    private data class BindKey(val front: Boolean, val lensId: String?, val quality: Int, val codec: String)
+    private var boundLens: Pair<Boolean, String?>? = null
+
+    private fun sizeFor(shortSide: Int) = ResolutionSelector.Builder()
+        .setAllowedResolutionMode(ResolutionSelector.PREFER_HIGHER_RESOLUTION_OVER_CAPTURE_RATE)
+        // No cap: ask for the short side at 16:9 and take the closest size the lens supports, up to its maximum.
+        .setResolutionStrategy(ResolutionStrategy(Size(shortSide * 16 / 9, shortSide), ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER_THEN_HIGHER)).build()
+
+    @androidx.annotation.OptIn(ExperimentalCamera2Interop::class)
+    private suspend fun bindCamera(key: BindKey) {
         val provider = withContext(Dispatchers.IO) { ProcessCameraProvider.getInstance(this@StreamService).get() }
-        // No cap: ask for the requested short side at 16:9 and take the closest size the lens supports, up to its maximum.
-        val long = quality * 16 / 9
-        val analysis = ImageAnalysis.Builder()
-            .setResolutionSelector(ResolutionSelector.Builder()
-                .setAllowedResolutionMode(ResolutionSelector.PREFER_HIGHER_RESOLUTION_OVER_CAPTURE_RATE)
-                .setResolutionStrategy(ResolutionStrategy(Size(long, quality), ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER_THEN_HIGHER)).build())
+        Pro.lenses.value = Pro.listLenses(provider.availableCameraInfos)
+        // Manual settings and zoom belong to one lens: reset them only when the camera really changes.
+        val resolved = key.lensId ?: Pro.lenses.value.firstOrNull { it.facing == (if (key.front) "front" else "back") }?.id
+        if (boundLens != null && boundLens!!.second != resolved) { Live.zoom.value = 1f; Pro.resetManual() }
+        boundLens = key.front to resolved
+        val wanted = Pro.lenses.value.firstOrNull { it.id == key.lensId }
+            ?.let { lens -> CameraSelector.Builder().addCameraFilter { infos -> infos.filter { Camera2CameraInfo.from(it).cameraId == lens.id } }.build() }
+            ?: if (key.front) CameraSelector.DEFAULT_FRONT_CAMERA else CameraSelector.DEFAULT_BACK_CAMERA
+        val other = if (key.front) CameraSelector.DEFAULT_BACK_CAMERA else CameraSelector.DEFAULT_FRONT_CAMERA
+        val h264 = key.codec == "h264"
+        // JPEG: frames come from the analysis stream at full size. H.264: the camera draws straight into the hardware
+        // encoder, and a small analysis stream only feeds the on-phone preview.
+        val an = ImageAnalysis.Builder().setResolutionSelector(sizeFor(if (h264) 480 else key.quality))
             .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
             .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST).build()
-        analysis.setAnalyzer(analysisExecutor, ::onFrame)
-        val wanted = if (front) CameraSelector.DEFAULT_FRONT_CAMERA else CameraSelector.DEFAULT_BACK_CAMERA
-        val other = if (front) CameraSelector.DEFAULT_BACK_CAMERA else CameraSelector.DEFAULT_FRONT_CAMERA
+        an.setAnalyzer(analysisExecutor, ::onFrame)
+        analysis = an
+        val useCases = mutableListOf<UseCase>(an)
+        if (h264) {
+            val preview = Preview.Builder().setResolutionSelector(sizeFor(key.quality)).build()
+            preview.setSurfaceProvider(encoderExecutor) { request ->
+                val size = request.resolution
+                val enc = runCatching { H264Encoder(size.width, size.height, Pro.fps.value.takeIf { it > 0 } ?: 30, ::sendVideo) }.getOrNull()
+                if (enc == null) { request.willNotProvideSurface(); Live.message.value = "This phone's video encoder couldn't start."; return@setSurfaceProvider }
+                encoder = enc; needKey = true
+                request.provideSurface(enc.surface, encoderExecutor) { if (encoder === enc) encoder = null; enc.release() }
+            }
+            useCases += preview
+        }
         provider.unbindAll()
-        camera = runCatching { provider.bindToLifecycle(this, wanted, analysis) }
-            .recoverCatching { provider.bindToLifecycle(this, other, analysis) }.getOrNull()
+        camera = runCatching { provider.bindToLifecycle(this, wanted, *useCases.toTypedArray()) }
+            .recoverCatching { provider.bindToLifecycle(this, other, *useCases.toTypedArray()) }.getOrNull()
         if (camera == null) Live.message.value = "Couldn't open the camera. Is another app using it?"
         readCapabilities()
+        Pro.caps.value = camera?.cameraInfo?.let(Pro::readCaps)
         Live.hasTorch.value = camera?.cameraInfo?.hasFlashUnit()
         if (Live.hasTorch.value != true) Live.torch.value = false
         camera?.cameraControl?.enableTorch(Live.torch.value)
+        camera?.cameraInfo?.zoomState?.value?.let { Live.zoomRange.value = it.minZoomRatio to it.maxZoomRatio }
         camera?.cameraControl?.setZoomRatio(Live.zoom.value)
+        applyPro()
+    }
+
+    /** Pushes the pro settings (exposure, focus, white balance, frame rate, stabilization, HDR) to the camera. */
+    @androidx.annotation.OptIn(ExperimentalCamera2Interop::class)
+    private fun applyPro() {
+        val cam = camera ?: return
+        val c = Pro.caps.value ?: return sendStatus()
+        runCatching { Camera2CameraControl.from(cam.cameraControl).captureRequestOptions = Pro.options(c) }
+        if (c.evMax > c.evMin) cam.cameraControl.setExposureCompensationIndex(Pro.ev.value.coerceIn(c.evMin, c.evMax))
         sendStatus()
+    }
+
+    /** Focus and meter on a point of the picture as shown (0..1, already rotated upright). */
+    private fun focusAt(x: Float, y: Float) {
+        val cam = camera ?: return
+        val an = analysis ?: return
+        val (bx, by) = when (lastRotation) { 90 -> y to 1 - x; 180 -> 1 - x to 1 - y; 270 -> 1 - y to x; else -> x to y }
+        Pro.focus.value = null
+        val point = SurfaceOrientedMeteringPointFactory(1f, 1f, an).createPoint(bx, by)
+        cam.cameraControl.startFocusAndMetering(FocusMeteringAction.Builder(point).setAutoCancelDuration(5, TimeUnit.SECONDS).build())
+    }
+
+    private fun sendVideo(packet: ByteArray, key: Boolean) {
+        val socket = ws ?: return
+        if (needKey && !key) return
+        if (socket.queueSize() > 4 * 1024 * 1024) { needKey = true; encoder?.requestKeyframe(); return }
+        needKey = false
+        socket.send(packet.toByteString())
     }
 
     /** Largest YUV size and highest frame rate this lens offers, reported to the PC as maxW/maxH/maxFps. */
@@ -184,14 +252,15 @@ class StreamService : LifecycleService() {
     private var frameNo = 0L
     private fun onFrame(image: ImageProxy) {
         image.use {
-            val socket = ws
+            val socket = ws.takeIf { encoder == null && Pro.codec.value == "jpeg" }
+            lastRotation = it.imageInfo.rotationDegrees
             val wantPreview = frameNo++ % 3 == 0L
             val canSend = socket != null && socket.queueSize() <= 256 * 1024 // drop frames rather than lag behind
             if (!canSend && !wantPreview) return
             var bmp = it.toBitmap()
             val rot = it.imageInfo.rotationDegrees
             if (rot != 0) bmp = Bitmap.createBitmap(bmp, 0, 0, bmp.width, bmp.height, Matrix().apply { postRotate(rot.toFloat()) }, true)
-            Live.frameSize.value = bmp.width to bmp.height
+            if (encoder == null) Live.frameSize.value = bmp.width to bmp.height
             if (wantPreview) Live.preview.value = bmp
             if (canSend) {
                 val out = ByteArrayOutputStream(128 * 1024)
@@ -221,6 +290,7 @@ class StreamService : LifecycleService() {
                     // Re-paired while this connect was in flight: drop it so the loop uses the new pairing.
                     if (Pairing.load(this@StreamService)?.token != pairing.token) { webSocket.cancel(); return }
                     ws = webSocket; backoff = 500L
+                    needKey = true; encoder?.requestKeyframe()
                     Live.link.value = if (usb) Link.Usb else Link.Wifi
                     Live.message.value = if (usb) "Live in KISSIK over USB" else "Live in KISSIK over Wi-Fi"
                     updateNotification(Live.message.value)
@@ -248,8 +318,15 @@ class StreamService : LifecycleService() {
 
     private fun onCommand(text: String) {
         when {
-            text == "front" -> Live.front.value = true
-            text == "back" -> Live.front.value = false
+            text == "front" -> { Live.front.value = true; Pro.lensId.value = null }
+            text == "back" -> { Live.front.value = false; Pro.lensId.value = null }
+            text == "key" -> { needKey = true; encoder?.requestKeyframe(); return }
+            text.startsWith("focus:tap:") -> {
+                val xy = text.removePrefix("focus:tap:").split(',').mapNotNull { it.toFloatOrNull() }
+                if (xy.size == 2) Live.focusTap.tryEmit(xy[0].coerceIn(0f, 1f) to xy[1].coerceIn(0f, 1f))
+                return
+            }
+            Pro.command(text) -> return
             text.startsWith("q:") -> text.drop(2).toIntOrNull()?.takeIf { it in 144..8640 }?.let { Live.quality.value = it }
             text == "torch:on" || text == "torch:off" -> { Live.torch.value = text == "torch:on"; return }
             text.startsWith("zoom:") -> {
@@ -290,10 +367,19 @@ class StreamService : LifecycleService() {
         val info = camera?.cameraInfo
         json.put("torch", if (info?.hasFlashUnit() == true) Live.torch.value else JSONObject.NULL)
         val zs = info?.zoomState?.value
+        zs?.let { Live.zoomRange.value = it.minZoomRatio to it.maxZoomRatio }
         val (mw, mh) = Live.maxSize.value
         if (mw > 0) json.put("maxW", mw).put("maxH", mh)
         if (Live.maxFps.value > 0) json.put("maxFps", Live.maxFps.value)
         json.put("zoomMax", zs?.maxZoomRatio?.toDouble() ?: JSONObject.NULL).put("zoom", Live.zoom.value.toDouble())
+            .put("zoomMin", zs?.minZoomRatio?.toDouble() ?: JSONObject.NULL)
+        // H.264 frames come straight from the sensor: the PC rotates them by "rot" (clockwise degrees). JPEGs are upright.
+        val enc = encoder
+        val rot = if (enc != null) camera?.cameraInfo?.sensorRotationDegrees ?: 0 else 0
+        if (enc != null) json.put("w", if (rot % 180 == 0) enc.width else enc.height).put("h", if (rot % 180 == 0) enc.height else enc.width)
+        json.put("rot", rot)
+        Pro.putStatus(json)
+        if (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0) android.util.Log.d("KissikStatus", json.toString())
         socket.send(json.toString())
     }
 
@@ -331,7 +417,7 @@ class StreamService : LifecycleService() {
         micJob?.cancel()
         runCatching { ProcessCameraProvider.getInstance(this).get().unbindAll() }
         wake?.takeIf { it.isHeld }?.release(); wifiLock?.takeIf { it.isHeld }?.release()
-        analysisExecutor.shutdown()
+        analysisExecutor.shutdown(); encoderExecutor.shutdown()
         super.onDestroy()
     }
 }

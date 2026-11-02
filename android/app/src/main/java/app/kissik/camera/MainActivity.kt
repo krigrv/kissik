@@ -35,6 +35,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -73,7 +75,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Live.load(this)
-        takeLink(intent)
+        // A rebuilt activity gets its old launch intent back: only a fresh launch carries a new link.
+        if (savedInstanceState == null) takeLink(intent)
         setContent { MaterialTheme(colorScheme = KColors) { App(incoming) } }
     }
 
@@ -81,6 +84,7 @@ class MainActivity : ComponentActivity() {
 
     private fun takeLink(i: Intent?) {
         incoming.value = i?.getStringExtra("link") ?: i?.getStringExtra(Intent.EXTRA_TEXT) ?: i?.dataString ?: return
+        setIntent(Intent(this, MainActivity::class.java)) // used once: never replayed later
     }
 }
 
@@ -103,7 +107,7 @@ private fun App(incoming: MutableState<String?>) {
         screen = Screen.Home
     }
 
-    LaunchedEffect(incoming.value) { incoming.value?.let { pairWith(it); incoming.value = null } }
+    LaunchedEffect(incoming.value) { incoming.value?.let { link -> pairWith(link); if (incoming.value == link) incoming.value = null } }
     // Connect every time: a paired phone starts streaming as soon as the app opens.
     LaunchedEffect(Unit) {
         if (incoming.value == null && pairing != null && hasCamera(ctx) && !Live.running.value && prefs.getBoolean("onboarded", false)) StreamService.start(ctx)
@@ -236,9 +240,21 @@ private fun Home(pairing: Pairing?, onSettings: () -> Unit, onPair: () -> Unit) 
     val micLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok -> if (ok) { Live.mic.value = true; Live.save(ctx) } }
     val camLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok -> if (ok) StreamService.start(ctx) }
     val live = link == Link.Wifi || link == Link.Usb
+    var showPro by remember { mutableStateOf(false) }
+    if (showPro) ProSheet { showPro = false }
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
-        preview?.let { Image(it.asImageBitmap(), "Camera preview", Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
+        preview?.let { bmp ->
+            // Tap the picture to focus and meter there (maps the tap through the crop to picture coordinates).
+            Image(bmp.asImageBitmap(), "Camera preview, tap to focus", Modifier.fillMaxSize().pointerInput(bmp.width, bmp.height) {
+                detectTapGestures { o ->
+                    val scale = maxOf(size.width / bmp.width.toFloat(), size.height / bmp.height.toFloat())
+                    val x = (o.x - (size.width - bmp.width * scale) / 2) / (bmp.width * scale)
+                    val y = (o.y - (size.height - bmp.height * scale) / 2) / (bmp.height * scale)
+                    Live.focusTap.tryEmit(x.coerceIn(0f, 1f) to y.coerceIn(0f, 1f))
+                }
+            }, contentScale = ContentScale.Crop)
+        }
         // Soft shades so the controls stay readable over any picture.
         Box(Modifier.fillMaxWidth().height(140.dp).background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.7f), Color.Transparent))))
         Box(Modifier.fillMaxWidth().height(260.dp).align(Alignment.BottomCenter).background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.85f)))))
@@ -254,7 +270,7 @@ private fun Home(pairing: Pairing?, onSettings: () -> Unit, onPair: () -> Unit) 
                     else -> Chip("Idle", K.muted)
                 }
                 Spacer(Modifier.weight(1f))
-                IconButton(onSettings) { Icon(Icons.Outlined.Tune, "Settings", tint = K.text) }
+                IconButton(onSettings) { Icon(Icons.Outlined.Settings, "Settings", tint = K.text) }
             }
             if (saving) Text("Saver on · sending 480p to keep the phone cool", color = K.warn, fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp))
 
@@ -279,7 +295,7 @@ private fun Home(pairing: Pairing?, onSettings: () -> Unit, onPair: () -> Unit) 
                     textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp))
                 Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(K.card.copy(alpha = 0.92f)).padding(12.dp)) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                        DockButton(Icons.Filled.Cameraswitch, if (front) "Front" else "Back") { Live.front.value = !front; Live.torch.value = false; Live.save(ctx) }
+                        DockButton(Icons.Filled.Cameraswitch, if (front) "Front" else "Back") { Live.front.value = !front; Pro.lensId.value = null; Live.torch.value = false; Live.save(ctx) }
                         // The torch is the phone's flash LED; most front cameras have none.
                         DockButton(if (torch) Icons.Filled.FlashOn else Icons.Filled.FlashOff, "Torch", torch, enabled = hasTorch == true) {
                             when (hasTorch) {
@@ -299,6 +315,7 @@ private fun Home(pairing: Pairing?, onSettings: () -> Unit, onPair: () -> Unit) 
                             val steps = (listOf(480, 720, 1080, 1440, 2160, 2880, 4320).filter { it <= top } + top).distinct().sorted()
                             Live.quality.value = steps.firstOrNull { it > quality } ?: steps.first(); Live.save(ctx)
                         }
+                        DockButton(Icons.Outlined.Tune, "Pro") { showPro = true }
                     }
                     Spacer(Modifier.height(10.dp))
                     val stopColor = if (running) Color(0xFFFF5A5F) else K.accent

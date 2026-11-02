@@ -1,6 +1,7 @@
 package app.kissik.camera
 
 import android.content.Context
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 
 object Prefs {
@@ -22,6 +23,10 @@ object Live {
     val maxFps = MutableStateFlow(0)
     /** Whether the current lens has a flash LED to use as a torch (null until the camera opens). */
     val hasTorch = MutableStateFlow<Boolean?>(null)
+    /** Zoom the lens allows (min below 1 means it can widen, e.g. 0.5 on phones with an ultra-wide). */
+    val zoomRange = MutableStateFlow(1f to 1f)
+    /** A tap on the preview, as 0..1 coordinates in the picture: focus and meter there. */
+    val focusTap = MutableSharedFlow<Pair<Float, Float>>(extraBufferCapacity = 1)
     /** Zoom factor the PC asked for (1 = no zoom); clamped to what the lens offers. */
     val zoom = MutableStateFlow(1f)
     val saver = MutableStateFlow(true)
