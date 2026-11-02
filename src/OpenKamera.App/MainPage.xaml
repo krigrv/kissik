@@ -28,6 +28,12 @@
 
 
 
+        <!-- Target size: every control at least 40 x 40 unless its own style says more. -->
+        <Style TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}"><Setter Property="MinHeight" Value="40" /><Setter Property="MinWidth" Value="40" /></Style>
+        <Style TargetType="ToggleButton" BasedOn="{StaticResource DefaultToggleButtonStyle}"><Setter Property="MinHeight" Value="40" /><Setter Property="MinWidth" Value="40" /></Style>
+        <Style TargetType="ComboBox" BasedOn="{StaticResource DefaultComboBoxStyle}"><Setter Property="MinHeight" Value="40" /></Style>
+        <Style TargetType="ToggleSwitch" BasedOn="{StaticResource DefaultToggleSwitchStyle}"><Setter Property="MinHeight" Value="40" /></Style>
+
         <Style x:Key="Glass" TargetType="Border">
             <Setter Property="Background" Value="{ThemeResource SolidBackgroundFillColorQuarternaryBrush}" />
             <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}" />
@@ -1003,8 +1009,11 @@
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <StackPanel VerticalAlignment="Center" Spacing="6">
-                    <ComboBox x:Name="SceneCategory" Width="44" SelectedIndex="0" CornerRadius="10" Padding="8,4"
+                <!-- Category on top, find + gallery side by side: all three stay 40 px tall inside the strip. -->
+                <Grid VerticalAlignment="Center" RowSpacing="6" ColumnSpacing="6">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                    <ComboBox x:Name="SceneCategory" Grid.ColumnSpan="2" HorizontalAlignment="Stretch" SelectedIndex="0" CornerRadius="10" Padding="8,4"
                               SelectionChanged="SceneCategory_SelectionChanged" AutomationProperties.Name="Scene category"
                               ToolTipService.ToolTip="Show scenes: all, favourites or a category" AutomationProperties.HelpText="Show scenes: all, favourites or a category">
                         <ComboBoxItem Content="All scenes" Tag="" />
@@ -1021,7 +1030,7 @@
                         <ComboBoxItem Content="Wellness" Tag="Wellness" />
                         <ComboBoxItem Content="Utility" Tag="Utility" />
                     </ComboBox>
-                    <Button x:Name="SceneSearchBtn" Style="{StaticResource IconButton}" Width="44"
+                    <Button x:Name="SceneSearchBtn" Grid.Row="1" Style="{StaticResource IconButton}" Width="44"
                             Background="{ThemeResource ControlFillColorDefaultBrush}"
                             ToolTipService.ToolTip="Find a scene by name" AutomationProperties.HelpText="Find a scene by name" AutomationProperties.Name="Find a scene">
                         <FontIcon Glyph="&#xE721;" FontSize="14" />
@@ -1032,12 +1041,12 @@
                             </Flyout>
                         </Button.Flyout>
                     </Button>
-                    <Button x:Name="GalleryBtn" Style="{StaticResource IconButton}" Width="44" Click="GalleryBtn_Click"
+                    <Button x:Name="GalleryBtn" Grid.Row="1" Grid.Column="1" Style="{StaticResource IconButton}" Width="44" Click="GalleryBtn_Click"
                             Background="{ThemeResource ControlFillColorDefaultBrush}"
                             ToolTipService.ToolTip="Open the gallery (scenes, backgrounds, filters)" AutomationProperties.HelpText="Open the gallery (scenes, backgrounds, filters)" AutomationProperties.Name="Open gallery">
                         <FontIcon Glyph="&#xF0E2;" FontSize="14" />
                     </Button>
-                </StackPanel>
+                </Grid>
                 <ListView x:Name="SceneList" Grid.Column="1" SelectionMode="Single"
                           ScrollViewer.HorizontalScrollMode="Enabled" ScrollViewer.HorizontalScrollBarVisibility="Hidden"
                           ScrollViewer.VerticalScrollMode="Disabled"
