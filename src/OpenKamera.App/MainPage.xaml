@@ -772,10 +772,10 @@
                     <TextBlock x:Name="ZoomLabel" Text="1.0×" FontSize="12" FontWeight="SemiBold" HorizontalAlignment="Right" />
                 </Grid>
                 <!-- Minimap: the box shows the visible part of the camera image. -->
-                <Border x:Name="Minimap" Height="118" CornerRadius="12" Padding="8" Background="{ThemeResource ControlFillColorDefaultBrush}">
+                <Border x:Name="Minimap" Height="118" CornerRadius="8" Padding="0" Background="{ThemeResource ControlFillColorDefaultBrush}">
                     <Canvas x:Name="MinimapCanvas" SizeChanged="MinimapCanvas_SizeChanged">
                         <Border x:Name="MinimapCrop" BorderThickness="2" CornerRadius="8"
-                                BorderBrush="{ThemeResource AccentTextFillColorPrimaryBrush}" Background="{ThemeResource SubtleFillColorSecondaryBrush}" />
+                                BorderBrush="{ThemeResource AccentTextFillColorPrimaryBrush}" Background="Transparent" />
                     </Canvas>
                 </Border>
                 <TextBlock Text="Zoom" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Margin="0,0,0,-8" />

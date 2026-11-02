@@ -18,7 +18,7 @@ Darkroom Glass verified live 2026-11-02 (window pictures via the in-app "Save a 
 - [x] Top capsule: serif wordmark, Snapshot, Record (turns red with a running timer), Stream (disabled until P4), profile chip ("Meetings 720p 30fps"), 🙏 Donate, view options (show/hide panels, save window picture, gallery)
 - [x] Left sheet: Camera / Audio / Layers; Source row (status dot, device, Connect, live mode text), AF/MF, Background picture tiles (Off/Blur/Replace/Remove, checkerboard) + strength, edge quality, Spotlight, Retouch, Adjustments, Look strip of live filter previews + "+ LUT", LUT, Camera hardware
 - [x] Bottom-left audio card (mic name; level bars wait for P3), right Framing panel (minimap, zoom/pan, Manual/Auto/Smart, Mirror/Rotate/Reset), bottom filmstrip of scene thumbnails with Ctrl N badges and a "+" new-scene tile, HUD pills (REC, resolution/fps, effects ms), status toast
-- [ ] Minimap shows the live camera image behind the crop box
+- [x] Minimap shows the live camera image behind the crop box
 - [x] Panels must not cover the video: preview fits between the panels (whole frame), and grows when panels are hidden
 - [ ] Commands and caption buttons share one row (custom drag region is a 300 px strip today)
 - [x] Profiles menu: Meetings 720p30, Meetings HD 1080p30, Streaming 1080p60, 1440p30, 4K30, Vertical 1280p, Vertical HD 1920p (all unlocked; camera + recording follow it)
