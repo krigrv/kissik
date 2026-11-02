@@ -14,6 +14,7 @@ public sealed partial class MainPage
     private Microsoft.UI.Dispatching.DispatcherQueueTimer? _meterTimer;
     private bool _audioReady;
     private readonly List<(AudioTrack Track, ProgressBar L, ProgressBar R)> _trackMeters = [];
+    private readonly List<(AudioTrack Track, TextBlock Label)> _noiseLabels = [];
 
     private AudioMixSettings Mix => _settings.Audio;
 
@@ -22,6 +23,9 @@ public sealed partial class MainPage
         MasterVolume.Value = Mix.MasterVolume * 100;
         LimiterToggle.IsOn = Mix.Limiter;
         NoiseToggle.IsOn = Mix.NoiseSuppression;
+        LowCutToggle.IsOn = Mix.LowCut;
+        AutoLevelToggle.IsOn = Mix.AutoLevel;
+        DeEssToggle.IsOn = Mix.DeEss;
         var eq = new[] { Eq0, Eq1, Eq2, Eq3 };
         for (int i = 0; i < 4; i++) eq[i].Value = Mix.EqDb.ElementAtOrDefault(i);
         AudioOnToggle.IsOn = _settings.AudioOn;
@@ -82,6 +86,7 @@ public sealed partial class MainPage
     {
         MicTracks.Children.Clear();
         _trackMeters.Clear();
+        _noiseLabels.Clear();
         IReadOnlyList<(string Id, string Name)> mics;
         try { mics = await AudioEngine.ListMicrophonesAsync(); } catch { mics = []; }
         // Code-fed tracks (the phone's microphone) get a card too.
@@ -128,6 +133,7 @@ public sealed partial class MainPage
                 Grid.SetColumn(mute, 1);
                 row.Children.Add(vol); row.Children.Add(mute);
                 card.Children.Add(row);
+                card.Children.Add(NoisePicker(id, name, track));
             }
             else if (included)
             {
@@ -157,6 +163,7 @@ public sealed partial class MainPage
         float ml = _audio.Tracks.Count > 0 ? _audio.Tracks.Max(t => t.PeakL) : 0, mr = _audio.Tracks.Count > 0 ? _audio.Tracks.Max(t => t.PeakR) : 0;
         CardMeterL.Value = Math.Max(l, ml); CardMeterR.Value = Math.Max(r, mr);
         foreach (var (t, pl, pr) in _trackMeters) { pl.Value = t.PeakL; pr.Value = t.PeakR; }
+        foreach (var (t, label) in _noiseLabels) UpdateNoiseLabel(t, label);
     }
 
     private async void AudioOnToggle_Toggled(object sender, RoutedEventArgs e)
@@ -197,6 +204,57 @@ public sealed partial class MainPage
         if (!_audioReady) return;
         Mix.NoiseSuppression = NoiseToggle.IsOn; _settings.Save();
         if (_audio.IsRunning) await StartAudioAsync();
+    }
+
+    private static readonly (NoiseRemoval Mode, string Label)[] NoiseModes =
+        [(NoiseRemoval.Off, "Off"), (NoiseRemoval.Light, "Light"), (NoiseRemoval.Studio, "Studio voice")];
+
+    /// <summary>Per-mic noise removal: Off, Light (RNNoise) or Studio voice (DeepFilterNet). Applies without stopping audio.</summary>
+    private FrameworkElement NoisePicker(string id, string name, AudioTrack track)
+    {
+        var box = new ComboBox { ItemsSource = NoiseModes.Select(m => m.Label).ToList(), SelectedIndex = (int)Mix.NoiseFor(id), MinWidth = 140 };
+        AutomationProperties.SetName(box, $"Noise removal for {name}");
+        AutomationProperties.SetHelpText(box, "Light uses little power. Studio voice removes more noise.");
+        ToolTipService.SetToolTip(box, "Light uses little power. Studio voice removes more noise.");
+        var label = new TextBlock { Text = "Noise removal", FontSize = 12, VerticalAlignment = VerticalAlignment.Center, Foreground = Token("DgDim") };
+        box.SelectionChanged += async (_, _) =>
+        {
+            var mode = NoiseModes[Math.Max(0, box.SelectedIndex)].Mode;
+            if (mode == Mix.NoiseFor(id)) return;
+            Mix.MicNoise[id] = mode;
+            _settings.Save();
+            box.IsEnabled = false; // Studio voice takes a moment to load its model
+            await _audio.UpdateVoiceAsync();
+            box.IsEnabled = true;
+            box.Focus(FocusState.Programmatic);
+            UpdateNoiseLabel(track, label);
+        };
+        var row = new Grid { ColumnSpacing = 8 };
+        row.ColumnDefinitions.Add(new ColumnDefinition());
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        Grid.SetColumn(box, 1);
+        row.Children.Add(label); row.Children.Add(box);
+        _noiseLabels.Add((track, label));
+        UpdateNoiseLabel(track, label);
+        return row;
+    }
+
+    /// <summary>"Noise removal · removing 14 dB", or why it isn't running.</summary>
+    private void UpdateNoiseLabel(AudioTrack track, TextBlock label)
+    {
+        string text = track.VoiceNote is { } note ? $"Noise removal: {note}"
+            : track.NoiseFailed ? "Noise removal stopped after an error"
+            : track.Noise != NoiseRemoval.Off && track.NoiseReductionDb >= 1 ? $"Noise removal · removing {track.NoiseReductionDb:0} dB"
+            : "Noise removal";
+        if (label.Text != text) label.Text = text;
+    }
+
+    /// <summary>Low cut, auto level and de-esser are part of each mic's voice chain: swapped in live.</summary>
+    private async void Voice_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (!_audioReady) return;
+        Mix.LowCut = LowCutToggle.IsOn; Mix.AutoLevel = AutoLevelToggle.IsOn; Mix.DeEss = DeEssToggle.IsOn; _settings.Save();
+        if (_audio.IsRunning) await _audio.UpdateVoiceAsync();
     }
 
     private void EqFlat_Click(object sender, RoutedEventArgs e)

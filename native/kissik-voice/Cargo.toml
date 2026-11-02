@@ -1,0 +1,20 @@
+[package]
+name = "kissik-voice"
+version = "1.0.0"
+edition = "2021"
+license = "MIT"
+description = "Panic-safe C API over DeepFilterNet for KISSIK"
+
+[lib]
+name = "kissik_voice"
+crate-type = ["cdylib"]
+
+[dependencies]
+deep_filter = { git = "https://github.com/Rikorose/DeepFilterNet", tag = "v0.5.6", default-features = false, features = ["tract"] }
+ndarray = "0.15"
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+strip = true
