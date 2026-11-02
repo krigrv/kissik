@@ -714,6 +714,28 @@ public sealed partial class MainPage : Page
         UpdateAdjustments(); SaveLook();
     }
 
+    /// <summary>One press: neutral adjustments, measure the live picture, then fix exposure, colour cast and flat light.</summary>
+    private async void AutoBest_Click(object sender, RoutedEventArgs e)
+    {
+        if (_session is null || _lastFrame is null) { Status("Connect a camera first."); return; }
+        AutoBestBtn.IsEnabled = false;
+        try
+        {
+            EnhanceReset_Click(sender, e);
+            await Task.Delay(450); // let a frame through with neutral adjustments
+            if (_lastFrame is not { } f) return;
+            var r = await Task.Run(() => AutoPicture.Analyze(f.Px, f.W, f.H));
+            _restoring = true;
+            EnhGamma.Value = r.Gamma * 100; EnhContrast.Value = r.Contrast * 100;
+            EnhTemperature.Value = r.Temperature * 100; EnhTint.Value = r.Tint * 100;
+            EnhSharpness.Value = r.Sharpness * 100; EnhVibrance.Value = r.Vibrance * 100;
+            _restoring = false;
+            UpdateAdjustments(); SaveLook();
+            Status(r.Summary + " Fine-tune under Adjustments, or reset with the arrow.");
+        }
+        finally { _restoring = false; AutoBestBtn.IsEnabled = true; }
+    }
+
     private async void ImportLutBtn_Click(object sender, RoutedEventArgs e) => await ImportLutCoreAsync();
 
     /// <summary>Picks, validates and stores a .cube LUT, then selects it. Returns null when cancelled or invalid.</summary>

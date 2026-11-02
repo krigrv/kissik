@@ -516,6 +516,11 @@
                                 ValueChanged="Background_ValueChanged" AutomationProperties.Name="Retouch amount" />
 
                         <Rectangle Height="1" Fill="{ThemeResource CardStrokeColorDefaultBrush}" Margin="0,10,0,0" />
+                        <Button x:Name="AutoBestBtn" Click="AutoBest_Click" HorizontalAlignment="Stretch" Margin="0,10,0,0" Height="40" CornerRadius="8"
+                                Style="{StaticResource AccentButtonStyle}" AutomationProperties.Name="Auto best picture"
+                                ToolTipService.ToolTip="Fixes brightness, colour cast and flat light in one press">
+                            <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE9F5;" FontSize="14" /><TextBlock Text="Auto best picture" /></StackPanel>
+                        </Button>
                         <Expander x:Name="AdjustmentsExpander" AutomationProperties.Name="Picture adjustments" Margin="0,6,0,0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
                                   Background="Transparent" BorderThickness="0">
                             <Expander.Header>
@@ -1248,7 +1253,7 @@
         <!-- ═══ Status toast (bottom-right) ═══ -->
         <Border Background="{ThemeResource SolidBackgroundFillColorQuarternaryBrush}" CornerRadius="12" Padding="12,6" Margin="0,0,12,12" MaxWidth="320"
                 HorizontalAlignment="Right" VerticalAlignment="Bottom" IsHitTestVisible="False">
-            <TextBlock x:Name="StatusText" Text="Ready." AutomationProperties.LiveSetting="Polite" AutomationProperties.Name="Status" FontSize="12" Foreground="{ThemeResource TextFillColorPrimaryBrush}" TextWrapping="Wrap" MaxLines="3" TextTrimming="CharacterEllipsis" />
+            <TextBlock x:Name="StatusText" Text="Ready." AutomationProperties.LiveSetting="Polite" FontSize="12" Foreground="{ThemeResource TextFillColorPrimaryBrush}" TextWrapping="Wrap" MaxLines="3" TextTrimming="CharacterEllipsis" />
         </Border>
     </Grid>
 </Page>
