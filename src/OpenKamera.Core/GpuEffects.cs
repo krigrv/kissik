@@ -81,7 +81,7 @@ public sealed class GpuEffects : IDisposable
     [Flags]
     private enum Fx { Temp = 1, Tint = 2, Hue = 4, Vib = 8, Sat = 16, Lut = 32, Colour = 64, Behind = 128, Spot = 256 }
     [Flags]
-    private enum Sf { Fills = 1, Ellipse = 2, Camera = 4, Overlay = 8, Underlay = 16 }
+    private enum Sf { Fills = 1, Ellipse = 2, Camera = 4, Overlay = 8, Underlay = 16, Under = 32 }
 
     /// <summary>
     /// Runs every effect after framing and output fit. <paramref name="mask"/> is the model-resolution person mask
@@ -172,7 +172,7 @@ public sealed class GpuEffects : IDisposable
     /// CPU: front overlay (SceneCompositor.BlendOver), scene cross-fade, burned-in captions (CaptionBurn.Blend) and the
     /// privacy shutter (PrivacyShutter.Apply). Returns <paramref name="pixels"/> itself when there is nothing to add.
     /// </summary>
-    private byte[] Bake(string cur, int w, int h, OutputBake b, byte[] pixels)
+    private BakedFrame Bake(string cur, int w, int h, OutputBake b, byte[] pixels)
     {
         int n = w * h;
         string? k = null;
@@ -208,10 +208,21 @@ public sealed class GpuEffects : IDisposable
             Run("PixBlock", bx * by, srv: [(k ?? cur, 0)], uav: [("blocks", 0)]);
             Pass("PixFill", "blocks");
         }
-        if (k is null) return pixels;
+        // Only the meeting camera wants it: shrink to its size here, so less comes back (VirtualCameraChannel's maths).
+        if (b.FitWithin is var (mw, mh) && (w > mw || h > mh))
+        {
+            double s = Math.Min((double)mw / w, (double)mh / h);
+            int nw = Math.Max(2, (int)(w * s)) & ~1, nh = Math.Max(2, (int)(h * s)) & ~1;
+            // The pause sign is drawn at the size that comes back, as the CPU draws it before the meeting camera shrinks it.
+            Resample(k ?? cur, w, h, nw, nh, (double)nw / w, (double)nh / h, "fitout");
+            var small = Download("fitout", nw * nh * 4);
+            if (b.Shutter == ShutterMode.Away) PrivacyShutter.DrawPause(small, nw, nh);
+            return new BakedFrame(small, nw, nh);
+        }
+        if (k is null) return new BakedFrame(pixels, w, h);
         var baked = Download(k, n * 4);
         if (b.Shutter == ShutterMode.Away) PrivacyShutter.DrawPause(baked, w, h);
-        return baked;
+        return new BakedFrame(baked, w, h);
     }
 
     /// <summary>Start a scene cross-fade from the last baked output frame (then pass <see cref="OutputBake.FadeT"/>).</summary>
@@ -265,7 +276,17 @@ public sealed class GpuEffects : IDisposable
         if (r.OutputWidth is int fw && r.OutputHeight is int fh && (fw != w || fh != h))
         {
             double scale = Math.Max((double)fw / w, (double)fh / h);
-            double left = (w - fw / scale) / 2, top = (h - fh / scale) / 2;
+            Resample(src, w, h, fw, fh, scale, scale, "fitted");
+            (src, w, h) = ("fitted", fw, fh);
+        }
+        return (src, w, h);
+    }
+
+    /// <summary>OutputFit's resample (Cover when the scales match, Stretch when not) into <paramref name="dst"/>.</summary>
+    private void Resample(string src, int w, int h, int fw, int fh, double scaleX, double scaleY, string dst)
+    {
+        {
+            double left = (w - fw / scaleX) / 2, top = (h - fh / scaleY) / 2;
             // Per column then per row: index, weight as double (two words); then the weights as float for the fallback.
             var map = new uint[(fw + fh) * 4];
             void Tap(int o, int n, int at, int fl, double pos, int size)
@@ -275,15 +296,13 @@ public sealed class GpuEffects : IDisposable
                 map[at + o] = (uint)(int)f; map[at + n + o] = (uint)bits; map[at + 2 * n + o] = (uint)(bits >> 32);
                 map[fl + o] = BitConverter.SingleToUInt32Bits((float)d);
             }
-            for (int o = 0; o < fw; o++) Tap(o, fw, 0, 3 * (fw + fh), left + (o + 0.5) / scale - 0.5, w);
-            for (int o = 0; o < fh; o++) Tap(o, fh, 3 * fw, 3 * (fw + fh) + fw, top + (o + 0.5) / scale - 0.5, h);
+            for (int o = 0; o < fw; o++) Tap(o, fw, 0, 3 * (fw + fh), left + (o + 0.5) / scaleX - 0.5, w);
+            for (int o = 0; o < fh; o++) Tap(o, fh, 3 * fw, 3 * (fw + fh) + fw, top + (o + 0.5) / scaleY - 0.5, h);
             Upload("map", map, 4);
             SetParams(new Params { I0 = new(fw, fh, 0, 0), I1 = new(w, h, 0, 0) });
-            Ensure("fitted", fw * fh * 4, 4);
-            Run(_cs.ContainsKey("FitDouble") ? "FitDouble" : "Fit", fw * fh, srv: [(src, 0), ("map", 8)], uav: [("fitted", 0)]);
-            (src, w, h) = ("fitted", fw, fh);
+            Ensure(dst, fw * fh * 4, 4);
+            Run(_cs.ContainsKey("FitDouble") ? "FitDouble" : "Fit", fw * fh, srv: [(src, 0), ("map", 8)], uav: [(dst, 0)]);
         }
-        return (src, w, h);
     }
 
     /// <summary>The segmentation model's input: the frame sampled (nearest) at iw x ih, as PersonSegmenter samples it.</summary>
@@ -389,11 +408,13 @@ public sealed class GpuEffects : IDisposable
         if (r.Scene is { } scene)
         {
             // Only Remove makes the camera see-through (blur and replace leave it opaque).
-            SceneParams(scene, mode == 3 || transparent, w, h, r.Overlay, ref p);
+            SceneParams(scene, mode == 3 || transparent, w, h, r.Overlay, r.UnderOverlay, ref p);
             SetParams(p);
             if (((Sf)p.I4.X & Sf.Overlay) != 0) Upload("aux", r.Overlay!, 4);
+            bool under = ((Sf)p.I4.X & Sf.Under) != 0;
+            if (under) UploadCached("under", r.UnderOverlay!);
             string o = Next(); Ensure(o, n * 4, 4);
-            Run("Scene", n, srv: [(cur, 0), ("aux", 2)], uav: [(o, 0)]);
+            Run("Scene", n, srv: [(cur, 0), ("aux", 2), (under ? "under" : cur, 3)], uav: [(o, 0)]);
             cur = o;
         }
 
@@ -447,7 +468,7 @@ public sealed class GpuEffects : IDisposable
         return f;
     }
 
-    private static void SceneParams(SceneDocument scene, bool transparent, int w, int h, byte[]? overlay, ref Params p)
+    private static void SceneParams(SceneDocument scene, bool transparent, int w, int h, byte[]? overlay, byte[]? under, ref Params p)
     {
         var top = ColorHex.Parse(scene.Background, (255, 16, 20, 24));
         var bottom = string.IsNullOrEmpty(scene.Background2) ? top : ColorHex.Parse(scene.Background2, top);
@@ -465,6 +486,7 @@ public sealed class GpuEffects : IDisposable
             int rw = Math.Max(1, (int)Math.Round(c.W * w)), rh = Math.Max(1, (int)Math.Round(c.H * h));
             p.I3 = new(rx, ry, rw, rh);
             if (c.Visible) f |= Sf.Camera;
+            if (under is not null && under.Length == w * h * 4) f |= Sf.Under;
             if (c.Shape == "ellipse") f |= Sf.Ellipse;
             p.F4.Y = (float)Math.Clamp(c.Opacity, 0, 1);
             p.F4.Z = (float)(c.CornerRadius * h);

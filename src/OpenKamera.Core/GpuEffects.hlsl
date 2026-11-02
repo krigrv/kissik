@@ -37,6 +37,7 @@ cbuffer Params : register(b0)
 #define S_CAMERA 4
 #define S_OVERLAY 8
 #define S_UNDERLAY 16
+#define S_UNDER 32 // layers listed before the camera, in Behind
 
 StructuredBuffer<uint> Src : register(t0);
 StructuredBuffer<float> Alpha : register(t1);
@@ -517,6 +518,7 @@ void Scene(uint3 id : SV_DispatchThreadID)
     else
     {
         o = bg;
+        if (sf & S_UNDER) o = Over(o, (uint4)Unpack(Behind[p]));
         int lx = x - I3.x, ly = y - I3.y, rw = I3.z, rh = I3.w;
         if ((sf & S_CAMERA) && lx >= 0 && ly >= 0 && lx < rw && ly < rh)
         {

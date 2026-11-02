@@ -500,7 +500,7 @@ public sealed partial class MainPage : Page
     private void BeginSceneFade()
     {
         _fadeFrom = _lastBaked; _fadeStart = DateTime.UtcNow;
-        if (FrameProcessor.GpuActive) { GpuEffects.Shared!.BeginFade(); _gpuFadeStart = _fadeStart; }
+        if (FrameProcessor.GpuActive && _settings.Transition == SceneTransition.Fade) { GpuEffects.Shared!.BeginFade(); _gpuFadeStart = _fadeStart; }
     }
     private DateTime? _gpuFadeStart;
     private ShutterMode ShutterNow => _shutter != ShutterMode.Off ? _shutter : _guardHiding ? ShutterMode.Blur : ShutterMode.Off;
@@ -512,14 +512,18 @@ public sealed partial class MainPage : Page
         if (Interlocked.Exchange(ref _processing, 1) == 1) { Interlocked.Increment(ref _skipped); return; }
         byte[] pixels; int w, h;
         long t0 = System.Diagnostics.Stopwatch.GetTimestamp();
-        // On the GPU the outputs' layers (front overlay, scene fade, captions, shutter) are baked there too.
+        // On the GPU the outputs' layers (front overlay, scene fade, captions, shutter) are baked there too, unless
+        // something only the CPU draws is in play (a second camera, a slide or zoom transition).
         OutputBake? bake = null;
-        if (FrameProcessor.GpuActive && (_vcam.HasClients || _live is not null || _recorder is not null && !_recPaused))
+        bool recording = _recorder is not null && !_recPaused, fullSize = _live is not null || recording || _replay is not null;
+        double? fadeT = _gpuFadeStart is { } fs ? (DateTime.UtcNow - fs) / SceneTransitions.Duration : null;
+        if (fadeT >= 1) { _gpuFadeStart = null; fadeT = null; }
+        if (FrameProcessor.GpuActive && (_vcam.HasClients || fullSize) && !SecondCameraShown && (fadeT is null || _settings.Transition == SceneTransition.Fade))
         {
-            double? fadeT = _gpuFadeStart is { } fs ? (DateTime.UtcNow - fs).TotalSeconds / 0.4 : null;
-            if (fadeT >= 1) { _gpuFadeStart = null; fadeT = null; }
             var cap = _captionImage;
-            bake = new OutputBake(FrontAt, fadeT, cap?.Pixels, cap?.Width ?? 0, cap?.Height ?? 0, ShutterNow);
+            // The meeting camera alone takes at most 1080p: shrink on the GPU so only that much comes back.
+            (int, int)? fit = fullSize ? null : (VirtualCameraChannel.MaxWidth, VirtualCameraChannel.MaxHeight);
+            bake = new OutputBake(FrontAt, fadeT, cap?.Pixels, cap?.Width ?? 0, cap?.Height ?? 0, ShutterNow, fit);
         }
         FrameOutput output;
         try { output = FrameProcessor.Process(bmp, CurrentRecipe(), _bgPipeline, bake); (pixels, w, h) = (output.Pixels, output.Width, output.Height); }
@@ -546,7 +550,7 @@ public sealed partial class MainPage : Page
         byte[] Baked()
         {
             if (baked is not null) return baked;
-            if (output.Baked is { } onGpu) return baked = onGpu;
+            if (output.Baked is { } onGpu && onGpu.Width == w) return baked = onGpu.Pixels;
             baked = pixels;
             if (FrontAt(w, h) is { } front) { baked = (byte[])pixels.Clone(); SceneCompositor.BlendOver(baked, front); }
             // Scene switch: cross-fade from the last frame of the old scene.
@@ -561,7 +565,11 @@ public sealed partial class MainPage : Page
             baked = PrivacyShutter.Apply(baked, w, h, ShutterNow);
             return baked;
         }
-        if (_vcam.HasClients) FeedVirtualCamera(Baked(), w, h);
+        if (_vcam.HasClients)
+        {
+            if (output.Baked is { } small && small.Width != w) FeedVirtualCamera(small.Pixels, small.Width, small.Height);
+            else FeedVirtualCamera(Baked(), w, h);
+        }
         if (_live is { } live) live.Push(Baked(), w, h);
         if (_recorder is { } rec)
         {

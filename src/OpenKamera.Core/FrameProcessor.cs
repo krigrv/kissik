@@ -19,10 +19,14 @@ public sealed record FrameRecipe(
 /// </summary>
 public sealed record OutputBake(
     Func<int, int, byte[]?>? Front = null, double? FadeT = null,
-    byte[]? Caption = null, int CaptionWidth = 0, int CaptionHeight = 0, ShutterMode Shutter = ShutterMode.Off);
+    byte[]? Caption = null, int CaptionWidth = 0, int CaptionHeight = 0, ShutterMode Shutter = ShutterMode.Off,
+    (int Width, int Height)? FitWithin = null);
+
+/// <summary>The baked output frame; smaller than the processed frame when <see cref="OutputBake.FitWithin"/> shrank it.</summary>
+public sealed record BakedFrame(byte[] Pixels, int Width, int Height);
 
 /// <summary>A processed frame; Baked is the output bake, or null when it wasn't asked for or the CPU path ran.</summary>
-public sealed record FrameOutput(byte[] Pixels, int Width, int Height, byte[]? Baked);
+public sealed record FrameOutput(byte[] Pixels, int Width, int Height, BakedFrame? Baked);
 
 /// <summary>Runs framing → output fit → background → Enhance → scene. Used for preview, snapshots and recording.</summary>
 public static class FrameProcessor
@@ -49,7 +53,7 @@ public static class FrameProcessor
     /// </summary>
     public static FrameOutput Process(SoftwareBitmap frame, FrameRecipe r, BackgroundPipeline? background, OutputBake? bake)
     {
-        if (UseGpu && !r.Background.GreenScreen && r.UnderOverlay is null && YuvConvert.IsYuv(frame) && GpuEffects.Shared is { } g && g.ProcessCamera(frame, r, background, bake) is { } fast)
+        if (UseGpu && !r.Background.GreenScreen && YuvConvert.IsYuv(frame) && GpuEffects.Shared is { } g && g.ProcessCamera(frame, r, background, bake) is { } fast)
             return fast;
         var bgra = frame.BitmapPixelFormat == BitmapPixelFormat.Bgra8
             ? frame
@@ -59,7 +63,7 @@ public static class FrameProcessor
             int w = bgra.PixelWidth, h = bgra.PixelHeight;
             var pixels = new byte[w * h * 4];
             bgra.CopyToBuffer(pixels.AsBuffer());
-            if (UseGpu && !r.Background.GreenScreen && r.UnderOverlay is null && GpuEffects.Shared is { } gpu && gpu.ProcessOutput(pixels, w, h, r, background, bake) is { } done)
+            if (UseGpu && !r.Background.GreenScreen && GpuEffects.Shared is { } gpu && gpu.ProcessOutput(pixels, w, h, r, background, bake) is { } done)
                 return done;
             (pixels, w, h) = r.Transform.Apply(pixels, w, h);
             // Fit before the expensive steps so they run at output size, not camera size.

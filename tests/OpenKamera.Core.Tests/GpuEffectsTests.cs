@@ -44,6 +44,14 @@ public class GpuEffectsTests(ITestOutputHelper log)
     }
 
     [Fact]
+    public void SceneLayersUnderCamera()
+    {
+        var scene = new SceneDocument { Background = "#203040" };
+        scene.Layers.Add(new SceneLayer { Kind = "camera", X = 0.2, Y = 0.15, W = 0.5, H = 0.6, CornerRadius = 0.04, Opacity = 0.8 });
+        Compare(Recipe() with { Scene = scene, UnderOverlay = Overlay(), Overlay = Overlay() });
+    }
+
+    [Fact]
     public void SceneRoundedCamera()
     {
         var scene = new SceneDocument();
@@ -169,7 +177,7 @@ public class GpuEffectsTests(ITestOutputHelper log)
         if (r.Background.NeedsMask) BackgroundEffects.Apply(px, W, H, alpha, r.Background, replacement);
         if (r.BehindOverlay is { } bo) SceneCompositor.BlendBehind(px, bo, alpha);
         ImageFilters.Apply(px, W, H, r.Adjustments);
-        if (r.Scene is { } scene) px = SceneCompositor.Compose(px, W, H, scene, r.Overlay);
+        if (r.Scene is { } scene) px = SceneCompositor.Compose(px, W, H, scene, r.Overlay, r.UnderOverlay);
         return px;
     }
 

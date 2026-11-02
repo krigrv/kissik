@@ -62,7 +62,7 @@ public class GpuOutputTests(ITestOutputHelper log)
         Assert.NotNull(outA?.Baked);
         var cpuA = (byte[])a.Clone();
         SceneCompositor.BlendOver(cpuA, front);
-        Assert.Equal(cpuA, outA!.Baked);
+        Assert.Equal(cpuA, outA!.Baked!.Pixels);
 
         gpu.BeginFade();
         var second = first with { FadeT = 0.3, Caption = caption, CaptionWidth = cw, CaptionHeight = ch, Shutter = shutter };
@@ -73,7 +73,7 @@ public class GpuOutputTests(ITestOutputHelper log)
         SceneCompositor.CrossFade(cpuB, cpuA, 0.3);
         CaptionBurn.Blend(cpuB, W, H, caption, cw, ch);
         cpuB = PrivacyShutter.Apply(cpuB, W, H, shutter);
-        Assert.Equal(cpuB, outB.Baked);
+        Assert.Equal(cpuB, outB.Baked!.Pixels);
     }
 
     [Fact]
@@ -81,7 +81,24 @@ public class GpuOutputTests(ITestOutputHelper log)
     {
         if (GpuEffects.Shared is not { } gpu) { log.WriteLine("No Direct3D 11 GPU: skipped."); return; }
         var o = gpu.ProcessOutput(Opaque(5), W, H, FrameRecipe.Passthrough, null, new OutputBake());
-        Assert.Same(o!.Pixels, o.Baked);
+        Assert.Same(o!.Pixels, o.Baked!.Pixels);
+    }
+
+    [Fact]
+    public void MeetingCameraSizeShrinksOnTheGpu()
+    {
+        if (GpuEffects.Shared is not { } gpu) { log.WriteLine("No Direct3D 11 GPU: skipped."); return; }
+        byte[] a = Opaque(6), front = Layer(7, W, H);
+        // Fit within 200x100, as VirtualCameraChannel shrinks frames over 1920x1080.
+        var o = gpu.ProcessOutput(a, W, H, FrameRecipe.Passthrough, null, new OutputBake(Front: (_, _) => front, Shutter: ShutterMode.Blur, FitWithin: (200, 100)));
+        var cpu = (byte[])a.Clone();
+        SceneCompositor.BlendOver(cpu, front);
+        cpu = PrivacyShutter.Apply(cpu, W, H, ShutterMode.Blur);
+        double s = Math.Min(200.0 / W, 100.0 / H);
+        int nw = Math.Max(2, (int)(W * s)) & ~1, nh = Math.Max(2, (int)(H * s)) & ~1;
+        var (small, sw, sh) = OutputFit.Stretch(cpu, W, H, nw, nh);
+        Assert.Equal((sw, sh), (o!.Baked!.Width, o.Baked.Height));
+        Assert.Equal(small, o.Baked.Pixels);
     }
 
     private static byte[] Opaque(int seed)

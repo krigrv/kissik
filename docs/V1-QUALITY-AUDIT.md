@@ -121,10 +121,24 @@ Still to test by hand before v1 (needs a person at the PC):
   privacy shutter) is baked on the GPU too, and only runs while one of them is on. Tests hold each new kernel to
   an exact match with the CPU code, and the YUV conversion to within 3 levels of Windows' own.
 - **Best:** frames stay on the GPU from capture to output, zero copies to the CPU.
-- **Upgrade (still to do):** hand textures to the virtual camera, a hardware encoder (Media Foundation with a DXGI
-  device manager) and the preview (SwapChainPanel), so the two readbacks (preview frame and baked output) go away.
-  MediaCapture picks its own Direct3D device and its textures aren't shareable, so taking capture textures
-  directly needs Media Foundation's source reader on our device.
+- **Now (also):** scene layers listed before the camera are drawn in the GPU scene kernel (no CPU fallback). When
+  the meeting camera is the only output, the baked frame is shrunk to its 1080p limit on the GPU, so a 4K
+  frame comes back at 1080p and the CPU shrink (4.4 ms at 4K) goes away. A second-camera layer, or a slide or zoom
+  scene transition, still bakes on the CPU.
+- **Upgrade (still to do), and why it isn't done yet:**
+  - *Capture textures on our device:* MediaCapture picks its own Direct3D device and its textures can't be shared.
+    Media Foundation's source reader on our device would fix that, but it loses MediaCapture's camera controls
+    (focus, zoom, exposure UI) and the frame consumers (face tracking, steady picture, minimap) still need CPU
+    bytes. The NV12 upload it would save is about 0.5 ms at 4K.
+  - *Textures to the meeting camera:* its media source runs inside the Windows camera service, in another process
+    and session, and reads shared memory. A texture handoff means a shared NT handle across that boundary, a new
+    channel version and rebuilding and reinstalling the native source (admin). Its 1080p limit now keeps the
+    readback small.
+  - *Hardware encoder from textures:* recording already encodes on the hardware (`MediaTranscoder` with hardware
+    acceleration). Feeding it textures needs a sink writer with a DXGI device manager; while the meeting camera,
+    stream or replay buffer is on, the baked frame is read back for them anyway.
+  - *Preview from a texture:* the full-size processed frame also feeds snapshots, thumbnails and the meeting check,
+    so a preview-size readback needs those moved first.
 
 Frame-path benchmark (`dotnet run -c Release --project tests/OpenKamera.Bench`): a synthetic frame through
 `FrameProcessor` with Fast segmentation on DirectML, RTX 4080 SUPER, frames per second. The effects step only;
@@ -157,6 +171,7 @@ measured in the same run for comparison). The bake is a translucent front overla
 | 4K | BGRA in + bake | 53 |
 | 4K | NV12 in + bake | 99 |
 | 4K | NV12 in + bake + privacy shutter | 83 |
+| 4K | NV12 in + bake, meeting camera only (shrunk to 1080p on the GPU) | 119 |
 
 The same bake with the shutter costs 2.9 ms (1080p) and 10.8 ms (4K) a frame on the CPU, on top of the frame
 path; on the GPU it adds about 3 ms at 4K, most of it the second readback. Not yet measured in the running app:
