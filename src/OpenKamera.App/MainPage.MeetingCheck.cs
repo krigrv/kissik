@@ -44,15 +44,15 @@ public sealed partial class MainPage
         {
             var (glyph, color) = r.Level switch
             {
-                CheckLevel.Good => ("", Microsoft.UI.ColorHelper.FromArgb(255, 91, 255, 143)),
-                CheckLevel.Warn => ("", Microsoft.UI.ColorHelper.FromArgb(255, 0xFF, 0xD3, 0x6B)),
-                _ => ("", Microsoft.UI.ColorHelper.FromArgb(255, 0xFF, 0x8A, 0x80)),
+                CheckLevel.Good => ("", "SystemFillColorSuccessBrush"),
+                CheckLevel.Warn => ("", "SystemFillColorCautionBrush"),
+                _ => ("", "SystemFillColorCriticalBrush"),
             };
             var row = new Grid { ColumnSpacing = 12 };
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             row.ColumnDefinitions.Add(new ColumnDefinition());
             row.Children.Add(new FontIcon { Glyph = glyph, FontSize = 16, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 2, 0, 0),
-                Foreground = IsHighContrast ? Token("DgText") : new Microsoft.UI.Xaml.Media.SolidColorBrush(color) });
+                Foreground = Token(IsHighContrast ? "DgText" : color) });
             var text = new StackPanel();
             text.Children.Add(new TextBlock { Text = r.Item, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold });
             text.Children.Add(new TextBlock { Text = r.Message, TextWrapping = TextWrapping.Wrap, Opacity = 0.8, FontSize = 13 });

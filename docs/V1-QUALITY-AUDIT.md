@@ -138,7 +138,8 @@ a live Narrator, 200% text and high-contrast pass on a running app is still open
       right panel, filmstrip, then Simple-mode buttons when shown.
 - [x] Visible focus: the WinUI system focus rectangle is kept on every control (no `UseSystemFocusVisuals="False"` anywhere).
 - [x] Scene layers can be moved without a mouse: Ctrl+arrow moves the selected layer 1% of the picture,
-      Ctrl+Shift+arrow 5%. Each move is one undo step and Narrator says the new position.
+      Ctrl+Shift+arrow 10%, Delete removes it. Each is one undo step and Narrator says what happened.
+      Ctrl is used because plain arrows already move focus and change sliders and lists.
 
 ### Narrator announcements for state changes
 - [x] Every status message is now raised as a UIA notification (`RaiseNotificationEvent`, ImportantMostRecent)
@@ -188,3 +189,83 @@ a live Narrator, 200% text and high-contrast pass on a running app is still open
 - [ ] Windows Text size 200% and display scale 200%: no clipping or overlap in the top bar, panels and dialogs.
 - [ ] High contrast (Aquatic, Desert, Night sky): every control visible, focus rectangle visible.
 - [ ] Accessibility Insights FastPass on both windows.
+
+### Contrast measurements (WCAG 1.4.3, 1.4.11)
+Computed with the WCAG relative-luminance formula against the Windows 11 base and card backgrounds
+(light #F3F3F3 / #F9F9F9, dark #202020 / #2B2B2B). Theme tokens are Windows' own values.
+
+| Colour | Use | Light | Dark | Result |
+|---|---|---|---|---|
+| Primary text | all labels | 17+:1 | 15+:1 | Pass |
+| Secondary text (`TextFillColorSecondary`) | hints, values | 5.6:1 | 9.4:1 (8.1:1 on panels) | Pass |
+| Accent text | Support, selected look | 9.0:1 | 12.2:1 | Pass |
+| Critical (`SystemFillColorCritical`) | warnings, shutter label, failed checks | 5.1:1 | 8.0:1 | Pass |
+| Success / caution | meeting check, status dots | 4.9:1 / 4.7:1 | 8.0:1 / 12.3:1 | Pass |
+| Strong stroke | "off" status dots, control borders | 3.1:1 | 5.8:1 | Pass (3:1) |
+| White on record red #D32F26 | Record button while recording, REC pill | 5.0:1 | 5.0:1 | Pass |
+| Captions, white on 85% black | over any video (worst case: white video) | 15.1:1 | 15.1:1 | Pass |
+| Prompter, white on #0C0C10 | script | 19.5:1 | 19.5:1 | Pass |
+| **Was:** green #5BFF8F, gold #FFD36B, red #FF8A80 | meeting check icons, warnings | 1.2 / 1.4 / 2.2:1 | 10.9 / – / 6.2:1 | **Failed in light: fixed** (now success / caution / critical tokens) |
+| **Was:** 40% white status dots | source and meeting camera dots | 1.0:1 | 3.7:1 | **Failed in light: fixed** (strong stroke / success / critical; the meeting camera's state is also in its name) |
+| Focus rectangle (WinUI default: 2 px outer + 1 px inner in opposite colours) | every control | 3:1 or better on any background | same | Pass (2.4.7, 2.4.11; also 2.4.13 AAA) |
+
+The record-red button against the dark panel is 2.8:1. 1.4.11 is still met because the button is identified
+by its white text and icon (5.0:1), not by its outline.
+
+### WCAG 2.2 level A and AA success criteria
+"Code" = shown by the source and this audit. "Run" = still to confirm on the running app (list above).
+Section 508 adopts WCAG 2.0 AA and EN 301 549 clause 11 maps to WCAG 2.1 AA, so this table covers both.
+EN 301 549 11.7 (user preferences) is met by following the Windows theme, contrast theme, text size and animation settings.
+
+| SC | Level | How KISSIK meets it | Evidence |
+|---|---|---|---|
+| 1.1.1 Non-text content | A | Every icon button and tile has an automation name; decorative dots hidden | Code; Run |
+| 1.2.x Time-based media | A/AA | KISSIK makes media rather than publishing it; live captions are offered for meetings and recordings | N/A |
+| 1.3.1 Info and relationships | A | Native WinUI controls, slider headers, named groups | Code |
+| 1.3.2 Meaningful sequence | A | Tab order follows reading order | Code; Run |
+| 1.3.3 Sensory characteristics | A | Instructions name controls by label, not shape or position | Code |
+| 1.3.4 Orientation | AA | Window works at any size and aspect | Code |
+| 1.3.5 Identify input purpose | AA | No personal-data fields | N/A |
+| 1.4.1 Use of colour | A | States are also in words and names (Record/Stop, Visible/Blurred/Away, dot states) | Code |
+| 1.4.2 Audio control | A | KISSIK plays no sound by itself | N/A |
+| 1.4.3 Contrast (minimum) | AA | Table above | Measured |
+| 1.4.4 Resize text | AA | Follows Windows text size; min heights, not fixed; Large controls | Code; Run at 200% |
+| 1.4.5 Images of text | AA | None used | Code |
+| 1.4.10 Reflow | AA | Simple mode works in a small window; Studio needs about 1000 px wide | Partial; Run |
+| 1.4.11 Non-text contrast | AA | Table above | Measured |
+| 1.4.12 Text spacing | AA | System text rendering; labels wrap | Code; Run |
+| 1.4.13 Content on hover or focus | AA | Standard WinUI tooltips (Esc dismisses, hoverable, persistent) | Code |
+| 2.1.1 Keyboard | A | All actions reachable; layers with Ctrl+arrow and Delete; shortcuts above | Code; Run |
+| 2.1.2 No keyboard trap | A | Flyouts and dialogs close with Esc | Code; Run |
+| 2.1.4 Character key shortcuts | A | Window shortcuts all use Ctrl; the prompter's single keys work only while it has focus | Code |
+| 2.2.1 Timing adjustable | A | Pressing Record again cancels the countdown; no other time limits | Code |
+| 2.2.2 Pause, stop, hide | A | Previews slow down under reduce motion; prompter scroll has play/pause | Code |
+| 2.3.1 Three flashes | A | Nothing flashes more than once a second | Code |
+| 2.4.1 Bypass blocks | A | Panels can be hidden; Simple mode | Code |
+| 2.4.2 Page titled | A | Window titles: KISSIK, KISSIK prompter, Recordings | Code |
+| 2.4.3 Focus order | A | Reading order | Code; Run |
+| 2.4.4 Link purpose | A | Button and link text says what it does | Code |
+| 2.4.5 Multiple ways | AA | Single-window app | N/A |
+| 2.4.6 Headings and labels | AA | Section labels and slider headers describe each control | Code |
+| 2.4.7 Focus visible | AA | System focus rectangle is never turned off | Code |
+| 2.4.11 Focus not obscured (minimum) | AA | Panels sit beside the video; flyouts open on top of what they belong to | Code; Run |
+| 2.5.1 Pointer gestures | A | No multi-point or path gestures needed | Code |
+| 2.5.2 Pointer cancellation | A | WinUI buttons act on release | Code |
+| 2.5.3 Label in name | A | Each name starts with the visible label ("Meeting camera, ready") | Code |
+| 2.5.4 Motion actuation | A | None | N/A |
+| 2.5.7 Dragging movements | AA | Layer drag has keyboard and Layers-tab alternatives; sliders take clicks and keys | Code |
+| 2.5.8 Target size (minimum) | AA | 24 px required; KISSIK uses 40 px, 48 px with Large controls | Code; Run |
+| 3.1.1 Language of page | A | App language from the package manifest | Code |
+| 3.2.1 On focus / 3.2.2 On input | A | Focus never triggers actions; a change applies only what was chosen | Code |
+| 3.2.3 / 3.2.4 Consistent navigation and identification | AA | One top bar; same names in Simple and Studio | Code |
+| 3.2.6 Consistent help | A | Help is always in the same menu place | Code |
+| 3.3.1 Error identification | A | Errors are described in words (status and Narrator) | Code |
+| 3.3.2 Labels or instructions | A | Every input is labelled | Code |
+| 3.3.3 Error suggestion | AA | Messages say what to do next ("Check the stream key and your internet connection") | Code |
+| 3.3.4 Error prevention | AA | No legal or financial data; deleting a layer is undoable; the meeting camera can be reinstalled from the same menu | Code |
+| 3.3.7 Redundant entry | A | Stream destinations and presets are remembered | Code |
+| 3.3.8 Accessible authentication (minimum) | AA | No sign-in | N/A |
+| 4.1.2 Name, role, value | A | Native controls; names follow state | Code; Run |
+| 4.1.3 Status messages | AA | Every status is a UIA notification and a live region | Code; Run |
+
+Open before claiming conformance: the "Run" checks, and 1.4.10 for Studio at small window widths.

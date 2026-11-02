@@ -186,7 +186,7 @@
                 <DropDownButton x:Name="MeetCamBtn" MinHeight="40" CornerRadius="8" Padding="14,0,10,0" Background="Transparent" BorderThickness="0"
                                 AutomationProperties.Name="Meeting camera" ToolTipService.ToolTip="Use KISSIK as the camera in Zoom, Teams, Meet, Discord or OBS" AutomationProperties.HelpText="Use KISSIK as the camera in Zoom, Teams, Meet, Discord or OBS">
                     <StackPanel Orientation="Horizontal" Spacing="7">
-                        <Ellipse x:Name="MeetCamDot" AutomationProperties.AccessibilityView="Raw" Width="8" Height="8" Fill="#66FFFFFF" VerticalAlignment="Center" />
+                        <Ellipse x:Name="MeetCamDot" AutomationProperties.AccessibilityView="Raw" Width="8" Height="8" Fill="{ThemeResource ControlStrongStrokeColorDefaultBrush}" VerticalAlignment="Center" />
                         <TextBlock Text="Meeting camera" />
                     </StackPanel>
                     <DropDownButton.Flyout>
@@ -374,7 +374,7 @@
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <Ellipse x:Name="SourceDot" AutomationProperties.AccessibilityView="Raw" Width="8" Height="8" Fill="#66FFFFFF" VerticalAlignment="Center" />
+                                <Ellipse x:Name="SourceDot" AutomationProperties.AccessibilityView="Raw" Width="8" Height="8" Fill="{ThemeResource ControlStrongStrokeColorDefaultBrush}" VerticalAlignment="Center" />
                                 <ComboBox x:Name="DeviceBox" Grid.Column="1" PlaceholderText="Select camera" HorizontalAlignment="Stretch"
                                           BorderThickness="0" Background="Transparent"
                                           SelectionChanged="DeviceBox_SelectionChanged" AutomationProperties.Name="Camera device" />

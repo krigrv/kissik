@@ -72,7 +72,7 @@ public sealed partial class MainPage
             { (Windows.System.VirtualKey.Left, -1, 0), (Windows.System.VirtualKey.Right, 1, 0),
               (Windows.System.VirtualKey.Up, 0, -1), (Windows.System.VirtualKey.Down, 0, 1) })
         {
-            foreach (var (mods, step) in new[] { (ctrl, 0.01), (ctrl | shift, 0.05) })
+            foreach (var (mods, step) in new[] { (ctrl, 0.01), (ctrl | shift, 0.10) })
             {
                 var acc = new Microsoft.UI.Xaml.Input.KeyboardAccelerator { Key = key, Modifiers = mods };
                 acc.Invoked += (_, a) =>
@@ -85,7 +85,7 @@ public sealed partial class MainPage
         }
     }
 
-    /// <summary>Ctrl+arrow moves the selected layer 1% of the picture, Ctrl+Shift+arrow 5%; one undo step each.</summary>
+    /// <summary>Ctrl+arrow moves the selected layer 1% of the picture, Ctrl+Shift+arrow 10%; one undo step each.</summary>
     private bool NudgeLayer(double dx, double dy)
     {
         if (Selected is not { } l) return false;

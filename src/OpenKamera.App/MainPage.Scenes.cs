@@ -377,6 +377,7 @@ public sealed partial class MainPage
         _selectedLayerId = null;
         Commit();
         RefreshLayersTab();
+        Announce($"{(l.Name.Length > 0 ? l.Name : l.Kind)} layer deleted. Ctrl+Z brings it back.");
     }
 
     private void MoveSelected(int delta)
