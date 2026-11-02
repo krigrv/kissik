@@ -61,6 +61,7 @@ public static class VirtualCamera
     {
         try { _camera?.Remove(); } catch { }
         _camera = null;
+        RemoveRegistrations(includeCurrent: true);
         string script = $"$p = Start-Process regsvr32.exe -ArgumentList '/s','/u','\"{InstalledDll}\"' -Wait -PassThru; Remove-Item -Recurse -Force '{InstallFolder}' -ErrorAction SilentlyContinue; exit $p.ExitCode";
         var psi = new ProcessStartInfo("powershell.exe", $"-NoProfile -ExecutionPolicy Bypass -Command \"{script.Replace("\"", "\\\"")}\"")
         { UseShellExecute = true, Verb = "runas", WindowStyle = ProcessWindowStyle.Hidden };
@@ -77,6 +78,7 @@ public static class VirtualCamera
         if (_camera is not null) return "KISSIK camera is on.";
         if (!IsSupported) return "The virtual camera needs Windows 11.";
         if (!IsInstalled) return "Install the KISSIK camera first.";
+        try { RemoveRegistrations(includeCurrent: false); } catch { } // drop cameras left from older names
         foreach (var lifetime in new[] { MFVirtualCameraLifetime.System, MFVirtualCameraLifetime.Session })
         {
             int hr = MFCreateVirtualCamera(MFVirtualCameraType.SoftwareCameraSource, lifetime, MFVirtualCameraAccess.CurrentUser,
@@ -87,12 +89,32 @@ public static class VirtualCamera
             {
                 _camera = cam;
                 return lifetime == MFVirtualCameraLifetime.System
-                    ? "KISSIK camera is on: pick \"OpenKamera\" in Zoom, Teams, Meet or OBS."
-                    : "KISSIK camera is on while KISSIK is open: pick \"OpenKamera\" in your meeting app.";
+                    ? $"KISSIK camera is on: pick \"{FriendlyName}\" in Zoom, Teams, Meet or OBS."
+                    : $"KISSIK camera is on while KISSIK is open: pick \"{FriendlyName}\" in your meeting app.";
             }
             Marshal.ReleaseComObject(cam);
         }
         return "Windows did not accept the camera. Try reinstalling it from the camera menu.";
+    }
+
+    /// <summary>Names this camera has been registered under in earlier versions.</summary>
+    private static readonly string[] OldNames = ["OpenKamera", "OpenKemera", "KissiK"];
+
+    /// <summary>
+    /// Removes the camera's registrations from Windows so meeting apps stop listing it: old names always (no duplicates
+    /// after a rename), the current one too when uninstalling.
+    /// </summary>
+    public static void RemoveRegistrations(bool includeCurrent)
+    {
+        if (!IsSupported) return;
+        foreach (var name in includeCurrent ? OldNames.Append(FriendlyName) : OldNames)
+            foreach (var lifetime in new[] { MFVirtualCameraLifetime.System, MFVirtualCameraLifetime.Session })
+            {
+                if (MFCreateVirtualCamera(MFVirtualCameraType.SoftwareCameraSource, lifetime, MFVirtualCameraAccess.CurrentUser,
+                        name, Clsid, null, 0, out var cam) < 0 || cam is null) continue;
+                try { cam.Remove(); } catch { }
+                Marshal.ReleaseComObject(cam);
+            }
     }
 
     /// <summary>Stops listing a session camera (a system camera stays listed until uninstalled).</summary>

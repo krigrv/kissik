@@ -76,7 +76,7 @@ What users expect, in order: it connects every time; setup in under 2 minutes (Q
 More from reviews of the desktop + iPhone apps (2026-11-02; see docs/research/competitor-reviews.md):
 11. [ ] Free on every computer: no per-device licence
 12. [ ] Honest money if store builds are ever sold: one-time price, no auto-renew, one-click refunds
-13. [ ] Clean uninstall: remove the meeting camera, virtual mic and drivers; a "Remove the KISSIK camera from all apps" button; verify meeting apps no longer list it
+13. [~] Clean uninstall: "Remove the camera" now also removes every registration (old names too), and start-up clears registrations left from renames. Checking it in Zoom/Teams after removal still to do
 14. [ ] Compatibility test matrix per release (meeting apps, Chromium/Firefox/Safari, streaming apps), results published
 15. [ ] Opt-in crash reporting
 16. [ ] Main app needs no admin rights; admin only for optional virtual devices; short IT/deployment guide
