@@ -117,7 +117,7 @@ public sealed partial class MainPage
     private void SyncSimple()
     {
         if (SimplePanel.Visibility != Visibility.Visible) return;
-        SetSimple(SimpleCameraBtn, SimpleCameraLabel, _session is null ? "Camera on" : "Camera off");
+        SetSimple(SimpleCameraBtn, SimpleCameraLabel, _session is null ? "Turn camera on" : "Turn camera off");
         SetSimple(SimpleRecordBtn, SimpleRecordLabel, _recorder is not null ? "Stop recording" : "Record");
         SimpleRecordBtn.IsEnabled = _session is not null;
         SetSimple(SimpleHideBtn, SimpleHideLabel, _shutter == ShutterMode.Off ? "Hide me" : "Show me");
@@ -171,7 +171,7 @@ public sealed partial class MainPage
         if (_settings.UiMode is "Simple" or "Studio") return;
         var body = new StackPanel { Spacing = 10, MaxWidth = 440 };
         body.Children.Add(new TextBlock { Text = "How would you like KISSIK to look? You can change this any time from the menu, under View.", TextWrapping = TextWrapping.Wrap });
-        body.Children.Add(new TextBlock { Text = "Simple: five big buttons — Camera on, Background, Record, Meeting camera, Hide me.", TextWrapping = TextWrapping.Wrap });
+        body.Children.Add(new TextBlock { Text = "Simple: five big buttons — Turn camera on, Background, Record, Meeting camera, Hide me.", TextWrapping = TextWrapping.Wrap });
         body.Children.Add(new TextBlock { Text = "Studio: every control, for scenes, lighting, audio and livestreams.", TextWrapping = TextWrapping.Wrap });
         var dlg = new ContentDialog
         {
