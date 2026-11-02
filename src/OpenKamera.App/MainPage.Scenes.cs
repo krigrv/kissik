@@ -117,6 +117,27 @@ public sealed partial class MainPage
         _captureTimer?.Stop(); _captureTimer?.Start();
     }
 
+    private volatile byte[]? _overlayBehind;
+
+    /// <summary>Renders the overlay canvas with the elements matching <paramref name="hide"/> hidden, at output size.</summary>
+    private async Task<byte[]> CaptureLayersAsync(Func<FrameworkElement, bool> hide, OutputProfile p)
+    {
+        var hidden = OverlayCanvas.Children.OfType<FrameworkElement>().Where(hide).ToList();
+        var saved = hidden.Select(e => e.Opacity).ToList();
+        foreach (var e in hidden) e.Opacity = 0;
+        try
+        {
+            var rtb = new RenderTargetBitmap();
+            await rtb.RenderAsync(OverlayCanvas);
+            var pixels = (await rtb.GetPixelsAsync()).ToArray();
+            LastOverlayCapture = $"rtb {rtb.PixelWidth}×{rtb.PixelHeight}, {pixels.Length} bytes, canvas {OverlayCanvas.ActualWidth:0}×{OverlayCanvas.ActualHeight:0}, output {p.Width}×{p.Height}";
+            if (rtb.PixelWidth != p.Width || rtb.PixelHeight != p.Height)
+                (pixels, _, _) = OutputFit.Stretch(pixels, rtb.PixelWidth, rtb.PixelHeight, p.Width, p.Height);
+            return pixels;
+        }
+        finally { for (int i = 0; i < hidden.Count; i++) hidden[i].Opacity = saved[i]; }
+    }
+
     /// <summary>Captures the overlay layers at exactly the output size (premultiplied BGRA).</summary>
     private async Task CaptureOverlayAsync()
     {
@@ -124,22 +145,21 @@ public sealed partial class MainPage
         {
             var p = _profile;
             if (!_scene.Overlays.Any(l => l.Visible) && !(_scene.Camera.Visible && !string.IsNullOrEmpty(_scene.Camera.Stroke)))
-            { _overlay = null; return; }
+            { _overlay = null; _overlayBehind = null; return; }
             // Render at the canvas's natural size (its pixel size includes display scaling), then resample
             // to the output. Asking RenderTargetBitmap for the output size directly mixes in the DPI factor
             // and the overlay comes out oversized.
             // Layers dragged past the edge would otherwise grow the capture beyond the canvas.
             OverlayCanvas.Clip = new Microsoft.UI.Xaml.Media.RectangleGeometry
             { Rect = new Windows.Foundation.Rect(0, 0, OverlayCanvas.ActualWidth, OverlayCanvas.ActualHeight) };
-            var rtb = new RenderTargetBitmap();
-            await rtb.RenderAsync(OverlayCanvas);
-            var pixels = (await rtb.GetPixelsAsync()).ToArray();
-            LastOverlayCapture = $"rtb {rtb.PixelWidth}×{rtb.PixelHeight}, {pixels.Length} bytes, canvas {OverlayCanvas.ActualWidth:0}×{OverlayCanvas.ActualHeight:0}, output {p.Width}×{p.Height}";
-            if (rtb.PixelWidth * p.Height != rtb.PixelHeight * p.Width)
-                Status($"Scene capture has the wrong shape ({LastOverlayCapture}); recordings may misplace layers.");
-            if (rtb.PixelWidth != p.Width || rtb.PixelHeight != p.Height)
-                (pixels, _, _) = OutputFit.Stretch(pixels, rtb.PixelWidth, rtb.PixelHeight, p.Width, p.Height);
+            var behindIds = _scene.Layers.Where(l => l.Visible && l.Behind).Select(l => l.Id).ToHashSet();
+            // Front layers go over the finished picture; "behind me" layers are blended under the person.
+            var pixels = await CaptureLayersAsync(el => el.Tag is string id && behindIds.Contains(id), p);
+            _overlayBehind = behindIds.Count > 0 ? await CaptureLayersAsync(el => !(el.Tag is string id && behindIds.Contains(id)), p) : null;
             _overlay = new OverlayImage(pixels, p.Width, p.Height);
+            // In the preview the behind layers are drawn by the video itself, so hide their live copies.
+            foreach (var el in OverlayCanvas.Children.OfType<FrameworkElement>())
+                if (el.Tag is string id && behindIds.Contains(id)) el.Opacity = 0;
         }
         catch (Exception ex) { Status("Scene capture failed: " + ex.Message); }
     }
@@ -515,6 +535,8 @@ public sealed partial class MainPage
                 PropsPanel.Children.Add(fill);
                 break;
         }
+        if (l.Kind != "camera")
+            PropsPanel.Children.Add(ToggleField("Behind me (in front of the background)", l.Behind, v => l.Behind = v));
         PropsPanel.Children.Add(SliderField("Opacity", l.Opacity * 100, 5, 100, v => l.Opacity = v / 100));
     }
 

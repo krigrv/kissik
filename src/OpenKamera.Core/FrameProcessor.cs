@@ -8,7 +8,7 @@ namespace OpenKamera.Core;
 public sealed record FrameRecipe(
     ImageFilters.Adjustments Adjustments, FrameTransform Transform,
     BackgroundSettings Background, int? OutputWidth = null, int? OutputHeight = null,
-    SceneDocument? Scene = null, byte[]? Overlay = null)
+    SceneDocument? Scene = null, byte[]? Overlay = null, byte[]? BehindOverlay = null)
 {
     public static readonly FrameRecipe Passthrough = new(ImageFilters.Adjustments.Neutral, FrameTransform.Identity, BackgroundSettings.Off);
 }
@@ -30,7 +30,15 @@ public static class FrameProcessor
             (pixels, w, h) = r.Transform.Apply(pixels, w, h);
             // Fit before the expensive steps so they run at output size, not camera size.
             if (r.OutputWidth is int ow && r.OutputHeight is int oh) (pixels, w, h) = OutputFit.Cover(pixels, w, h, ow, oh);
+            background?.NewFrame();
+            byte[]? person = r.BehindOverlay is { } bo0 && bo0.Length == pixels.Length && background is not null ? (byte[])pixels.Clone() : null;
             if (background is not null && r.Background.NeedsMask) background.Apply(pixels, w, h, r.Background);
+            // Layers marked "behind me": drawn over the background, then the person is put back on top.
+            if (person is not null && r.BehindOverlay is { } bo)
+            {
+                var alpha = background!.PersonMask(person, w, h, r.Background);
+                SceneCompositor.BlendBehind(pixels, bo, alpha);
+            }
             ImageFilters.Apply(pixels, w, h, r.Adjustments); // camera only: overlays keep their true colours
             if (r.Scene is { } scene) pixels = SceneCompositor.Compose(pixels, w, h, scene, r.Overlay);
             return (pixels, w, h);

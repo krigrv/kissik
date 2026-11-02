@@ -129,6 +129,31 @@ public static class SceneCompositor
     }
 
     /// <summary>Premultiplied source-over: dst = src + dst × (1 − srcA).</summary>
+    /// <summary>
+    /// Draws a premultiplied overlay over the frame everywhere except where the person is (alpha 1 = person),
+    /// so the layer appears between the person and the background.
+    /// </summary>
+    public static void BlendBehind(byte[] frame, byte[] overlay, float[] personAlpha)
+    {
+        int n = Math.Min(personAlpha.Length, frame.Length / 4);
+        Parallel.For(0, Math.Max(1, n / 4096 + 1), chunk =>
+        {
+            int start = chunk * 4096, end = Math.Min(n, start + 4096);
+            for (int p = start; p < end; p++)
+            {
+                int i = p * 4; int oa = overlay[i + 3]; if (oa == 0) continue;
+                float show = (1 - personAlpha[p]) * oa / 255f;   // how much of the layer to show here
+                if (show <= 0) continue;
+                float keep = 1 - show;
+                for (int c = 0; c < 3; c++)
+                {
+                    float layer = oa > 0 ? overlay[i + c] * 255f / oa : 0; // un-premultiply
+                    frame[i + c] = (byte)Math.Clamp(frame[i + c] * keep + layer * show, 0, 255);
+                }
+            }
+        });
+    }
+
     public static void BlendOver(byte[] dst, byte[] src)
     {
         int n = dst.Length / 4;

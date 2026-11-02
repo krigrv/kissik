@@ -37,3 +37,17 @@ public class CaptionTests
         Assert.Equal(0, dst[(10 * w + x) * 4]);
     }
 }
+
+public class BehindLayerTests
+{
+    [Fact]
+    public void BlendBehind_ShowsLayerOnBackgroundButNotOnPerson()
+    {
+        // Two pixels: background (alpha 0) and person (alpha 1); an opaque red layer covers both.
+        var frame = new byte[] { 10, 10, 10, 255, 50, 60, 70, 255 };
+        var red = new byte[] { 0, 0, 255, 255, 0, 0, 255, 255 };
+        SceneCompositor.BlendBehind(frame, red, [0f, 1f]);
+        Assert.Equal(255, frame[2]);                  // background pixel is now red
+        Assert.Equal(new byte[] { 50, 60, 70 }, frame[4..7]); // person pixel unchanged
+    }
+}

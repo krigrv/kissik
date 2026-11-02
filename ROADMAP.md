@@ -147,7 +147,7 @@ everything from the PC, switching between paired phones/PCs.
 - [x] P2 Scene background (solid or gradient) independent of camera background; removed backgrounds show it
 - [~] P2 Layer move (drag, snaps to edges/centre), resize (handle, circles stay round), order, show/hide, properties, undo/redo (Ctrl+Z/Y), Delete key — still to do: alignment guides, groups
 - [x] P2 Scenes are in recordings and snapshots (overlay captured from the same XAML as the preview; verified at 4K live, 2026-11-02)
-- [ ] P2 Foreground/background layering (elements between you and your background — needs segmentation)
+- [x] P2 Layers behind you: any scene layer can sit between you and your background (person cut-out), in preview, meeting camera, recordings and streams
 - [ ] P2 Masks (shape/layer), gradient fills, auto-layout stacks
 - [~] P2 Scene switching (rail, Ctrl+1…9, category + favourites filter) — animated transitions still to do
 - [x] P2 Gallery window: Scenes / Backgrounds / Filters tabs, collections (All, Favourites, categories), live filter previews, create/import/add/duplicate/export/delete

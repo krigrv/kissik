@@ -13,6 +13,25 @@ public sealed class BackgroundPipeline : IDisposable
     public string? LastError { get; private set; }
     public bool UsesGpu => _segmenters.Values.Any(s => s.UsesGpu);
 
+    private float[]? _lastAlpha; private int _lastW, _lastH;
+
+    /// <summary>The person cut-out (0..1 per pixel) of the frame just processed, or a fresh one if none was needed.</summary>
+    public float[] PersonMask(byte[] px, int w, int h, BackgroundSettings s)
+    {
+        lock (_gate)
+        {
+            if (_lastAlpha is { } a && _lastW == w && _lastH == h) return a;
+            if (!_segmenters.TryGetValue(s.Quality, out var seg)) _segmenters[s.Quality] = seg = new PersonSegmenter(s.Quality);
+            var alpha = s.GreenScreen ? ChromaKey.Mask((byte[])px.Clone(), w, h, s.KeyColor, s.Similarity, s.Smoothness, 0)
+                                      : MaskOps.Upsample(seg.Segment(px, w, h), w, h);
+            (_lastAlpha, _lastW, _lastH) = (alpha, w, h);
+            return alpha;
+        }
+    }
+
+    /// <summary>Call once per frame before processing, so <see cref="PersonMask"/> never reuses an old frame's cut-out.</summary>
+    public void NewFrame() { lock (_gate) _lastAlpha = null; }
+
     public void Apply(byte[] px, int w, int h, BackgroundSettings s)
     {
         if (!s.NeedsMask) return;
@@ -30,6 +49,7 @@ public sealed class BackgroundPipeline : IDisposable
                         _segmenters[s.Quality] = seg = new PersonSegmenter(s.Quality);
                     alpha = MaskOps.Upsample(seg.Segment(px, w, h), w, h);
                 }
+                (_lastAlpha, _lastW, _lastH) = (alpha, w, h);
                 byte[]? bg = s.Mode == BackgroundMode.Replace && s.BackgroundId is { } id ? BackgroundLibrary.Render(id, w, h) : null;
                 BackgroundEffects.Apply(px, w, h, alpha, s, bg);
                 LastError = null;

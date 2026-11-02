@@ -405,6 +405,32 @@ public sealed partial class MainPage : Page
     }
 
     /// <summary>The look for the next frame. Overlays are excluded for the preview (XAML draws them live).</summary>
+    private (byte[] Src, int W, int H, byte[] Scaled)? _behindCache, _frontCache;
+
+    /// <summary>The scene's front layers at the processed size, so smooth-first halving never drops them from the output.</summary>
+    private byte[]? FrontAt(int w, int h)
+    {
+        if (_overlay is not { } o) return null;
+        if (o.Width == w && o.Height == h) return o.Pixels;
+        if (_frontCache is { } c && ReferenceEquals(c.Src, o.Pixels) && c.W == w && c.H == h) return c.Scaled;
+        var scaled = OutputFit.Stretch(o.Pixels, o.Width, o.Height, w, h).Pixels;
+        _frontCache = (o.Pixels, w, h, scaled);
+        return scaled;
+    }
+
+    /// <summary>The "behind me" layers at the size frames are processed at (smooth-first may halve it), cached per size.</summary>
+    private byte[]? BehindAt(int w, int h)
+    {
+        if (_overlayBehind is not { } src) return null;
+        if (src.Length == w * h * 4) return src;
+        if (_behindCache is { } c && ReferenceEquals(c.Src, src) && c.W == w && c.H == h) return c.Scaled;
+        var p = _profile;
+        if (src.Length != p.Width * p.Height * 4) return null;
+        var scaled = OutputFit.Stretch(src, p.Width, p.Height, w, h).Pixels;
+        _behindCache = (src, w, h, scaled);
+        return scaled;
+    }
+
     private FrameRecipe CurrentRecipe(bool withOverlay = false)
     {
         var p = _profile;
@@ -416,7 +442,8 @@ public sealed partial class MainPage : Page
         bool half = level >= 3 && _recorder is null && p.Height >= 1440;
         int ow = half ? (p.Width / 2) & ~1 : p.Width, oh = half ? (p.Height / 2) & ~1 : p.Height;
         return new FrameRecipe(_adj, steady ? _stabilizer.Apply(_transform) : _transform, bg, ow, oh, _sceneSnapshot,
-            withOverlay && overlay is { Width: var vw, Height: var vh } && vw == ow && vh == oh ? overlay.Pixels : null);
+            withOverlay && overlay is { Width: var vw, Height: var vh } && vw == ow && vh == oh ? overlay.Pixels : null,
+            BehindAt(ow, oh));
     }
 
     /// <summary>
@@ -456,7 +483,7 @@ public sealed partial class MainPage : Page
         {
             if (baked is not null) return baked;
             baked = pixels;
-            if (_overlay is { } o && o.Width == w && o.Height == h) { baked = (byte[])pixels.Clone(); SceneCompositor.BlendOver(baked, o.Pixels); }
+            if (FrontAt(w, h) is { } front) { baked = (byte[])pixels.Clone(); SceneCompositor.BlendOver(baked, front); }
             baked = BurnCaptions(baked, w, h);
             baked = PrivacyShutter.Apply(baked, w, h, _shutter != ShutterMode.Off ? _shutter : _guardHiding ? ShutterMode.Blur : ShutterMode.Off);
             return baked;

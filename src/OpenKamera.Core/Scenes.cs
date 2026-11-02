@@ -14,6 +14,8 @@ public sealed class SceneLayer
     public string Kind { get; set; } = "text"; // text | image | shape | camera
     public string Name { get; set; } = "";
     public bool Visible { get; set; } = true;
+    /// <summary>Drawn behind the person (in front of the background): needs the person cut-out.</summary>
+    public bool Behind { get; set; }
     public double X { get; set; } = 0.05;
     public double Y { get; set; } = 0.05;
     public double W { get; set; } = 0.4;
