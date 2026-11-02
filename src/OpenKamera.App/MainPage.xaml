@@ -156,8 +156,8 @@
         <!-- Empty state -->
         <StackPanel x:Name="EmptyText" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="10">
             <FontIcon Glyph="&#xE714;" FontSize="48" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-            <TextBlock Foreground="{ThemeResource TextFillColorPrimaryBrush}" FontSize="22" HorizontalAlignment="Center" Text="No camera connected" />
-            <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="14" HorizontalAlignment="Center"
+            <TextBlock x:Name="EmptyTitle" Foreground="{ThemeResource TextFillColorPrimaryBrush}" FontSize="22" HorizontalAlignment="Center" Text="No camera connected" />
+            <TextBlock x:Name="EmptyHint" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="14" HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center" MaxWidth="460"
                        Text="Pick a device in the Camera panel and press Connect." />
             <TextBlock x:Name="EmptyBusy" Foreground="{ThemeResource SystemFillColorCriticalBrush}" FontSize="13" HorizontalAlignment="Center" TextWrapping="Wrap" MaxWidth="420" />
             <Button x:Name="EmptyConnectBtn" Content="Connect camera" Click="EmptyConnect_Click" HorizontalAlignment="Center"

@@ -525,9 +525,29 @@ public sealed partial class MainPage
         OverlayCanvas.ReleasePointerCapture(e.Pointer);
         string id = _dragId; _dragId = null;
         if (_dragMoved) { Commit(); return; }
-        // A click (no drag) on text: edit it right there on the video.
-        if (Selected is { Kind: "text" } l && ElementFor(id) is FrameworkElement el) ShowQuickEdit(l, el);
+        // A click (no drag) on text: edit it right there on the video. Wait out a double-click first, so its second
+        // click doesn't land on the edit box's dismiss area and shut it straight away.
+        if (Selected is not { Kind: "text" } l || ElementFor(id) is not FrameworkElement el) return;
+        if (_quickEditTimer is { IsRunning: true }) return; // second click of a double-click: one edit box is enough
+        _quickEditTimer ??= DispatcherQueue.CreateTimer();
+        _quickEditTimer.Interval = TimeSpan.FromMilliseconds(320);
+        _quickEditTimer.IsRepeating = false;
+        _quickEditTimer.Tick += OpenQuick;
+        _quickEditTimer.Start();
+        void OpenQuick(Microsoft.UI.Dispatching.DispatcherQueueTimer t, object _)
+        {
+            t.Tick -= OpenQuick;
+            // Placeholder text ("Your Name", "@yourhandle", email, city) comes from your details: edit those, so
+            // every scene changes together.
+            if (SceneRenderer.Me.Fill(l.Text) != l.Text || IsPlaceholder(l.Text)) _ = EditMyDetailsAsync();
+            else ShowQuickEdit(l, el);
+        }
     }
+
+    private Microsoft.UI.Dispatching.DispatcherQueueTimer? _quickEditTimer;
+
+    private static bool IsPlaceholder(string t) => t is "Your Name" or "YOUR NAME" or "YN" or "@yourhandle" or "@yourname"
+        or "you@example.com" or "City, Country" or "Title or topic" or "Head of Product · Company";
 
     private void SelectLayersTab() { if (SidebarTabs.SelectedItem != TabLayers) SidebarTabs.SelectedItem = TabLayers; }
 

@@ -65,6 +65,7 @@ public sealed partial class MainPage : Page
         StartConnectWatch();
         StartSceneThumbs();
         StartAudioWatchdog();
+        StartPictureWatchdog();
         _ = ShowWelcomeAndModeAsync().ContinueWith(_ => DispatcherQueue.TryEnqueue(() => _ = OfferCrashReportAsync()), TaskScheduler.Default);
         ResumePairedPhone();
         try { InitVertical(); } catch { }
@@ -419,6 +420,7 @@ public sealed partial class MainPage : Page
             EmptyText.Visibility = Visibility.Collapsed;
             EmptyBusy.Text = "";
             HudText.Text = cam.Name;
+            _connectedAt = DateTime.UtcNow; _pictureMissing = false;
             Status($"Connected: {cam.Name} — camera mode {_session.Mode?.ToString() ?? "default"} for {_profile.Name} ({_profile.Details})" + LimitNote(_session.Mode));
         }
         catch (UnauthorizedAccessException)
@@ -569,6 +571,7 @@ public sealed partial class MainPage : Page
             }));
         }
         _fps.Tick();
+        _lastFrameAt = DateTime.UtcNow;
         _lastFrame = (pixels, w, h);
         // Meeting camera and recordings get the scene layers baked in; the preview shows them as live XAML.
         byte[]? baked = null;
