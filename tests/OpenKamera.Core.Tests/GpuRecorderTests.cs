@@ -140,6 +140,71 @@ public class GpuRecorderTests(ITestOutputHelper log)
         finally { try { File.Delete(path); } catch { } }
     }
 
+    /// <summary>
+    /// As the app records a webcam: 720p30 NV12 camera frames through the GPU frame path, the finished frame handed to
+    /// the recorder as a texture, and the audio mix pushed from its own thread every 10 ms. 15 seconds must give about
+    /// 450 frames, and Stop must finish and join the file.
+    /// </summary>
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, false)]
+    [InlineData(true, true)] // the mix goes quiet after a second (mic unplugged, audio engine stalled)
+    public async Task FifteenSecondsOfCameraNv12At30(bool withAudio, bool audioStops)
+    {
+        if (!GpuRecorder.Available) { log.WriteLine("No video-capable GPU: skipped."); return; }
+        const int cw = 1280, ch = 720, fps = 30;
+        var rgb = Frame(0, cw, ch);
+        using var src = Windows.Graphics.Imaging.SoftwareBitmap.CreateCopyFromBuffer(
+            System.Runtime.InteropServices.WindowsRuntime.WindowsRuntimeBufferExtensions.AsBuffer(rgb),
+            Windows.Graphics.Imaging.BitmapPixelFormat.Bgra8, cw, ch, Windows.Graphics.Imaging.BitmapAlphaMode.Premultiplied);
+        using var nv12 = Windows.Graphics.Imaging.SoftwareBitmap.Convert(src, Windows.Graphics.Imaging.BitmapPixelFormat.Nv12);
+        string path = TempMp4();
+        var rec = new SegmentedRecorder(cw, ch, fps, withAudio) { PreferGpu = true };
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        using var stopAudio = new CancellationTokenSource();
+        try
+        {
+            await rec.StartAsync(path);
+            Assert.True(rec.OnGpu);
+            var audio = Task.Run(async () =>
+            {
+                var block = new float[AudioEngine.SampleRate / 100 * AudioEngine.Channels];
+                while (!stopAudio.IsCancellationRequested)
+                {
+                    if (!audioStops || clock.Elapsed < TimeSpan.FromSeconds(1)) rec.PushAudio(block, clock.Elapsed);
+                    await Task.Delay(10);
+                }
+            });
+            var bake = new OutputBake(Texture: true, Bytes: false);
+            var recipe = FrameRecipe.Passthrough with { OutputWidth = cw, OutputHeight = ch };
+            for (int i = 0; i < 15 * fps; i++)
+            {
+                var due = TimeSpan.FromSeconds(i / (double)fps);
+                while (clock.Elapsed < due) await Task.Delay(1);
+                var o = FrameProcessor.Process(nv12, recipe, null, bake, (1920, 1080));
+                Assert.NotNull(o.Baked?.Texture);
+                rec.PushTexture(o.Baked!.Texture!, clock.Elapsed);
+            }
+            stopAudio.Cancel(); await audio;
+            var stop = rec.StopAsync();
+            Assert.True(await Task.WhenAny(stop, Task.Delay(TimeSpan.FromSeconds(30))) == stop, "Stop did not finish");
+            await stop;
+            log.WriteLine($"{rec.FramesWritten} frames written, {rec.FramesDropped} dropped, {rec.Parts} pieces, {new FileInfo(rec.Path).Length} bytes");
+            Assert.InRange(rec.FramesWritten, 440, 450);
+            Assert.False(Directory.Exists(rec.Path + SegmentedRecorder.PartsSuffix), "the pieces were not joined");
+            var clip = await MediaClip.CreateFromFileAsync(await StorageFile.GetFileFromPathAsync(rec.Path));
+            // Every frame must be in the file: the encoder used to drop ~3% on capture jitter, and the MP4 was cut where
+            // the audio ended.
+            Assert.InRange(clip.OriginalDuration.TotalSeconds, 14.9, 15.1);
+        }
+        finally
+        {
+            stopAudio.Cancel();
+            try { File.Delete(rec.Path); } catch { }
+            try { Directory.Delete(rec.Path + SegmentedRecorder.PartsSuffix, true); } catch { }
+        }
+    }
+
     private static string TempMp4() => Path.Combine(Path.GetTempPath(), $"kissik-gpu-rec-{Guid.NewGuid():N}.mp4");
 
     private static byte[] Frame(int i, int w = W, int h = H)

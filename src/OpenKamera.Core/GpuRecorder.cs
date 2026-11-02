@@ -19,6 +19,7 @@ public sealed class GpuRecorder : IRecorderPart
     private int _videoStream, _audioStream = -1;
     private TimeSpan? _first;
     private TimeSpan _lastTime, _audioNext;
+    private long _queued;
     private volatile bool _stopping;
     private Exception? _failure;
 
@@ -127,7 +128,12 @@ public sealed class GpuRecorder : IRecorderPart
         if (_stopping || _writer is null) return false;
         _first ??= captureTime;
         var t = captureTime - _first.Value;
-        if (t <= _lastTime && FramesWritten + _video.Count > 0) t = _lastTime + TimeSpan.FromMilliseconds(1);
+        // On the frame-rate grid, one slot after the last at least: the hardware encoder drops frames that come
+        // closer together than a frame (capture jitter cost ~3% of them), and a skipped camera frame stays a gap.
+        long slot = TimeSpan.FromSeconds(1.0 / Fps).Ticks;
+        t = TimeSpan.FromTicks((t.Ticks + slot / 2) / slot * slot);
+        if (t <= _lastTime && _queued > 0) t = _lastTime + TimeSpan.FromTicks(slot);
+        _queued++;
         _lastTime = t;
         return _video.TryAdd((frame, t)); // encoder behind: drop, never block capture
     }
@@ -155,12 +161,20 @@ public sealed class GpuRecorder : IRecorderPart
                 while (_audio.TryTake(out var a)) { WriteAudio(a.Pcm, a.Time, a.Duration); any = true; }
                 if (_video.TryTake(out var v, 20))
                 {
-                    try { WriteVideo(v.Frame, v.Time, frameTime); }
+                    try { WriteVideo(v.Frame, v.Time, frameTime); _videoEnd = v.Time + frameTime; }
                     finally { (v.Frame as IDisposable)?.Dispose(); }
                     FramesWritten++;
                     any = true;
+                    // The MP4 writer holds video back until there's audio to interleave it with: if the mix goes quiet
+                    // or falls behind, fill the gap with silence so video never waits (it used to drop to ~1 fps).
+                    if (HasAudio && _audio.Count == 0 && v.Time - _audioEnd > AudioSlack) WriteSilence(v.Time - AudioSlack / 2);
                 }
-                if (!any && _stopping && _video.Count == 0 && _audio.Count == 0) break;
+                if (!any && _stopping && _video.Count == 0 && _audio.Count == 0)
+                {
+                    // The MP4 ends where its shortest track does: make the audio reach the last frame.
+                    if (HasAudio) WriteSilence(_videoEnd);
+                    break;
+                }
             }
         }
         catch (Exception ex)
@@ -196,8 +210,26 @@ public sealed class GpuRecorder : IRecorderPart
         _writer!.WriteSample(_videoStream, sample);
     }
 
+    /// <summary>How far the audio track may trail the video before silence fills the gap.</summary>
+    private static readonly TimeSpan AudioSlack = TimeSpan.FromMilliseconds(250);
+    private TimeSpan _audioEnd; // end of the audio written so far
+    private TimeSpan _videoEnd; // end of the last frame written
+    private short[]? _silence;
+
+    /// <summary>Writes silence from the end of the audio track up to <paramref name="until"/>, in 10 ms blocks.</summary>
+    private void WriteSilence(TimeSpan until)
+    {
+        int perBlock = AudioEngine.SampleRate / 100 * AudioEngine.Channels;
+        _silence ??= new short[perBlock];
+        var block = TimeSpan.FromMilliseconds(10);
+        while (_audioEnd < until) WriteAudio(_silence, _audioEnd, block);
+    }
+
     private void WriteAudio(short[] pcm, TimeSpan time, TimeSpan duration)
     {
+        // Audio that comes back after a gap lands after what's written (timestamps must only go forward).
+        if (time < _audioEnd) time = _audioEnd;
+        _audioEnd = time + duration;
         int bytes = pcm.Length * 2;
         using var buffer = MediaFactory.MFCreateMemoryBuffer(bytes);
         buffer.Lock(out nint ptr, out _, out _);
