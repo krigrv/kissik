@@ -15,13 +15,14 @@ public sealed partial class MainPage
     private Microsoft.UI.Dispatching.DispatcherQueueTimer? _thumbTimer;
     private bool _thumbsLive, _thumbBusy;
     private int _thumbTick;
+    private byte[]? _thumbFrom;
 
     private void StartSceneThumbs()
     {
         _thumbTimer = DispatcherQueue.CreateTimer();
-        // The framing minimap and the scene cards refresh ~6× a second so they keep pace with the preview.
-        // With "reduce motion" on: the minimap once a second and scene cards every 10 seconds.
-        _thumbTimer.Interval = ReduceMotion ? TimeSpan.FromSeconds(1) : TimeSpan.FromMilliseconds(160);
+        // Scene cards are live (~30 a second, one shared small image); the framing minimap ~6 a second (it copies the
+        // full camera frame). With "reduce motion" on: the minimap once a second and scene cards every 10 seconds.
+        _thumbTimer.Interval = ReduceMotion ? TimeSpan.FromSeconds(1) : TimeSpan.FromMilliseconds(33);
         _thumbTimer.Tick += async (_, _) =>
         {
             bool live = _session is not null && _lastFrame is not null;
@@ -30,14 +31,16 @@ public sealed partial class MainPage
             _thumbBusy = true;
             try
             {
-                if (++_thumbTick % (ReduceMotion ? 10 : 1) == 0) // cards move with the picture (~6 per second); one shared small image, so it is cheap
+                ++_thumbTick;
+                if (!ReduceMotion || _thumbTick % 10 == 0)
                 {
                     var (small, _, _) = await Task.Run(() => OutputFit.Stretch(f.Px, f.W, f.H, 320, 180));
                     using (var stream = System.Runtime.InteropServices.WindowsRuntime.WindowsRuntimeBufferExtensions.AsStream(_thumbSource.PixelBuffer))
                         await stream.WriteAsync(small.AsMemory(0, Math.Min(small.Length, (int)_thumbSource.PixelBuffer.Capacity)));
                     _thumbSource.Invalidate();
+                    _thumbFrom = f.Px;
                 }
-                if (Minimap.ActualWidth > 0 && Minimap.XamlRoot is not null) await UpdateMinimapPictureAsync();
+                if ((ReduceMotion || _thumbTick % 5 == 0) && Minimap.ActualWidth > 0 && Minimap.XamlRoot is not null) await UpdateMinimapPictureAsync();
             }
             catch { /* skip a refresh */ }
             finally { _thumbBusy = false; }
