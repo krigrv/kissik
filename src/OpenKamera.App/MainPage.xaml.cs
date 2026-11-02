@@ -360,7 +360,7 @@ public sealed partial class MainPage : Page
             await _session.DisposeAsync();
             _session = null; _controller = null;
             ConnectBtn.Content = "Connect";
-            SourceDot.Fill = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(102, 255, 255, 255));
+            SourceDot.Fill = Token("ControlStrongStrokeColorDefaultBrush");
             SourceInfo.Text = "";
             SnapshotBtn.IsEnabled = RecordBtn.IsEnabled = false;
             if (_live is not null) await StopLiveAsync();
@@ -396,7 +396,7 @@ public sealed partial class MainPage : Page
             if (focus is not null) { _restoring = true; FocusMode.SelectedItem = focus.Auto ? FocusAuto : FocusManual; _restoring = false; }
             CameraPanel.ChangeView(null, 0, null, disableAnimation: true);
             ConnectBtn.Content = "Disconnect";
-            SourceDot.Fill = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 91, 255, 143));
+            SourceDot.Fill = Token("SystemFillColorSuccessBrush");
             SnapshotBtn.IsEnabled = RecordBtn.IsEnabled = LiveBtn.IsEnabled = true;
             EmptyText.Visibility = Visibility.Collapsed;
             EmptyBusy.Text = "";

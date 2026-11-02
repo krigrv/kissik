@@ -53,6 +53,15 @@ public sealed class PrompterWindow : Window
         body.Children.Add(_scroll);
         body.Children.Add(_editor);
         var root = new Grid { Background = new SolidColorBrush(Windows.UI.Color.FromArgb(240, 12, 12, 16)) };
+        if (MainPage.IsHighContrast)
+        {
+            // Contrast themes: the user's own window colours, not white on near-black.
+            var res = Application.Current.Resources;
+            root.Background = (Brush)res["SystemColorWindowColorBrush"];
+            var fg = (Brush)res["SystemColorWindowTextColorBrush"];
+            _text.Foreground = fg; _info.Foreground = fg; _info.Opacity = 1;
+            foreach (var b in bar.Children.OfType<Button>()) b.Foreground = fg;
+        }
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         root.RowDefinitions.Add(new RowDefinition());
         Grid.SetRow(body, 1);

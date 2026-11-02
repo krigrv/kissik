@@ -23,7 +23,7 @@ public sealed partial class MainPage
     private Brush Token(string key)
     {
         string name = SystemBrush.TryGetValue(key, out var k) ? k : key;
-        string theme = ActualTheme == ElementTheme.Light ? "Light" : "Default";
+        string theme = IsHighContrast ? "HighContrast" : ActualTheme == ElementTheme.Light ? "Light" : "Default";
         var app = Application.Current.Resources;
         foreach (var dict in app.MergedDictionaries.Prepend(app))
             if (dict.ThemeDictionaries.TryGetValue(theme, out var td) && td is ResourceDictionary rd && rd.TryGetValue(name, out var v) && v is Brush b)

@@ -30,11 +30,72 @@ public sealed partial class MainPage
         catch { /* no automation client listening */ }
     }
 
+    private static readonly Windows.UI.ViewManagement.AccessibilitySettings _a11y = new();
+
+    /// <summary>A Windows contrast theme (Aquatic, Desert, Dusk, Night sky) is on.</summary>
+    internal static bool IsHighContrast { get { try { return _a11y.HighContrast; } catch { return false; } } }
+
+    /// <summary>Contrast themes: the caption bar takes the user's own window colours instead of white on black.</summary>
+    private void ApplyContrast()
+    {
+        if (IsHighContrast)
+        {
+            CaptionBar.Background = (Brush)Application.Current.Resources["SystemColorWindowColorBrush"];
+            CaptionText.Foreground = (Brush)Application.Current.Resources["SystemColorWindowTextColorBrush"];
+            CaptionBar.BorderBrush = CaptionText.Foreground; CaptionBar.BorderThickness = new Thickness(2);
+        }
+        else
+        {
+            CaptionBar.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0xD9, 0, 0, 0));
+            CaptionText.Foreground = new SolidColorBrush(Microsoft.UI.Colors.White);
+            CaptionBar.BorderThickness = new Thickness(0);
+        }
+    }
+
     private void InitAccess()
     {
+        ApplyContrast();
+        _a11y.HighContrastChanged += (_, _) => DispatcherQueue.TryEnqueue(() => { ApplyContrast(); ApplyTheme(_settings.Theme); });
+        AddLayerNudgeKeys();
         LargeControlsToggle.IsChecked = _settings.LargeControls;
         if (_settings.LargeControls) ApplyLargeControls(true);
         ApplyUiMode(_settings.UiMode == "Simple" ? "Simple" : "Studio");
+    }
+
+    // ── Keyboard moving of scene layers (the drag on the video is mouse/touch only) ──
+
+    private void AddLayerNudgeKeys()
+    {
+        var ctrl = Windows.System.VirtualKeyModifiers.Control;
+        var shift = Windows.System.VirtualKeyModifiers.Shift;
+        foreach (var (key, dx, dy) in new (Windows.System.VirtualKey, int, int)[]
+            { (Windows.System.VirtualKey.Left, -1, 0), (Windows.System.VirtualKey.Right, 1, 0),
+              (Windows.System.VirtualKey.Up, 0, -1), (Windows.System.VirtualKey.Down, 0, 1) })
+        {
+            foreach (var (mods, step) in new[] { (ctrl, 0.01), (ctrl | shift, 0.10) })
+            {
+                var acc = new Microsoft.UI.Xaml.Input.KeyboardAccelerator { Key = key, Modifiers = mods };
+                acc.Invoked += (_, a) =>
+                {
+                    if (Microsoft.UI.Xaml.Input.FocusManager.GetFocusedElement(XamlRoot) is TextBox) return;
+                    if (NudgeLayer(dx * step, dy * step)) a.Handled = true;
+                };
+                KeyboardAccelerators.Add(acc);
+            }
+        }
+    }
+
+    /// <summary>Ctrl+arrow moves the selected layer 1% of the picture, Ctrl+Shift+arrow 10%; one undo step each.</summary>
+    private bool NudgeLayer(double dx, double dy)
+    {
+        if (Selected is not { } l) return false;
+        BeginEdit();
+        l.X = Math.Clamp(l.X + dx, -l.W * 0.9, 1 - l.W * 0.1);
+        l.Y = Math.Clamp(l.Y + dy, -l.H * 0.9, 1 - l.H * 0.1);
+        Commit(rebuildProps: false);
+        UpdateAdorner();
+        Announce($"{(l.Name.Length > 0 ? l.Name : l.Kind)}: {l.X * 100:0}% from the left, {l.Y * 100:0}% from the top.");
+        return true;
     }
 
     // ── Large controls ──
