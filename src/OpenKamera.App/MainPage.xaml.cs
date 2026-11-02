@@ -954,6 +954,8 @@ public sealed partial class MainPage : Page
     {
         if (_session is null) return;
         if (_savingRecording) { Status("Still saving the last recording. Record again in a moment."); return; }
+        // A double press on Stop shouldn't start a new recording the moment a short one finishes saving.
+        if (_recorder is null && DateTime.UtcNow - _recordingSavedAt < TimeSpan.FromSeconds(2)) return;
         try
         {
             if (_recorder is not null) { await StopRecordingAsync(); return; }
@@ -1118,7 +1120,7 @@ public sealed partial class MainPage : Page
         finally
         {
             await rec.DisposeAsync();
-            _savingRecording = false;
+            _savingRecording = false; _recordingSavedAt = DateTime.UtcNow;
             RecordLabel.Text = "Record"; RecordIcon.Glyph = "";
             AutomationProperties.SetName(RecordBtn, "● Record");
             RecordBtn.IsEnabled = _session is not null;
@@ -1126,4 +1128,5 @@ public sealed partial class MainPage : Page
     }
 
     private bool _savingRecording;
+    private DateTime _recordingSavedAt;
 }

@@ -182,7 +182,8 @@
                         AutomationProperties.Name="Record" ToolTipService.ToolTip="Start or stop recording (Ctrl+R)" AutomationProperties.HelpText="Start or stop recording (Ctrl+R)">
                     <StackPanel Orientation="Horizontal" Spacing="7">
                         <FontIcon x:Name="RecordIcon" Glyph="&#xE7C8;" FontSize="14" />
-                        <TextBlock x:Name="RecordLabel" Text="Record" FontWeight="SemiBold" />
+                        <!-- Fixed width: the ticking timer would otherwise resize the button every second and shake the bar. -->
+                        <TextBlock x:Name="RecordLabel" Text="Record" FontWeight="SemiBold" Width="60" TextAlignment="Center" />
                     </StackPanel>
                 </Button>
                 <Button x:Name="LiveBtn" Style="{StaticResource CapsuleButton}" Click="LiveBtn_Click" IsEnabled="False"
@@ -1099,11 +1100,25 @@
                         </DataTemplate>
                     </ListView.ItemTemplate>
                 </ListView>
-                <Button x:Name="NewSceneBtn" Grid.Column="2" Width="64" Height="96" CornerRadius="13" Click="NewSceneBtn_Click"
-                        Background="Transparent" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1.5"
-                        ToolTipService.ToolTip="Create a new scene" AutomationProperties.HelpText="Create a new scene" AutomationProperties.Name="New scene">
-                    <FontIcon Glyph="&#xE710;" FontSize="20" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                </Button>
+                <!-- End of the strip: "see them all" first (a lone + read as "add", not "more"), making a new one second. -->
+                <StackPanel Grid.Column="2" Width="76" Spacing="6">
+                    <Button x:Name="AllScenesBtn" Height="58" HorizontalAlignment="Stretch" CornerRadius="12" Click="GalleryBtn_Click"
+                            Background="{ThemeResource ControlFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                            ToolTipService.ToolTip="See all scenes" AutomationProperties.HelpText="Opens every scene, by category" AutomationProperties.Name="All scenes">
+                        <StackPanel Spacing="2">
+                            <FontIcon Glyph="&#xE70E;" FontSize="14" />
+                            <TextBlock Text="All scenes" FontSize="11" HorizontalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                    <Button x:Name="NewSceneBtn" Height="32" HorizontalAlignment="Stretch" CornerRadius="10" Click="NewSceneBtn_Click"
+                            Background="Transparent" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                            ToolTipService.ToolTip="Create a new, empty scene" AutomationProperties.HelpText="Create a new, empty scene" AutomationProperties.Name="New scene">
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <FontIcon Glyph="&#xE710;" FontSize="11" />
+                            <TextBlock Text="New" FontSize="11" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
             </Grid>
         </Border>
 
