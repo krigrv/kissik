@@ -6,336 +6,215 @@
 <title>KISSIK — free camera studio</title>
 <meta name="description" content="KISSIK is a free, open-source camera studio for Windows 11. Background blur and replace, looks, framing, scenes, screen light and recording. No account, no watermark.">
 <style>
-/* Windows 11 / WinUI 3 page, built from the app's own tokens (DgPage, gold accent, Segoe UI Variable, 4/8 px corners). */
+/* Product-page style: calm light sections, Segoe UI Variable, one primary action. Dark mode mirrors the app (DgPage + gold). */
 :root{
-  --page:#050507;            /* DgPage */
-  --mica:#0d0e11;            /* window behind the nav pane */
-  --layer:#16171b;           /* content layer */
-  --card:rgba(255,255,255,.05);
-  --card-hover:rgba(255,255,255,.08);
-  --stroke:rgba(255,255,255,.08);
-  --stroke-2:rgba(255,255,255,.14);
-  --text:#F4F5F7; --text-2:rgba(244,245,247,.72); --text-3:rgba(244,245,247,.5);
-  --accent:#FFD36B; --on-accent:#1b1400;
-  --ok:#6ccb5f; --info:#60cdff;
-  color-scheme:dark;
+  --bg:#ffffff; --bg-2:#f3f3f3; --card:#ffffff; --line:#e5e5e5;
+  --text:#1a1a1a; --text-2:#5c5c5c;
+  --btn:#1a1a1a; --on-btn:#ffffff; --link:#8a5a00; --mark:#c99600;
+  color-scheme:light;
 }
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#050507; --bg-2:#111216; --card:#16171b; --line:#26272c;
+  --text:#F4F5F7; --text-2:#a8abb2; --btn:#FFD36B; --on-btn:#1b1400; --link:#FFD36B; --mark:#FFD36B; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#050507; --bg-2:#111216; --card:#16171b; --line:#26272c;
+  --text:#F4F5F7; --text-2:#a8abb2; --btn:#FFD36B; --on-btn:#1b1400; --link:#FFD36B; --mark:#FFD36B; color-scheme:dark}
 *{box-sizing:border-box}
-html{scroll-behavior:smooth;scroll-padding-top:56px}
-body{margin:0;background:var(--page);color:var(--text);font:14px/20px "Segoe UI Variable Text","Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased}
-a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+html{scroll-behavior:smooth;scroll-padding-top:64px}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 "Segoe UI Variable Text","Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:var(--link)}
 img{max-width:100%;display:block}
-/* type ramp (WinUI): Caption 12, Body 14, BodyStrong 14/600, Subtitle 20/600, Title 28/600, TitleLarge 40/600, Display 68/600 */
-.display{font:600 clamp(40px,6vw,68px)/1.08 "Segoe UI Variable Display","Segoe UI",system-ui,sans-serif;letter-spacing:-.01em;margin:0}
-.title{font:600 28px/36px "Segoe UI Variable Display","Segoe UI",system-ui,sans-serif;margin:0}
-.subtitle{font:600 20px/28px "Segoe UI Variable Display","Segoe UI",system-ui,sans-serif;margin:0}
-.strong{font-weight:600}
-.cap{font-size:12px;line-height:16px;color:var(--text-3)}
-.t2{color:var(--text-2)}
-.wmk{font:700 15px/1 Georgia,"Times New Roman",serif;letter-spacing:.02em}.wmk i{color:var(--accent)}
+.wrap{max-width:1200px;margin:0 auto;padding-left:max(24px,env(safe-area-inset-left,0px));padding-right:max(24px,env(safe-area-inset-right,0px))}
+h1,h2,h3{font-family:"Segoe UI Variable Display","Segoe UI",system-ui,sans-serif;font-weight:600;margin:0;text-wrap:balance}
+h1{font-size:clamp(36px,5vw,56px);line-height:1.1}
+h2{font-size:clamp(28px,3.4vw,40px);line-height:1.2}
+h3{font-size:20px;line-height:1.3}
+p{margin:0;color:var(--text-2)}
+.wmk{font:700 20px/1 Georgia,"Times New Roman",serif;letter-spacing:.02em;color:var(--text)}.wmk i{color:var(--mark)}
 
-/* ---------- window chrome ---------- */
-.titlebar{position:sticky;top:0;z-index:20;height:48px;display:flex;align-items:center;gap:12px;padding-left:max(16px,env(safe-area-inset-left,0px));background:var(--mica);border-bottom:1px solid var(--stroke)}
-.titlebar .appicon{width:16px;height:16px;border-radius:4px;background:radial-gradient(circle at 50% 50%,var(--page) 0 3px,var(--accent) 3.5px 6px,transparent 6.5px),#26272c}
-.titlebar .sp{flex:1}
-.search{display:flex;align-items:center;gap:8px;height:32px;width:min(360px,34vw);padding:0 12px;border-radius:4px;background:rgba(255,255,255,.06);border:1px solid var(--stroke);border-bottom-color:rgba(255,255,255,.22);color:var(--text-3);font-size:13px}
-.caps{display:flex;height:100%}
-.caps span{width:46px;display:grid;place-items:center;color:var(--text-2);font:10px "Segoe MDL2 Assets","Segoe Fluent Icons",sans-serif}
-.caps span:last-child:hover{background:#c42b1c;color:#fff}
-.caps span:not(:last-child):hover{background:rgba(255,255,255,.06)}
-body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);background:var(--mica);z-index:30}
+/* header */
+header{position:sticky;top:env(safe-area-inset-top,0px);z-index:10;background:var(--bg);border-bottom:1px solid var(--line)}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);background:var(--bg);z-index:11}
+header .wrap{display:flex;align-items:center;gap:28px;height:56px}
+header nav{display:flex;gap:24px;flex:1;overflow-x:auto}
+header nav a{color:var(--text);text-decoration:none;font-size:14px;white-space:nowrap}
+header nav a:hover{text-decoration:underline}
 
-.shell{display:grid;grid-template-columns:280px 1fr;min-height:calc(100vh - 48px);background:var(--mica)}
-/* NavigationView pane */
-.pane{position:sticky;top:48px;height:calc(100vh - 48px);overflow:auto;padding:8px 6px 16px max(6px,env(safe-area-inset-left,0px));display:flex;flex-direction:column;gap:2px}
-.nav{position:relative;display:flex;align-items:center;gap:14px;height:36px;padding:0 12px;border-radius:4px;color:var(--text);font-size:14px}
-.nav:hover{background:rgba(255,255,255,.05);text-decoration:none}
-.nav.on{background:rgba(255,255,255,.07)}
-.nav.on::before{content:"";position:absolute;left:0;top:10px;width:3px;height:16px;border-radius:2px;background:var(--accent)}
-.nav svg{width:16px;height:16px;flex:none;stroke:currentColor;fill:none;stroke-width:1.5}
-.pane hr{border:0;border-top:1px solid var(--stroke);margin:8px 6px}
-.pane .grow{flex:1}
+.btn{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:10px 28px;border-radius:4px;background:var(--btn);color:var(--on-btn);font-weight:600;text-decoration:none;font-size:16px}
+.btn:hover{opacity:.88}
+.btn.sm{min-height:32px;padding:5px 16px;font-size:14px}
+.more{font-weight:600;text-decoration:none}.more:hover{text-decoration:underline}
+.more::after{content:" ›"}
 
-/* content layer: rounded top-left like a WinUI NavigationView content area */
-.content{background:var(--layer);border-top-left-radius:8px;border-left:1px solid var(--stroke);border-top:1px solid var(--stroke);min-width:0;padding-block:28px 56px;padding-right:max(32px,env(safe-area-inset-right,0px));padding-left:32px}
-.page{max-width:1080px;margin:0 auto;display:flex;flex-direction:column;gap:48px}
-section{display:flex;flex-direction:column;gap:12px;scroll-margin-top:64px}
-.crumb{font:600 28px/36px "Segoe UI Variable Display","Segoe UI",system-ui,sans-serif;margin:0 0 4px}
-.crumb span{color:var(--text-3)}
+section{padding-block:72px}
+.alt{background:var(--bg-2)}
 
-/* controls */
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:32px;padding:5px 16px 6px;border-radius:4px;font:14px/20px inherit;font-family:inherit;color:var(--text);background:rgba(255,255,255,.06);border:1px solid var(--stroke);border-bottom-color:rgba(255,255,255,.04);cursor:pointer}
-.btn:hover{background:rgba(255,255,255,.09);text-decoration:none}
-.btn.accent{background:var(--accent);color:var(--on-accent);border-color:rgba(255,255,255,.08);border-bottom-color:rgba(0,0,0,.35);font-weight:600}
-.btn.accent:hover{background:#ffdb85}
-.btn.lg{min-height:40px;padding:9px 20px 10px}
-.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+/* hero */
+.hero{text-align:center;padding-block:64px 0}
+.hero .copy{display:grid;gap:16px;justify-items:center;max-width:720px;margin:0 auto}
+.hero p{font-size:18px}
+.hero .fine{font-size:13px}
+.hero figure{margin:48px auto 0;max-width:1100px;border-radius:8px 8px 0 0;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,.18);border:1px solid var(--line);border-bottom:0}
 
-.card{background:var(--card);border:1px solid var(--stroke);border-radius:8px;padding:16px}
-.card:hover{background:var(--card-hover)}
-.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:8px}
-.card .ic{width:40px;height:40px;border-radius:4px;display:grid;place-items:center;background:rgba(255,211,107,.12);color:var(--accent);margin-bottom:12px}
-.card .ic svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.5}
-.card p{margin:4px 0 0;color:var(--text-2)}
+/* feature rows */
+.row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);gap:56px;align-items:center}
+.row + .row{margin-top:88px}
+.row.flip .txt{order:2}
+.row .txt{display:grid;gap:14px}
+.row figure{margin:0;border-radius:8px;overflow:hidden;border:1px solid var(--line);box-shadow:0 4px 24px rgba(0,0,0,.10)}
+.row ul{margin:4px 0 0;padding-left:20px;color:var(--text-2)}.row li{margin:4px 0}
 
-/* hero = app's own "home page" banner */
-.hero{position:relative;border-radius:8px;overflow:hidden;border:1px solid var(--stroke);background:linear-gradient(180deg,rgba(255,211,107,.10),transparent 60%),#0b0c0f;padding:40px 32px 0;display:grid;gap:24px}
-.hero p{margin:0;max-width:620px;font-size:16px;line-height:24px;color:var(--text-2)}
-.hero .shot{margin:8px -1px 0;border-radius:8px 8px 0 0;overflow:hidden;border:1px solid var(--stroke-2);border-bottom:0;box-shadow:0 -10px 40px rgba(0,0,0,.4)}
-.hero .shot .bar{height:32px;display:flex;align-items:center;gap:10px;padding-left:12px;background:#1b1c20;font-size:12px;color:var(--text-2)}
-.hero .shot .bar .sp{flex:1}.hero .shot .bar i{width:46px;text-align:center;font-style:normal;color:var(--text-3)}
+/* simple tiles */
+.center{text-align:center;display:grid;gap:12px;max-width:720px;margin:0 auto 40px}
+.tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+.tile{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:24px;display:grid;gap:8px;align-content:start}
+.tile p{font-size:14px}
+.tile .tag{font-size:12px;font-weight:600;color:var(--text-2);text-transform:uppercase;letter-spacing:.06em}
+.tile .tag.on{color:var(--mark)}
 
-/* InfoBar */
-.infobar{display:flex;gap:12px;align-items:flex-start;padding:12px 16px;border-radius:4px;border:1px solid var(--stroke);background:rgba(96,205,255,.08)}
-.infobar .dot{flex:none;width:16px;height:16px;border-radius:50%;background:var(--info);color:#002a3a;font:700 11px/16px system-ui;text-align:center;margin-top:2px}
-.infobar.ok{background:rgba(108,203,95,.08)}.infobar.ok .dot{background:var(--ok);color:#0b2a07}
+/* specs */
+.specs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));border-top:1px solid var(--line)}
+.specs div{padding:18px 0;border-bottom:1px solid var(--line);display:grid;grid-template-columns:200px 1fr;gap:16px}
+.specs div:nth-child(odd){padding-right:32px}
+.specs b{font-weight:600}
+.specs span{color:var(--text-2)}
 
-/* SettingsCard-style rows */
-.list{display:flex;flex-direction:column;gap:4px}
-.setting{display:flex;align-items:center;gap:16px;padding:12px 16px;min-height:64px;border-radius:4px;background:var(--card);border:1px solid var(--stroke)}
-.setting .ic{width:20px;height:20px;flex:none;color:var(--text-2)}
-.setting .ic svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.5}
-.setting .txt{flex:1;min-width:0}
-.setting .txt .cap{color:var(--text-2)}
-.badge{flex:none;font-size:12px;line-height:16px;padding:2px 8px;border-radius:999px;border:1px solid var(--stroke-2);color:var(--text-2)}
-.badge.now{background:var(--accent);color:var(--on-accent);border-color:transparent;font-weight:600}
-.badge.next{color:var(--accent);border-color:rgba(255,211,107,.45)}
-
-/* SelectorBar (tour) */
-.selector{display:flex;gap:4px;flex-wrap:wrap;border-bottom:1px solid var(--stroke)}
-.selector button{position:relative;background:none;border:0;color:var(--text-2);font:inherit;padding:10px 12px 12px;cursor:pointer;border-radius:4px 4px 0 0}
-.selector button:hover{color:var(--text);background:rgba(255,255,255,.04)}
-.selector button.on{color:var(--text);font-weight:600}
-.selector button.on::after{content:"";position:absolute;left:50%;bottom:-1px;transform:translateX(-50%);width:16px;height:3px;border-radius:2px;background:var(--accent)}
-.view{display:none;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:16px;align-items:start;padding-top:8px}
-.view.on{display:grid;animation:in .25s cubic-bezier(.1,.9,.2,1)}
-@keyframes in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
-.view figure{margin:0;border-radius:8px;overflow:hidden;border:1px solid var(--stroke)}
-.view ul{margin:8px 0 0;padding-left:18px;color:var(--text-2)}.view li{margin:4px 0}
-
-/* table (DataGrid look) */
-.grid-wrap{overflow-x:auto;border:1px solid var(--stroke);border-radius:8px;background:var(--card)}
-table{border-collapse:collapse;width:100%;min-width:640px;font-size:14px}
-th,td{text-align:left;padding:10px 16px;border-bottom:1px solid var(--stroke);white-space:nowrap}
-th{font-weight:600;color:var(--text-2);font-size:12px}
-tbody tr:hover{background:rgba(255,255,255,.03)}
-tr:last-child td{border-bottom:0}
-td.y{color:var(--ok)}td.p{color:var(--text-3)}
-
-/* Expander (FAQ) */
-details{border:1px solid var(--stroke);border-radius:4px;background:var(--card)}
-details+details{margin-top:4px}
-summary{list-style:none;display:flex;align-items:center;gap:12px;min-height:48px;padding:12px 16px;cursor:pointer}
+/* faq */
+details{border-bottom:1px solid var(--line)}
+details:first-of-type{border-top:1px solid var(--line)}
+summary{list-style:none;cursor:pointer;padding:18px 0;font-weight:600;display:flex;justify-content:space-between;gap:16px}
 summary::-webkit-details-marker{display:none}
-summary::after{content:"";margin-left:auto;width:8px;height:8px;border-right:1.5px solid var(--text-2);border-bottom:1.5px solid var(--text-2);transform:rotate(45deg);transition:transform .2s}
-details[open] summary::after{transform:rotate(-135deg)}
-details[open] summary{border-bottom:1px solid var(--stroke)}
-details p{margin:0;padding:12px 16px 16px;color:var(--text-2)}
+summary::after{content:"+";font-weight:400;font-size:22px;line-height:1}
+details[open] summary::after{content:"−"}
+details p{padding:0 0 20px;max-width:760px}
 
-.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start}
-.foot{display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px;padding-top:24px;border-top:1px solid var(--stroke)}
+footer{background:var(--bg-2);padding-block:40px;font-size:13px;color:var(--text-2)}
+footer .wrap{display:flex;flex-wrap:wrap;gap:16px;justify-content:space-between}
+footer a{color:var(--text-2)}
 
-/* mobile: pane becomes a top strip, like NavigationView's Top mode */
-@media (max-width:860px){
-  .shell{grid-template-columns:1fr}
-  .pane{position:sticky;top:48px;z-index:15;height:auto;flex-direction:row;overflow-x:auto;padding:6px max(16px,env(safe-area-inset-left,0px));background:var(--mica);border-bottom:1px solid var(--stroke)}
-  .pane hr,.pane .grow,.pane .nav.side{display:none}
-  .nav{flex:none;gap:8px}.nav.on::before{left:12px;right:12px;top:auto;bottom:0;width:auto;height:3px}
-  .content{border-radius:0;border-left:0;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
-  .search{display:none}
-  .hero{padding:28px 20px 0}
-  .view.on,.two{grid-template-columns:1fr}
-  html{scroll-padding-top:104px}section{scroll-margin-top:110px}
+@media (max-width:900px){
+  .row,.specs{grid-template-columns:1fr}.row{gap:28px}.row.flip .txt{order:0}
+  .tiles{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .specs div{grid-template-columns:1fr;gap:4px}.specs div:nth-child(odd){padding-right:0}
+  header nav{display:none}
 }
-@media (prefers-reduced-motion:reduce){*{animation:none!important;scroll-behavior:auto!important}}
+@media (max-width:520px){.tiles{grid-template-columns:1fr}section{padding-block:52px}}
 </style>
 </head>
 <body>
 
-<div class="titlebar">
-  <span class="appicon" aria-hidden="true"></span>
-  <span class="wmk">KISSI<i>K</i></span>
-  <span class="cap" style="color:var(--text-2)">Free camera studio for Windows 11</span>
-  <span class="sp"></span>
-  <span class="search" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>Background, looks, scenes…</span>
-  <span class="sp"></span>
-  <a class="btn accent" href="#download" style="margin-right:8px">Download</a>
-  <span class="caps" aria-hidden="true"><span>&#xE921;</span><span>&#xE922;</span><span>&#xE8BB;</span></span>
-</div>
+<header><div class="wrap">
+  <a href="#top" style="text-decoration:none"><span class="wmk">KISSI<i>K</i></span></a>
+  <nav><a href="#features">Features</a><a href="#light">Screen light</a><a href="#phone">Phone</a><a href="#platforms">Platforms</a><a href="#specs">Specs</a><a href="#faq">FAQ</a></nav>
+  <a class="btn sm" href="#download">Download</a>
+</div></header>
 
-<div class="shell">
-  <nav class="pane" aria-label="Sections">
-    <a class="nav on" href="#home"><svg viewBox="0 0 24 24"><path d="M3 11 12 4l9 7v9h-6v-6H9v6H3z"/></svg>Home</a>
-    <a class="nav" href="#features"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Features</a>
-    <a class="nav" href="#tour"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 9h18"/></svg>Inside the app</a>
-    <a class="nav" href="#light"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="3"/></svg>Screen light</a>
-    <a class="nav" href="#phone"><svg viewBox="0 0 24 24"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg>Phone camera</a>
-    <a class="nav" href="#platforms"><svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>Platforms</a>
-    <a class="nav" href="#faq"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.7M12 17h.01"/></svg>Questions</a>
-    <div class="grow"></div>
-    <hr>
-    <a class="nav" href="#download"><svg viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M4 21h16"/></svg>Download</a>
-    <a class="nav side" href="#donate"><svg viewBox="0 0 24 24"><path d="M12 20s-8-4.5-8-11a4.5 4.5 0 0 1 8-2.8A4.5 4.5 0 0 1 20 9c0 6.5-8 11-8 11z"/></svg>Donate</a>
-  </nav>
-
-  <main class="content">
-  <div class="page">
-
-    <section id="home">
-      <div class="hero">
-        <div style="display:grid;gap:16px">
-          <h1 class="display">Your webcam, at its best.</h1>
-          <p>KISSIK is a free camera studio. Blur or replace your background, frame yourself automatically, add your name and logo, light your face with your own screen, and record it all. Nothing locked, no watermark, no account.</p>
-          <div class="row"><a class="btn accent lg" href="#download">Download for Windows</a><a class="btn lg" href="https://github.com/">View the source</a></div>
-          <span class="cap">Windows 11 (x64) today · iPhone next · macOS and Linux planned</span>
-        </div>
-        <figure class="shot">
-          <div class="bar"><span class="wmk" style="font-size:12px">KISSI<i>K</i></span><span class="sp"></span><i>&#8212;</i><i>&#9744;</i><i>&#10005;</i></div>
-          <img src="assets/screens/studio.jpg" alt="KISSIK on Windows 11: camera panel on the left with background Off, Blur, Replace and Remove; framing panel on the right; scenes along the bottom; Snapshot, Record, Meeting camera and Light in the command bar">
-        </figure>
-      </div>
-      <div class="cards" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr))">
-        <div class="card"><div class="subtitle">0</div><div class="cap">Accounts, watermarks or paywalls</div></div>
-        <div class="card"><div class="subtitle">3840 × 2160</div><div class="cap">Profiles up to 4K, 60 fps and 9:16</div></div>
-        <div class="card"><div class="subtitle">On-device</div><div class="cap">Video never leaves your computer</div></div>
-        <div class="card"><div class="subtitle">GPL-3.0</div><div class="cap">Open source, every line</div></div>
-      </div>
-    </section>
-
-    <section id="features">
-      <h2 class="crumb">Features</h2>
-      <p class="t2" style="margin:0 0 4px">Everything below is in the app today and runs on your own GPU.</p>
-      <div class="cards">
-        <div class="card"><div class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="9" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/></svg></div><div class="strong">Background</div><p>Blur, replace or remove with on-device AI, in Fast or High quality. Green and blue screen keying too.</p></div>
-        <div class="card"><div class="ic"><svg viewBox="0 0 24 24"><path d="M3 9V5h4M21 9V5h-4M3 15v4h4M21 15v4h-4"/><circle cx="12" cy="12" r="3"/></svg></div><div class="strong">Auto-framing and steady picture</div><p>Keeps your face centred and the same size as you move. Smooths a shaky camera.</p></div>
-        <div class="card"><div class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor" stroke="none"/></svg></div><div class="strong">Looks and LUTs</div><p>Brightness, contrast, warmth and more. Built-in looks, your own .cube files, saved looks.</p></div>
-        <div class="card"><div class="ic"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 15h6"/></svg></div><div class="strong">Scenes</div><p>Names, logos, shapes and a round camera bubble. Seven templates, shareable .okscene files.</p></div>
-        <div class="card"><div class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/></svg></div><div class="strong">Spotlight and retouch</div><p>Dim the room and lift you. Gentle skin smoothing, tested on light to dark skin tones.</p></div>
-        <div class="card"><div class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="5" fill="currentColor"/></svg></div><div class="strong">Record and snapshot</div><p>Exactly what you see, as H.264 MP4 or PNG. 720p to 4K, 60 fps, vertical.</p></div>
-        <div class="card"><div class="ic"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h10M4 17h7"/></svg></div><div class="strong">Real camera controls</div><p>Focus, zoom, exposure, white balance, pan and tilt, from your camera's real ranges.</p></div>
-        <div class="card"><div class="ic"><svg viewBox="0 0 24 24"><rect x="2" y="7" width="13" height="10" rx="2"/><rect x="15" y="10" width="7" height="6" rx="1"/></svg></div><div class="strong">Second camera</div><p>Add another camera to a scene, picture-in-picture.</p></div>
-      </div>
-    </section>
-
-    <section id="tour">
-      <h2 class="crumb">Inside the app</h2>
-      <div class="selector" role="tablist" id="sel">
-        <button class="on" role="tab" data-v="c">Camera</button><button role="tab" data-v="a">Audio</button><button role="tab" data-v="y">Layers</button><button role="tab" data-v="l">Light</button>
-      </div>
-      <div class="view on" data-v="c"><figure><img src="assets/screens/camera.jpg" alt="KISSIK Camera tab with background, edge quality, green screen, spotlight and retouch, and the framing panel" loading="lazy"></figure>
-        <div><div class="subtitle">Camera</div><ul><li>Pick a camera, then Off, Blur, Replace or Remove</li><li>Fast or High edge quality</li><li>Green screen, spotlight, retouch</li><li>Framing: Manual, Auto or Smart, mirror, rotate, steady</li></ul></div></div>
-      <div class="view" data-v="a"><figure><img src="assets/screens/audio.jpg" alt="KISSIK Audio tab with level meters, volume, limiter, noise suppression and equaliser" loading="lazy"></figure>
-        <div><div class="subtitle">Audio</div><ul><li>Level meters and volume</li><li>Limiter and noise suppression</li><li>Four-band equaliser</li></ul></div></div>
-      <div class="view" data-v="y"><figure><img src="assets/screens/layers.jpg" alt="KISSIK Layers tab with scene picker, background colours and layer list" loading="lazy"></figure>
-        <div><div class="subtitle">Layers</div><ul><li>Each scene has its own background and layers</li><li>Drag to move, drag the gold dot to resize</li><li>Undo and redo</li><li>Ctrl 1–9 switches scenes</li></ul></div></div>
-      <div class="view" data-v="l"><figure><img src="assets/screens/light.jpg" alt="KISSIK screen light ring in the window" loading="lazy"></figure>
-        <div><div class="subtitle">Light</div><ul><li>Light in the command bar turns your screen into a key light</li><li>Ring, bars or frame, any colour</li></ul></div></div>
-    </section>
-
-    <section id="light">
-      <h2 class="crumb">Screen light</h2>
-      <div class="two">
-        <div class="list">
-          <div class="setting"><span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/></svg></span><div class="txt"><div>Shape</div><div class="cap">Ring, bars or frame, five ring types, any direction or arc</div></div></div>
-          <div class="setting"><span class="ic"><svg viewBox="0 0 24 24"><path d="M12 3v10a3 3 0 1 0 0 0"/><circle cx="12" cy="17" r="3"/></svg></span><div class="txt"><div>Colour temperature</div><div class="cap">2200–9000 K, seven looks from Daylight to Candlelight</div></div></div>
-          <div class="setting"><span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></span><div class="txt"><div>Monitor brightness</div><div class="cap">Raised while the light is on, restored when you switch off</div></div></div>
-          <div class="setting"><span class="ic"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 5 18 14"/></svg></span><div class="txt"><div>Hidden from screen shares</div><div class="cap">People in your call see your slides, not the light</div></div></div>
-        </div>
-        <figure style="margin:0;border-radius:8px;overflow:hidden;border:1px solid var(--stroke)"><img src="assets/screens/light.jpg" alt="KISSIK screen light ring" loading="lazy"></figure>
-      </div>
-    </section>
-
-    <section id="phone">
-      <h2 class="crumb">Phone camera <span>· coming next</span></h2>
-      <div class="infobar"><span class="dot">i</span><div><span class="strong">Funded by donations.</span> <span class="t2">Our own open-source iPhone app comes first, then Android.</span></div></div>
-      <div class="list">
-        <div class="setting"><div class="txt"><div>Pair once with a QR code</div><div class="cap">No accounts</div></div></div>
-        <div class="setting"><div class="txt"><div>USB or Wi-Fi</div><div class="cap">USB for the lowest delay, Wi-Fi for freedom, switches by itself</div></div></div>
-        <div class="setting"><div class="txt"><div>Every lens and manual control</div><div class="cap">Focus, exposure, white balance, zoom and torch, from the phone or the computer</div></div></div>
-        <div class="setting"><div class="txt"><div>Looks after your phone</div><div class="cap">Backs off before it gets hot or the battery runs low</div></div></div>
-      </div>
-    </section>
-
-    <section id="platforms">
-      <h2 class="crumb">Platforms</h2>
-      <div class="list">
-        <div class="setting"><span class="ic"><svg viewBox="0 0 24 24"><path d="M3 5l8-1v8H3zM13 4l8-1v9h-8zM3 13h8v8l-8-1zM13 13h8v9l-8-1z"/></svg></span><div class="txt"><div>Windows 11</div><div class="cap">The full studio. Meeting camera and audio mixer in progress.</div></div><span class="badge now">Available</span></div>
-        <div class="setting"><span class="ic"><svg viewBox="0 0 24 24"><rect x="7" y="2" width="10" height="20" rx="2"/></svg></span><div class="txt"><div>iPhone</div><div class="cap">Your iPhone as a camera for Windows, Mac and Linux · <a href="../docs/platforms/ios.md">developer plan</a></div></div><span class="badge next">Next</span></div>
-        <div class="setting"><span class="ic"><svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8"/></svg></span><div class="txt"><div>macOS</div><div class="cap">Native app with a system camera and microphone · <a href="../docs/platforms/macos.md">developer plan</a></div></div><span class="badge">Planned</span></div>
-        <div class="setting"><span class="ic"><svg viewBox="0 0 24 24"><path d="M4 17l6-6-6-6M12 19h8"/></svg></span><div class="txt"><div>Linux</div><div class="cap">Ubuntu 22.04 / 24.04 and Fedora 40+, Flatpak first · <a href="../docs/platforms/linux.md">developer plan</a></div></div><span class="badge">Planned</span></div>
-      </div>
-      <div class="grid-wrap" id="roadmap" style="margin-top:8px">
-        <table>
-          <thead><tr><th>Feature</th><th>Windows</th><th>macOS</th><th>Linux</th><th>iPhone</th></tr></thead>
-          <tbody>
-            <tr><td>Any webcam, camera controls, up to 4K</td><td class="y">Ready</td><td class="p">Planned</td><td class="p">Planned</td><td class="p">—</td></tr>
-            <tr><td>Background blur, replace, remove, green screen</td><td class="y">Ready</td><td class="p">Planned</td><td class="p">Planned</td><td class="p">—</td></tr>
-            <tr><td>Looks, LUTs, saved looks</td><td class="y">Ready</td><td class="p">Planned</td><td class="p">Planned</td><td class="p">—</td></tr>
-            <tr><td>Auto-framing, steady picture</td><td class="y">Ready</td><td class="p">Planned</td><td class="p">Planned</td><td class="p">—</td></tr>
-            <tr><td>Scenes and editor</td><td class="y">Ready</td><td class="p">Planned</td><td class="p">Planned</td><td class="p">—</td></tr>
-            <tr><td>Screen light</td><td class="y">Ready</td><td class="p">Planned</td><td class="p">Planned</td><td class="p">—</td></tr>
-            <tr><td>Recording and snapshots</td><td class="y">Ready</td><td class="p">Planned</td><td class="p">Planned</td><td class="p">—</td></tr>
-            <tr><td>Meeting camera</td><td>In progress</td><td class="p">Planned</td><td class="p">Planned</td><td class="p">—</td></tr>
-            <tr><td>Audio mixer and virtual microphone</td><td>In progress</td><td class="p">Planned</td><td class="p">Planned</td><td>Phone mic</td></tr>
-            <tr><td>Phone as camera</td><td class="p">Planned</td><td class="p">Planned</td><td class="p">Planned</td><td>Next</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </section>
-
-    <section id="faq">
-      <h2 class="crumb">Questions</h2>
-      <div>
-        <details open><summary>Is it really free?</summary><p>Yes. No trial, no watermark, no account and no paid tier. Open source under GPL-3.0.</p></details>
-        <details><summary>Does my video go to a server?</summary><p>No. Capture, AI and effects all run on your own computer. Nothing is uploaded.</p></details>
-        <details><summary>Which cameras work?</summary><p>Any USB or built-in webcam that Windows sees, plus capture cards with a standard webcam mode. Phones come next.</p></details>
-        <details><summary>Can I use it in meeting apps?</summary><p>The system meeting camera is being built now. Once it lands, KISSIK shows up as a camera in every app, several at once.</p></details>
-        <details><summary>What do I need?</summary><p>Windows 11 (x64). A recent GPU keeps the High quality background smooth at 1080p; Fast runs on most laptops.</p></details>
-        <details><summary>When are Mac, iPhone and Linux coming?</summary><p>The iPhone app is next and is funded by donations. macOS and Linux follow; their developer plans are public.</p></details>
-      </div>
-    </section>
-
-    <section id="download">
-      <h2 class="crumb">Download</h2>
-      <div class="two">
-        <div class="card" style="display:grid;gap:12px;padding:24px">
-          <div class="subtitle">KISSIK for Windows 11</div>
-          <div class="t2">x64 · free forever · builds and source on GitHub</div>
-          <div class="row"><a class="btn accent lg" href="https://github.com/">Latest release</a><a class="btn lg" href="../docs/DEVELOPMENT.md">Build from source</a></div>
-        </div>
-        <div class="card" style="display:grid;gap:8px;padding:24px">
-          <div class="subtitle">Developers welcome</div>
-          <div class="t2">Each platform has a plan: libraries, file layout, build steps, milestones and risks.</div>
-          <div class="row"><a href="../docs/platforms/README.md">Overview</a><span class="cap">·</span><a href="../docs/platforms/macos.md">macOS</a><span class="cap">·</span><a href="../docs/platforms/ios.md">iPhone</a><span class="cap">·</span><a href="../docs/platforms/linux.md">Linux</a><span class="cap">·</span><a href="../ROADMAP.md">Roadmap</a></div>
-        </div>
-      </div>
-    </section>
-
-    <section id="donate">
-      <div class="infobar ok" style="align-items:center;flex-wrap:wrap"><span class="dot">♥</span><div style="flex:1;min-width:220px"><span class="strong">Help us build the phone app.</span> <span class="t2">KISSIK is free and always will be. Donations pay for the Apple developer account, test phones and time, and never unlock anything.</span></div><a class="btn accent" href="../docs/donate-upi-qr.png">Donate</a></div>
-    </section>
-
-    <div class="foot cap">
-      <span><span class="wmk" style="font-size:12px;color:var(--text)">KISSI<i>K</i></span> · GPL-3.0 · made in the open</span>
-      <span>An independent project, not affiliated with any other camera or software company.</span>
-    </div>
-
+<section class="hero" id="top"><div class="wrap">
+  <div class="copy">
+    <h1>Your webcam, at its best.</h1>
+    <p>A free camera studio for Windows 11. Blur or replace your background, frame yourself automatically, add your name and logo, light your face with your screen, and record.</p>
+    <a class="btn" href="#download">Download for free</a>
+    <p class="fine">Windows 11 (x64) · No account · No watermark · Open source</p>
   </div>
-  </main>
-</div>
+  <figure><img src="assets/screens/studio.jpg" alt="KISSIK on Windows 11: camera panel on the left, framing panel on the right, scenes along the bottom, and Snapshot, Record, Meeting camera and Light in the command bar"></figure>
+</div></section>
 
-<script>
-const $$=s=>[...document.querySelectorAll(s)];
-/* SelectorBar */
-$$('#sel button').forEach(b=>b.addEventListener('click',()=>{
-  $$('#sel button').forEach(x=>x.classList.toggle('on',x===b));
-  $$('.view').forEach(v=>v.classList.toggle('on',v.dataset.v===b.dataset.v));
-}));
-/* NavigationView selection follows scroll */
-const links=$$('.pane .nav'),secs=links.map(a=>document.querySelector(a.getAttribute('href'))).filter(Boolean);
-function mark(){let cur=secs[0];for(const s of secs){if(s.getBoundingClientRect().top<140)cur=s}
-  links.forEach(a=>a.classList.toggle('on',a.getAttribute('href')==='#'+cur.id));}
-addEventListener('scroll',mark,{passive:true});mark();
-</script>
+<section id="features" class="alt"><div class="wrap">
+  <div class="row">
+    <div class="txt">
+      <h2>Look professional on every call</h2>
+      <p>Blur, replace or remove your background with AI that runs on your own computer. Auto-framing keeps you centred as you move, and steady picture smooths a shaky camera.</p>
+      <ul><li>Fast or High edge quality</li><li>Green and blue screen</li><li>Spotlight and gentle retouch</li><li>Focus, zoom, exposure and white balance</li></ul>
+    </div>
+    <figure><img src="assets/screens/camera.jpg" alt="KISSIK Camera tab with background, edge quality, green screen, spotlight, retouch and framing controls" loading="lazy"></figure>
+  </div>
+
+  <div class="row flip">
+    <div class="txt">
+      <h2>Scenes with your name and logo</h2>
+      <p>Add a name, a logo, shapes or a round camera bubble. Each scene keeps its own background and layers, and Ctrl&nbsp;1–9 switches between them.</p>
+      <a class="more" href="#platforms">See what's ready</a>
+    </div>
+    <figure><img src="assets/screens/layers.jpg" alt="KISSIK Layers tab with scene picker, scene background colours and layer list" loading="lazy"></figure>
+  </div>
+
+  <div class="row">
+    <div class="txt">
+      <h2>Sound as good as you look</h2>
+      <p>Level meters, a limiter, noise suppression and a four-band equaliser, in the same window.</p>
+    </div>
+    <figure><img src="assets/screens/audio.jpg" alt="KISSIK Audio tab with level meters, volume, limiter, noise suppression and equaliser" loading="lazy"></figure>
+  </div>
+</div></section>
+
+<section id="light"><div class="wrap">
+  <div class="row flip">
+    <div class="txt">
+      <h2>Your screen becomes a soft light</h2>
+      <p>Turn on Light and your monitor glows as a ring, bars or a frame, from warm 2200 K to cool 9000 K. It stays out of your screen shares.</p>
+    </div>
+    <figure><img src="assets/screens/light.jpg" alt="KISSIK screen light shown as a ring in the window" loading="lazy"></figure>
+  </div>
+</div></section>
+
+<section id="phone" class="alt"><div class="wrap">
+  <div class="center">
+    <h2>Use your phone as a webcam</h2>
+    <p>Coming next. Our own open-source iPhone app sends every lens to KISSIK, then Android. Donations fund this work.</p>
+  </div>
+  <div class="tiles">
+    <div class="tile"><h3>Pair once</h3><p>Scan a QR code. No accounts.</p></div>
+    <div class="tile"><h3>USB or Wi-Fi</h3><p>USB for the lowest delay, Wi-Fi for freedom.</p></div>
+    <div class="tile"><h3>Every lens</h3><p>Focus, exposure, zoom and torch from either device.</p></div>
+    <div class="tile"><h3>Stays cool</h3><p>Backs off before your phone gets hot.</p></div>
+  </div>
+</div></section>
+
+<section id="platforms"><div class="wrap">
+  <div class="center"><h2>One studio, more devices on the way</h2></div>
+  <div class="tiles">
+    <div class="tile"><span class="tag on">Available</span><h3>Windows 11</h3><p>The full studio. Meeting camera and audio mixer in progress.</p></div>
+    <div class="tile"><span class="tag">Next</span><h3>iPhone</h3><p>Your iPhone as a camera for your computer.</p><a class="more" href="../docs/platforms/ios.md">Plan</a></div>
+    <div class="tile"><span class="tag">Planned</span><h3>macOS</h3><p>Native app with a system camera and microphone.</p><a class="more" href="../docs/platforms/macos.md">Plan</a></div>
+    <div class="tile"><span class="tag">Planned</span><h3>Linux</h3><p>Ubuntu and Fedora, Flatpak first.</p><a class="more" href="../docs/platforms/linux.md">Plan</a></div>
+  </div>
+</div></section>
+
+<section id="specs" class="alt"><div class="wrap">
+  <h2 style="margin-bottom:28px">Tech specs</h2>
+  <div class="specs">
+    <div><b>Operating system</b><span>Windows 11 (x64)</span></div>
+    <div><b>Price</b><span>Free. No paid tier, no trial.</span></div>
+    <div><b>Cameras</b><span>Any USB or built-in webcam, plus capture cards in webcam mode</span></div>
+    <div><b>Resolution</b><span>720p to 4K (3840 × 2160), 30 or 60 fps, vertical 9:16</span></div>
+    <div><b>Recording</b><span>H.264 MP4 and PNG snapshots</span></div>
+    <div><b>Processing</b><span>On your computer and GPU. Nothing uploaded.</span></div>
+    <div><b>Graphics</b><span>A recent GPU for High quality at 1080p; Fast runs on most laptops</span></div>
+    <div><b>Licence</b><span>Open source, GPL-3.0</span></div>
+  </div>
+</div></section>
+
+<section id="faq"><div class="wrap">
+  <h2 style="margin-bottom:28px">Frequently asked questions</h2>
+  <details><summary>Is it really free?</summary><p>Yes. No trial, no watermark, no account and no paid tier.</p></details>
+  <details><summary>Does my video go to a server?</summary><p>No. Capture, AI and effects all run on your own computer.</p></details>
+  <details><summary>Can I use it in meeting apps?</summary><p>The system meeting camera is being built now. Once it lands, KISSIK shows up as a camera in every app.</p></details>
+  <details><summary>When are Mac, iPhone and Linux coming?</summary><p>The iPhone app is next and is funded by donations. macOS and Linux follow; their developer plans are public.</p></details>
+</div></section>
+
+<section id="download" class="alt"><div class="wrap">
+  <div class="center" style="margin-bottom:0;justify-items:center">
+    <h2>Get KISSIK</h2>
+    <p>Free for Windows 11. Builds and source on GitHub.</p>
+    <a class="btn" href="https://github.com/">Download for free</a>
+    <p style="font-size:14px"><a href="../docs/DEVELOPMENT.md">Build from source</a> · <a href="../docs/donate-upi-qr.png">Support the project</a></p>
+  </div>
+</div></section>
+
+<footer><div class="wrap">
+  <span><span class="wmk" style="font-size:14px">KISSI<i>K</i></span> · GPL-3.0 · made in the open</span>
+  <span>An independent project, not affiliated with any other camera or software company.</span>
+</div></footer>
+
 </body>
 </html>

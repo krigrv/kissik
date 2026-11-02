@@ -68,7 +68,7 @@ What users expect, in order: it connects every time; setup in under 2 minutes (Q
 3. [x] "It's not connecting" explains why from what actually reached the PC (never arrived → firewall / Wi-Fi / client isolation / hotspot; old link; certificate refused; camera blocked); other networks' links shown
 4. [x] Promise: every resolution free, no watermark, no ads, every computer — README + welcome; plain "Just my name" scene
 5. [ ] Never take over the system default mic; virtual mic stays opt-in; the hardware mute key always works
-6. [ ] Quit really quits (no hidden background process); clear on/off state
+6. [x] Quit really quits: tray Quit finishes recordings, stops streams, phone and control servers and the camera, then exits
 7. [~] Phone battery saver: below 20% and not charging → 480p once, with a message. Heat (browsers can't read temperature) and dark screen still to do
 8. [x] Latency meter + smooth-first mode
 9. [x] One short first-run welcome (3 steps + free promise, once); command bar buttons have words
@@ -182,7 +182,7 @@ everything from the PC, switching between paired phones/PCs.
 
 ## 9. Controls and automation
 - [~] P1 Keyboard shortcuts done (Ctrl+1…9, Ctrl+R, Ctrl+Shift+S, Ctrl+Shift+H); pause/resume feed still to do
-- [~] P4 Global shortcuts from any app: Ctrl+Alt+H hide, +M mute mix, +R record, +1…9 scenes (falls back to Ctrl+Alt+Shift if taken). Tray flyout still to do
+- [~] P4 Global shortcuts from any app: Ctrl+Alt+H hide, +M mute mix, +R record, +1…9 scenes (falls back to Ctrl+Alt+Shift if taken). Tray icon: click to open; right-click for Hide me, Mute, Record, Quit (done)
 - [ ] P4 Elgato Stream Deck plugin (scenes, camera, mute, stream)
 - [x] P4 MCP server + REST control (localhost, token, off by default): scenes, privacy, background, record, captions, snapshot, status — see docs/CONTROL-API.md
 
