@@ -154,6 +154,19 @@ public static class SceneCompositor
         });
     }
 
+    /// <summary>Cross-fade: <paramref name="dst"/> = from·(1−t) + dst·t, eased so it starts and ends gently.</summary>
+    public static void CrossFade(byte[] dst, byte[] from, double t)
+    {
+        if (from.Length != dst.Length) return;
+        double e = t * t * (3 - 2 * t); // smoothstep
+        int k = (int)Math.Clamp(e * 256, 0, 256), ik = 256 - k;
+        Parallel.For(0, dst.Length / 65536 + 1, chunk =>
+        {
+            int start = chunk * 65536, end = Math.Min(dst.Length, start + 65536);
+            for (int i = start; i < end; i++) dst[i] = (byte)((from[i] * ik + dst[i] * k) >> 8);
+        });
+    }
+
     public static void BlendOver(byte[] dst, byte[] src)
     {
         int n = dst.Length / 4;

@@ -451,6 +451,11 @@ public sealed partial class MainPage : Page
     /// result to the preview if the UI is free. Frames that arrive while one is processing are skipped.
     /// </summary>
     private double _procMs;
+    private volatile byte[]? _lastBaked, _fadeFrom;
+    private DateTime _fadeStart;
+
+    /// <summary>Starts a cross-fade from the current output to whatever comes next (call when the scene changes).</summary>
+    private void BeginSceneFade() { _fadeFrom = _lastBaked; _fadeStart = DateTime.UtcNow; }
     private readonly SmoothGovernor _smooth = new();
 
     private void OnFrame(SoftwareBitmap bmp)
@@ -484,6 +489,14 @@ public sealed partial class MainPage : Page
             if (baked is not null) return baked;
             baked = pixels;
             if (FrontAt(w, h) is { } front) { baked = (byte[])pixels.Clone(); SceneCompositor.BlendOver(baked, front); }
+            // Scene switch: cross-fade from the last frame of the old scene.
+            if (_fadeFrom is { } from && from.Length == baked.Length)
+            {
+                double t = (DateTime.UtcNow - _fadeStart).TotalSeconds / 0.4;
+                if (t >= 1) _fadeFrom = null;
+                else { if (ReferenceEquals(baked, pixels)) baked = (byte[])pixels.Clone(); SceneCompositor.CrossFade(baked, from, t); }
+            }
+            _lastBaked = baked;
             baked = BurnCaptions(baked, w, h);
             baked = PrivacyShutter.Apply(baked, w, h, _shutter != ShutterMode.Off ? _shutter : _guardHiding ? ShutterMode.Blur : ShutterMode.Off);
             return baked;

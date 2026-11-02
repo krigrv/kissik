@@ -149,7 +149,7 @@ everything from the PC, switching between paired phones/PCs.
 - [x] P2 Scenes are in recordings and snapshots (overlay captured from the same XAML as the preview; verified at 4K live, 2026-11-02)
 - [x] P2 Layers behind you: any scene layer can sit between you and your background (person cut-out), in preview, meeting camera, recordings and streams
 - [ ] P2 Masks (shape/layer), gradient fills, auto-layout stacks
-- [~] P2 Scene switching (rail, Ctrl+1…9, category + favourites filter) — animated transitions still to do
+- [x] P2 Scene switching (rail, Ctrl+1…9, category + favourites filter) with a 0.4 s eased cross-fade in the meeting camera, recordings and streams
 - [x] P2 Gallery window: Scenes / Backgrounds / Filters tabs, collections (All, Favourites, categories), live filter previews, create/import/add/duplicate/export/delete
 - [ ] P2 Import OBS scene collections (JSON)
 

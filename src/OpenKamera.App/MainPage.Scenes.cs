@@ -96,6 +96,7 @@ public sealed partial class MainPage
 
     private void LoadScene(SceneDocument s)
     {
+        BeginSceneFade();
         _scene = (SceneLibrary.Load(s.Id) ?? s).Clone();
         _settings.SceneId = _scene.Id; _settings.Save();
         _undo.Clear(); _redo.Clear();

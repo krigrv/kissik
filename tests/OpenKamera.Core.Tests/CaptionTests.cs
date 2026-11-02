@@ -51,3 +51,18 @@ public class BehindLayerTests
         Assert.Equal(new byte[] { 50, 60, 70 }, frame[4..7]); // person pixel unchanged
     }
 }
+
+public class CrossFadeTests
+{
+    [Fact]
+    public void CrossFade_GoesFromOldToNew()
+    {
+        var from = new byte[] { 0, 0, 0, 255 };
+        var a = new byte[] { 200, 200, 200, 255 }; SceneCompositor.CrossFade(a, from, 0);
+        Assert.Equal(0, a[0]);
+        var b = new byte[] { 200, 200, 200, 255 }; SceneCompositor.CrossFade(b, from, 0.5);
+        Assert.InRange(b[0], 95, 105);
+        var c = new byte[] { 200, 200, 200, 255 }; SceneCompositor.CrossFade(c, from, 1);
+        Assert.Equal(200, c[0]);
+    }
+}
