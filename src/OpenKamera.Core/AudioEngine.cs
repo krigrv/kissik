@@ -296,7 +296,10 @@ public sealed class AudioEngine : IAsyncDisposable
             {
                 var (_, _, raw48) = Read(raw.GetFrame(), wantSamples: true);
                 if (raw48 is not { Length: > 0 }) continue;
-                lock (t.ChainLock) t.Chain?.Process(raw48);
+                // Voice processing must never cost the voice: on any error, pass the untouched sound and switch it off.
+                var safe = (float[])raw48.Clone();
+                try { lock (t.ChainLock) t.Chain?.Process(raw48); }
+                catch (Exception ex) { raw48 = safe; lock (t.ChainLock) t.Chain = null; t.VoiceNote = "Voice processing stopped: " + ex.Message; LastError = ex.Message; }
                 push.Write(raw48);
             }
         foreach (var t in _tracks)

@@ -7,6 +7,7 @@ public sealed partial class MainPage
     private Microsoft.UI.Dispatching.DispatcherQueueTimer? _audioWatch;
     private bool _audioRestarting;
     private int _audioRestarts;
+    private string? _shownAudioError;
 
     private void StartAudioWatchdog()
     {
@@ -16,6 +17,7 @@ public sealed partial class MainPage
         {
             CheckPhoneMic();
             CheckSystemMicMute();
+            if (_audio.LastError is { } err && err != _shownAudioError) { _shownAudioError = err; Status("Audio problem: " + err); }
             if (_audioRestarting || !_settings.AudioOn || !_audio.NeedsRestart(DateTime.UtcNow, TimeSpan.FromSeconds(3))) return;
             _audioRestarting = true;
             try
