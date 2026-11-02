@@ -222,7 +222,7 @@ public sealed class GalleryWindow : Window
         {
             string key = "bg:" + b.Id;
             if (!InCollection(key, b.Category)) continue;
-            var thumb = Bitmap(BackgroundLibrary.Render(b.Id, ThumbW, ThumbH));
+            var thumb = Bitmap(BackgroundLibrary.IsVideo(b.Id) ? null : BackgroundLibrary.Render(b.Id, ThumbW, ThumbH)); // videos show a plain tile
             var menu = new MenuFlyout();
             menu.Items.Add(Item("Use as background", "", () => _main.UseBackground(b.Id)));
             menu.Items.Add(Item(IsFav(key) ? "Remove from favourites" : "Add to favourites", "", () => ToggleFav(key)));

@@ -34,6 +34,12 @@ public sealed class BackgroundPipeline : IDisposable
 
     private VideoBackground? _video;
 
+    /// <summary>The replacement background for this frame (a picture, or the newest frame of a looping video), or null.</summary>
+    public byte[]? ReplacementFor(BackgroundSettings s, int w, int h) =>
+        s.Mode == BackgroundMode.Replace && s.BackgroundId is { } id
+            ? BackgroundLibrary.IsVideo(id) ? VideoFrame(id, w, h) : BackgroundLibrary.Render(id, w, h)
+            : null;
+
     /// <summary>The newest frame of a looping video background (started on first use, restarted if the size changes).</summary>
     private byte[]? VideoFrame(string id, int w, int h)
     {
@@ -101,9 +107,7 @@ public sealed class BackgroundPipeline : IDisposable
                     (_reuse, _reuseW, _reuseH) = (alpha, w, h);
                 }
                 (_lastAlpha, _lastW, _lastH) = (alpha, w, h);
-                byte[]? bg = s.Mode == BackgroundMode.Replace && s.BackgroundId is { } id
-                    ? BackgroundLibrary.IsVideo(id) ? VideoFrame(id, w, h) : BackgroundLibrary.Render(id, w, h)
-                    : null;
+                byte[]? bg = ReplacementFor(s, w, h);
                 BackgroundEffects.Apply(px, w, h, alpha, s, bg);
                 LastError = null; _hadError = false;
             }

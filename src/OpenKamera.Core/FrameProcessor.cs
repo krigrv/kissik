@@ -63,7 +63,7 @@ public static class FrameProcessor
         var s = r.Background;
         bool wantsMask = background is not null && (s.NeedsMask || r.BehindOverlay is { } bo && bo.Length == px.Length);
         var mask = wantsMask ? background!.ModelMask(px, w, h, s) : null;
-        byte[]? bg = s.NeedsMask && s.Mode == BackgroundMode.Replace && s.BackgroundId is { } id ? BackgroundLibrary.Render(id, w, h) : null;
+        byte[]? bg = s.NeedsMask ? background?.ReplacementFor(s, w, h) : null;
         return gpu.Process(px, w, h, r, mask, bg);
     }
 
