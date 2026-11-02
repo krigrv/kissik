@@ -953,6 +953,7 @@ public sealed partial class MainPage : Page
     private async void RecordBtn_Click(object sender, RoutedEventArgs e)
     {
         if (_session is null) return;
+        if (_savingRecording) { Status("Still saving the last recording. Record again in a moment."); return; }
         try
         {
             if (_recorder is not null) { await StopRecordingAsync(); return; }
@@ -1099,11 +1100,12 @@ public sealed partial class MainPage : Page
         _recorder = null; // stop feeding first
         _recordClock.Stop();
         _recPaused = false; PauseBtn.Visibility = Visibility.Collapsed;
-        RecordLabel.Text = "Record"; RecordIcon.Glyph = "";
         RecordBtn.ClearValue(Control.BackgroundProperty);
         RecordBtn.ClearValue(Control.ForegroundProperty);
         RecPill.Visibility = Visibility.Collapsed;
-        AutomationProperties.SetName(RecordBtn, "● Record");
+        // Joining a long recording takes a while; a press meanwhile would start a new one on top of it.
+        _savingRecording = true; RecordBtn.IsEnabled = false;
+        RecordLabel.Text = "Saving…"; AutomationProperties.SetName(RecordBtn, "Saving the recording");
         Status("Finishing recording… joining the pieces");
         try
         {
@@ -1113,6 +1115,15 @@ public sealed partial class MainPage : Page
                    (rec.FramesDropped > 0 ? $", {rec.FramesDropped} dropped (encoder busy)" : "") + vertical + SupportNudge());
         }
         catch (Exception ex) { Status("Recording failed while saving: " + ex.Message); }
-        finally { await rec.DisposeAsync(); }
+        finally
+        {
+            await rec.DisposeAsync();
+            _savingRecording = false;
+            RecordLabel.Text = "Record"; RecordIcon.Glyph = "";
+            AutomationProperties.SetName(RecordBtn, "● Record");
+            RecordBtn.IsEnabled = _session is not null;
+        }
     }
+
+    private bool _savingRecording;
 }
