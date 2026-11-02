@@ -156,7 +156,7 @@ class StreamService : LifecycleService() {
                 Pro.effect, Pro.fps) { k, e, fps -> k.copy(effect = e, fps = if (k.codec == "jpeg") 0 else fps) }
                 .distinctUntilChanged().collect { bindCamera(it) }
         }
-        lifecycleScope.launch { merge(Pro.ev, Pro.iso, Pro.shutterNs, Pro.focus, Pro.wb, Pro.fps, Pro.stab, Pro.hdr).collect { applyPro() } }
+        lifecycleScope.launch { merge(Pro.ev, Pro.iso, Pro.shutterNs, Pro.focus, Pro.wb, Pro.fps, Pro.stab, Pro.hdr, Pro.lowLatency).collect { applyPro() } }
         lifecycleScope.launch { Live.focusTap.collect { (x, y) -> focusAt(x, y) } }
         lifecycleScope.launch { Live.meteringTap.collect { focusOn(it) } }
         // The phone's screen preview comes and goes with the app; the stream to the PC carries on either way.
@@ -249,11 +249,14 @@ class StreamService : LifecycleService() {
         val useCases = mutableListOf<UseCase>(pv)
         an?.let { useCases += it }
         val videoFps = key.fps.takeIf { it > 0 } ?: 30
-        if (h264) useCases += VideoCapture.Builder(VideoFeed(key.quality) { request ->
+        if (h264) useCases += VideoCapture.Builder(VideoFeed(key.quality) { request, timebase ->
             val size = request.resolution
             val enc = runCatching { H264Encoder(size.width, size.height, videoFps, surfaceInput = true, kind = key.codec, onPacket = ::sendVideo) }.getOrNull()
             if (enc?.surface == null) { request.willNotProvideSurface(); Live.message.value = "This phone's video encoder couldn't start."; return@VideoFeed }
-            enc.clockOffsetUs = clockOffsetUs()
+            // Frame timestamps on the uptime clock need shifting onto elapsedRealtime (they differ by deep-sleep time).
+            enc.clockOffsetUs = if (timebase == androidx.camera.core.impl.Timebase.UPTIME)
+                (android.os.SystemClock.elapsedRealtimeNanos() - System.nanoTime()) / 1000 else 0L
+            netLog("video timebase $timebase, offset ${enc.clockOffsetUs} us")
             encoder?.release(); encoder = enc; needKey = true
             netLog("zero-copy ${key.codec} encoder ${size.width}x${size.height} @ $videoFps fps")
             request.provideSurface(enc.surface, encoderExecutor) { if (encoder === enc) encoder = null; enc.release() }

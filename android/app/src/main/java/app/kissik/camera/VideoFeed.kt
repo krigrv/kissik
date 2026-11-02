@@ -20,7 +20,7 @@ import androidx.camera.video.VideoOutput
  * (up to 4K), unlike the preview stream, which is capped near the screen's size. CameraX asks for a surface,
  * and [onSurface] hands it the encoder's input surface, so the camera draws straight into the video chip.
  */
-class VideoFeed(shortSide: Int, private val onSurface: (SurfaceRequest) -> Unit) : VideoOutput {
+class VideoFeed(shortSide: Int, private val onSurface: (SurfaceRequest, androidx.camera.core.impl.Timebase) -> Unit) : VideoOutput {
     private val selector = QualitySelector.from(
         when {
             shortSide >= 2160 -> Quality.UHD
@@ -32,7 +32,11 @@ class VideoFeed(shortSide: Int, private val onSurface: (SurfaceRequest) -> Unit)
         FallbackStrategy.lowerQualityOrHigherThan(Quality.SD),
     )
 
-    override fun onSurfaceRequested(request: SurfaceRequest) = onSurface(request)
+    override fun onSurfaceRequested(request: SurfaceRequest) = onSurface(request, androidx.camera.core.impl.Timebase.UPTIME)
+
+    // CameraX says which clock the frame timestamps use (uptime or realtime); the encoder needs it to report
+    // capture times on the PC's reference clock.
+    override fun onSurfaceRequested(request: SurfaceRequest, timebase: androidx.camera.core.impl.Timebase) = onSurface(request, timebase)
 
     override fun getMediaSpec(): Observable<MediaSpec> =
         ConstantObservable.withValue(MediaSpec.builder().configureVideo { it.setQualitySelector(selector) }.build())

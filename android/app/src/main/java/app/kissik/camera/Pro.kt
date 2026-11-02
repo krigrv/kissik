@@ -52,6 +52,8 @@ object Pro {
     /** Off by default: stabilization holds frames back to smooth motion, which adds delay. */
     val stab = MutableStateFlow(false)
     val hdr = MutableStateFlow(false)
+    /** Favour speed over the camera's video processing. Off: on a real phone it saved no measurable delay. */
+    val lowLatency = MutableStateFlow(false)
     /** "jpeg" (works with every KISSIK) or "h264" (hardware encoder; only when the PC asks for it). */
     val codec = MutableStateFlow("jpeg")
     /** Formats this phone can send: "jpeg" plus what its encoder supports ("hevc-hdr" also needs a 10-bit camera). */
@@ -124,8 +126,13 @@ object Pro {
     @OptIn(ExperimentalCamera2Interop::class)
     fun options(c: Caps): CaptureRequestOptions {
         val b = CaptureRequestOptions.Builder()
-        // Ask the camera for its video tuning (the same processing the built-in camera uses when filming).
-        b.setCaptureRequestOption(CR.CONTROL_CAPTURE_INTENT, CR.CONTROL_CAPTURE_INTENT_VIDEO_RECORD)
+        // Low latency (optional): the camera's quick preview processing. Otherwise its video tuning, which can look
+        // cleaner but often holds a few frames back (multi-frame noise reduction).
+        if (lowLatency.value) {
+            b.setCaptureRequestOption(CR.CONTROL_CAPTURE_INTENT, CR.CONTROL_CAPTURE_INTENT_PREVIEW)
+            b.setCaptureRequestOption(CR.NOISE_REDUCTION_MODE, CR.NOISE_REDUCTION_MODE_FAST)
+            b.setCaptureRequestOption(CR.EDGE_MODE, CR.EDGE_MODE_FAST)
+        } else b.setCaptureRequestOption(CR.CONTROL_CAPTURE_INTENT, CR.CONTROL_CAPTURE_INTENT_VIDEO_RECORD)
         // A steady frame rate: the chosen one, or a fixed 30 when automatic (so low light doesn't make it stutter).
         val target = if (fps.value > 0) fps.value else 30
         c.fpsRanges.filter { it.upper == target }.maxByOrNull { it.lower }
@@ -166,6 +173,7 @@ object Pro {
             "fps" -> fps.value = if (value == "auto") 0 else value.toIntOrNull() ?: return true
             "stab" -> stab.value = value == "on"
             "hdr" -> hdr.value = value == "on"
+            "lowlat" -> lowLatency.value = value == "on"
             "codec" -> if (value in codecs.value) codec.value = value
             "effect" -> if (value == "none" || value in effects.value) effect.value = value
             else -> return false
@@ -190,5 +198,6 @@ object Pro {
         json.put("fpsList", JSONArray(c.fpsChoices)).put("fps", fps.value)
         json.put("stab", if (c.videoStab || c.ois) stab.value else n)
         json.put("hdr", if (c.hdr) hdr.value else n)
+        json.put("lowLatency", lowLatency.value)
     }
 }
