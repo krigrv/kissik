@@ -451,7 +451,10 @@ public sealed partial class MainPage
         var flyout = new Flyout { Content = panel, Placement = Microsoft.UI.Xaml.Controls.Primitives.FlyoutPlacementMode.Top };
         flyout.Opened += (_, _) => { text.Focus(FocusState.Programmatic); text.SelectAll(); };
         flyout.Closed += (_, _) => { Commit(); BuildProps(); };
-        flyout.ShowAt(anchor);
+        // Anchor to the stage, not the text element: typing redraws the scene and replaces that element,
+        // which would close a flyout attached to it after the first keystroke.
+        var at = anchor.TransformToVisual(Stage).TransformPoint(new Windows.Foundation.Point(anchor.ActualWidth / 2, 0));
+        flyout.ShowAt(Stage, new Microsoft.UI.Xaml.Controls.Primitives.FlyoutShowOptions { Position = at, Placement = Microsoft.UI.Xaml.Controls.Primitives.FlyoutPlacementMode.Top });
     }
 
     /// <summary>Snaps to the canvas edges and centre within 1 %.</summary>
