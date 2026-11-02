@@ -44,6 +44,8 @@ public sealed class AppSettings
     public string CaptionLanguage { get; set; } = "en-us";
     /// <summary>Local control API / MCP server (localhost + token). Off until turned on.</summary>
     public bool ControlApiOn { get; set; }
+    /// <summary>Record a 9:16 vertical copy next to the normal recording.</summary>
+    public bool RecordVertical { get; set; }
     /// <summary>Livestream destinations (keys encrypted for this Windows user).</summary>
     public List<StreamDestination> StreamDestinations { get; set; } = [];
     /// <summary>The user picked a meeting output themselves (so we stop auto-picking a virtual cable).</summary>

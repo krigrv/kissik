@@ -418,8 +418,40 @@ public sealed partial class MainPage
     {
         if (_dragId is null) return;
         OverlayCanvas.ReleasePointerCapture(e.Pointer);
-        _dragId = null;
-        if (_dragMoved) Commit();
+        string id = _dragId; _dragId = null;
+        if (_dragMoved) { Commit(); return; }
+        // A click (no drag) on text: edit it right there on the video.
+        if (Selected is { Kind: "text" } l && ElementFor(id) is FrameworkElement el) ShowQuickEdit(l, el);
+    }
+
+    private void SelectLayersTab() { if (SidebarTabs.SelectedItem != TabLayers) SidebarTabs.SelectedItem = TabLayers; }
+
+    /// <summary>Edit a text layer in place: text, size, bold and colour, applied live; one undo step.</summary>
+    private void ShowQuickEdit(SceneLayer l, FrameworkElement anchor)
+    {
+        SelectLayersTab();
+        BeginEdit();
+        var text = new TextBox { Text = l.Text, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MinWidth = 260, Header = "Text" };
+        text.TextChanged += (_, _) => { l.Text = text.Text; RenderScene(); };
+        var size = new Slider { Header = "Size", Minimum = 10, Maximum = 200, Value = l.FontSize * 1000 };
+        size.ValueChanged += (_, e2) => { l.FontSize = e2.NewValue / 1000; RenderScene(); };
+        var bold = new ToggleSwitch { Header = "Bold", IsOn = l.Bold };
+        bold.Toggled += (_, _) => { l.Bold = bold.IsOn; RenderScene(); };
+        var colours = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+        foreach (var hex in new[] { "#FFFFFFFF", "#FF111111", "#FFFFD36B", "#FF2EA3F2", "#FFFF6B6B", "#FF5BFF8F" })
+        {
+            var swatch = new Button { Width = 28, Height = 28, Padding = new Thickness(0), CornerRadius = new CornerRadius(14),
+                Background = SceneRenderer.Brush(hex, Microsoft.UI.Colors.White) };
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(swatch, "Colour " + hex);
+            swatch.Click += (_, _) => { l.Color = hex; RenderScene(); };
+            colours.Children.Add(swatch);
+        }
+        var panel = new StackPanel { Spacing = 10, Padding = new Thickness(4) };
+        panel.Children.Add(text); panel.Children.Add(size); panel.Children.Add(bold); panel.Children.Add(colours);
+        var flyout = new Flyout { Content = panel, Placement = Microsoft.UI.Xaml.Controls.Primitives.FlyoutPlacementMode.Top };
+        flyout.Opened += (_, _) => { text.Focus(FocusState.Programmatic); text.SelectAll(); };
+        flyout.Closed += (_, _) => { Commit(); BuildProps(); };
+        flyout.ShowAt(anchor);
     }
 
     /// <summary>Snaps to the canvas edges and centre within 1 %.</summary>

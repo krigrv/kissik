@@ -168,7 +168,7 @@ everything from the PC, switching between paired phones/PCs.
 - [ ] P1 Choose save location; use output profiles
 - [x] P3 3-2-1 countdown (press Record again to cancel), pause/resume with no gap (Ctrl+Shift+R)
 - [x] P3 Recordings window: browse with thumbnails, play, trim (keeps original), share sheet, show in folder, delete to Recycle Bin
-- [ ] P3 Dual-format (landscape + portrait) recording with separate canvases
+- [x] P3 Vertical 9:16 copy recorded alongside (follows framing pan), menu toggle
 - [ ] P3 Isolated per-source recordings
 
 ## 8. Livestreaming

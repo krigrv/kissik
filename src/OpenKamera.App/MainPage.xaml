@@ -265,6 +265,9 @@
                             <MenuFlyoutItem Text="Open the gallery" Click="GalleryBtn_Click">
                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xF0E2;" /></MenuFlyoutItem.Icon>
                             </MenuFlyoutItem>
+                            <ToggleMenuFlyoutItem x:Name="VerticalToggle" Text="Also record a vertical (9:16) copy" Click="VerticalToggle_Click">
+                                <ToggleMenuFlyoutItem.Icon><FontIcon Glyph="&#xE8C4;" /></ToggleMenuFlyoutItem.Icon>
+                            </ToggleMenuFlyoutItem>
                             <MenuFlyoutItem Text="Prompter under the webcam" Click="PrompterBtn_Click">
                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8D2;" /></MenuFlyoutItem.Icon>
                             </MenuFlyoutItem>
@@ -485,7 +488,7 @@
                             <Expander.Header>
                                 <Grid>
                                     <TextBlock VerticalAlignment="Center" Margin="0,0,40,0" TextTrimming="CharacterEllipsis">
-                                        <Run Text="Adjustments" FontSize="14" /><Run Text="  Brightness, colour" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                        <Run Text="Adjustments" FontSize="14" />
                                     </TextBlock>
                                     <Button x:Name="EnhanceReset" HorizontalAlignment="Right" Style="{StaticResource IconButton}"
                                             Click="EnhanceReset_Click" ToolTipService.ToolTip="Reset adjustments and look"
@@ -507,24 +510,25 @@
                             </StackPanel>
                         </Expander>
 
-                        <Grid ColumnSpacing="6" Margin="0,0,0,8">
+                        <!-- Preset: label on its own line so the picker gets the full width. -->
+                        <TextBlock Text="Preset" Style="{StaticResource SectionLabel}" />
+                        <Grid ColumnSpacing="4" Margin="0,0,0,8">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Text="Preset" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
-                            <ComboBox x:Name="PresetBox" Grid.Column="1" HorizontalAlignment="Stretch" PlaceholderText="Pick a saved look" CornerRadius="10"
+                            <ComboBox x:Name="PresetBox" HorizontalAlignment="Stretch" PlaceholderText="Pick a saved look" CornerRadius="8"
                                       SelectionChanged="PresetBox_SelectionChanged" AutomationProperties.Name="Preset" />
-                            <Button x:Name="SavePresetBtn" Grid.Column="2" Style="{StaticResource IconButton}" Click="SavePresetBtn_Click"
+                            <Button x:Name="SavePresetBtn" Grid.Column="1" Style="{StaticResource IconButton}" Click="SavePresetBtn_Click"
                                     ToolTipService.ToolTip="Save this whole look as a preset" AutomationProperties.Name="Save preset">
                                 <FontIcon Glyph="&#xE74E;" FontSize="14" />
                             </Button>
-                            <Button x:Name="LinkPresetBtn" Grid.Column="4" Style="{StaticResource IconButton}" Click="LinkPresetBtn_Click"
-                                    ToolTipService.ToolTip="Use this preset automatically for an app (Zoom, Teams…)" AutomationProperties.Name="Link preset to an app">
-                                <FontIcon Glyph="&#xE71B;" FontSize="14" />
-                            </Button>
-                            <Button x:Name="DeletePresetBtn" Grid.Column="3" Style="{StaticResource IconButton}" Click="DeletePresetBtn_Click"
+                            <Button x:Name="DeletePresetBtn" Grid.Column="2" Style="{StaticResource IconButton}" Click="DeletePresetBtn_Click"
                                     ToolTipService.ToolTip="Delete this preset" AutomationProperties.Name="Delete preset">
                                 <FontIcon Glyph="&#xE74D;" FontSize="14" />
+                            </Button>
+                            <Button x:Name="LinkPresetBtn" Grid.Column="3" Style="{StaticResource IconButton}" Click="LinkPresetBtn_Click"
+                                    ToolTipService.ToolTip="Use this preset automatically for an app (Zoom, Teams…)" AutomationProperties.Name="Link preset to an app">
+                                <FontIcon Glyph="&#xE71B;" FontSize="14" />
                             </Button>
                         </Grid>
                         <Grid>

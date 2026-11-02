@@ -65,6 +65,7 @@ public sealed partial class MainPage : Page
         StartAudioWatchdog();
         _ = ShowWelcomeOnceAsync();
         ResumePairedPhone();
+        try { InitVertical(); } catch { }
         try { InitTray(); } catch (Exception ex) { Status("Tray icon unavailable: " + ex.Message); }
         try { InitControl(); } catch (Exception ex) { Status("Remote control unavailable: " + ex.Message); }
         Unloaded += async (_, _) => { if (_control is { } c) await c.DisposeAsync(); };
@@ -523,7 +524,7 @@ public sealed partial class MainPage : Page
         if (_recorder is { } rec)
         {
             // Recording gets the scene layers baked in; the preview shows them as live XAML instead.
-            if (!_recPaused) rec.Push(Baked(), w, h, _recordClock.Elapsed);
+            if (!_recPaused) { var b = Baked(); rec.Push(b, w, h, _recordClock.Elapsed); PushVertical(b, w, h); }
         }
         Volatile.Write(ref _processing, 0);
 
@@ -860,6 +861,7 @@ public sealed partial class MainPage : Page
             string path = Path.Combine(folder, $"KISSIK-{DateTime.Now:yyyyMMdd-HHmmss}.mp4");
             var rec = new SegmentedRecorder(_profile.Width, _profile.Height, _profile.Fps, withAudio: _audio.IsRunning);
             await rec.StartAsync(path);
+            await StartVerticalAsync(path);
             _recordClock.Restart();
             _recorder = rec;
             RecordLabel.Text = "00:00"; RecordIcon.Glyph = "";
@@ -1004,8 +1006,9 @@ public sealed partial class MainPage : Page
         try
         {
             await rec.StopAsync();
+            string vertical = await StopVerticalAsync();
             Status($"Recording saved: {rec.Path} — {rec.FramesWritten} frames, {_recordClock.Elapsed:mm\\:ss}" +
-                   (rec.FramesDropped > 0 ? $", {rec.FramesDropped} dropped (encoder busy)" : "") + SupportNudge());
+                   (rec.FramesDropped > 0 ? $", {rec.FramesDropped} dropped (encoder busy)" : "") + vertical + SupportNudge());
         }
         catch (Exception ex) { Status("Recording failed while saving: " + ex.Message); }
         finally { await rec.DisposeAsync(); }
