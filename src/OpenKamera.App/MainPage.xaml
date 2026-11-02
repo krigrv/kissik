@@ -420,18 +420,18 @@
                                           AutomationProperties.Name="Phone torch" ToolTipService.ToolTip="Phone torch (back camera)" AutomationProperties.HelpText="Phone torch (back camera)">
                                 <StackPanel Orientation="Horizontal" Spacing="6"><FontIcon Glyph="&#xE754;" FontSize="14" /><TextBlock Text="Torch" /></StackPanel>
                             </ToggleButton>
-                            <Slider x:Name="PhoneZoom" Grid.Column="2" Minimum="1" Maximum="1" StepFrequency="0.1" Value="1" IsEnabled="False"
+                            <Slider x:Name="PhoneZoom" IsThumbToolTipEnabled="False" Grid.Column="2" Minimum="1" Maximum="1" StepFrequency="0.1" Value="1" IsEnabled="False"
                                     ValueChanged="PhoneZoom_ValueChanged" AutomationProperties.Name="Phone zoom" ToolTipService.ToolTip="Phone zoom" AutomationProperties.HelpText="Phone zoom" VerticalAlignment="Center" />
                         </Grid>
                         <!-- Phone camera (native app): each control shows only when the phone reports it. -->
                         <StackPanel x:Name="PhonePro" Visibility="Collapsed" Spacing="6" Margin="0,8,0,0">
                             <ComboBox x:Name="PhoneLens" Header="Lens" HorizontalAlignment="Stretch" Visibility="Collapsed"
                                       SelectionChanged="PhoneLens_SelectionChanged" AutomationProperties.Name="Phone lens" />
-                            <Slider x:Name="PhoneEv" Header="Exposure" StepFrequency="1" Visibility="Collapsed"
+                            <Slider x:Name="PhoneEv" IsThumbToolTipEnabled="False" Header="Exposure" StepFrequency="1" Visibility="Collapsed"
                                     ValueChanged="PhoneEv_ValueChanged" AutomationProperties.Name="Phone exposure compensation" />
                             <Grid x:Name="PhoneIsoRow" ColumnSpacing="8" Visibility="Collapsed">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                <Slider x:Name="PhoneIso" Header="ISO" StepFrequency="1" ValueChanged="PhoneIso_ValueChanged" AutomationProperties.Name="Phone ISO" />
+                                <Slider x:Name="PhoneIso" IsThumbToolTipEnabled="False" Header="ISO" StepFrequency="1" ValueChanged="PhoneIso_ValueChanged" AutomationProperties.Name="Phone ISO" />
                                 <CheckBox x:Name="PhoneIsoAuto" Grid.Column="1" Content="Auto" MinWidth="0" VerticalAlignment="Bottom"
                                           Click="PhoneIsoAuto_Click" AutomationProperties.Name="Automatic ISO" />
                             </Grid>
@@ -444,7 +444,7 @@
                             </Grid>
                             <Grid x:Name="PhoneFocusRow" ColumnSpacing="8" Visibility="Collapsed">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                <Slider x:Name="PhoneFocus" Header="Focus" Minimum="0" Maximum="100" StepFrequency="1" ValueChanged="PhoneFocus_ValueChanged"
+                                <Slider x:Name="PhoneFocus" IsThumbToolTipEnabled="False" Header="Focus" Minimum="0" Maximum="100" StepFrequency="1" ValueChanged="PhoneFocus_ValueChanged"
                                         AutomationProperties.Name="Phone focus, far to near" ToolTipService.ToolTip="Far to near. Or click the picture to focus there." />
                                 <CheckBox x:Name="PhoneFocusAuto" Grid.Column="1" Content="Auto" MinWidth="0" VerticalAlignment="Bottom"
                                           Click="PhoneFocusAuto_Click" AutomationProperties.Name="Autofocus" />

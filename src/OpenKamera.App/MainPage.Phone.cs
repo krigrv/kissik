@@ -240,6 +240,9 @@ public sealed partial class MainPage
         int shortSide = Math.Min(p.Width, p.Height);
         if (ph.LastStatus?.MaxLongSide is { } max) shortSide = Math.Min(shortSide, max * 9 / 16);
         _ = ph.SendAsync("q:" + shortSide);
+        // Frame rate too (the Streaming profile is 60 fps); the phone keeps 30 if its camera can't do more.
+        int fps = ph.LastStatus?.MaxFps is { } mf && mf > 0 ? Math.Min(p.Fps, (int)mf) : p.Fps;
+        _ = ph.SendAsync("fps:" + fps);
     }
 
     private bool _phoneZoomLoading;

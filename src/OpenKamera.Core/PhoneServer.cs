@@ -15,7 +15,14 @@ public sealed record PhoneStatus(string? Device, int Width, int Height, double? 
     bool? Torch = null, double? ZoomMax = null, double? Zoom = null, int? MaxWidth = null, int? MaxHeight = null, double? MaxFps = null)
 {
     /// <summary>The longest side the phone camera can deliver (either orientation), or null if it didn't say.</summary>
-    public int? MaxLongSide => MaxWidth is { } w && MaxHeight is { } h ? Math.Max(w, h) : null;
+    /// Prefers the lens's video limit (videoMaxW/H): the still-photo size can be far larger than what it can stream.
+    public int? MaxLongSide => VideoMaxWidth is { } vw && VideoMaxHeight is { } vh ? Math.Max(vw, vh)
+        : MaxWidth is { } w && MaxHeight is { } h ? Math.Max(w, h) : null;
+    public int? VideoMaxWidth { get; init; }
+    public int? VideoMaxHeight { get; init; }
+    /// <summary>Phone-side delay: sensor exposure start → encoded (ms), and time waiting to send (ms).</summary>
+    public double? CapEncMs { get; init; }
+    public double? QueueMs { get; init; }
 
     // Pro controls from the native app. Null/empty = the lens (or the browser page) doesn't have it, so hide it.
     public double? ZoomMin { get; init; }
@@ -301,6 +308,8 @@ public sealed class PhoneServer : IAsyncDisposable
                 B("torch"), D("zoomMax"), D("zoom"), (int?)D("maxW"), (int?)D("maxH"), D("maxFps"))
             {
                 ZoomMin = D("zoomMin"),
+                VideoMaxWidth = I("videoMaxW"), VideoMaxHeight = I("videoMaxH"),
+                CapEncMs = D("capEncMs"), QueueMs = D("queueMs"),
                 Rotation = rot % 90 == 0 ? rot : 0,
                 Lenses = lenses,
                 Lens = r.TryGetProperty("lens", out var lv) && lv.ValueKind == JsonValueKind.Number ? lv.GetRawText() : S("lens"),
