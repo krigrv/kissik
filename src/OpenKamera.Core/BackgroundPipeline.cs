@@ -24,11 +24,13 @@ public sealed class BackgroundPipeline : IDisposable
             if (_lastAlpha is { } a && _lastW == w && _lastH == h) return a;
             if (!_segmenters.TryGetValue(s.Quality, out var seg)) _segmenters[s.Quality] = seg = new PersonSegmenter(s.Quality);
             var alpha = s.GreenScreen ? ChromaKey.Mask((byte[])px.Clone(), w, h, s.KeyColor, s.Similarity, s.Smoothness, 0)
-                                      : MaskOps.Upsample(seg.Segment(px, w, h), w, h);
+                                      : Refined(MaskOps.Upsample(seg.Segment(px, w, h), w, h), px, w, h);
             (_lastAlpha, _lastW, _lastH) = (alpha, w, h);
             return alpha;
         }
     }
+
+    private static float[] Refined(float[] alpha, byte[] px, int w, int h) { MaskOps.GuidedRefine(alpha, px, w, h, scale: Math.Max(2, w / 480)); return alpha; }
 
     /// <summary>Call once per frame before processing, so <see cref="PersonMask"/> never reuses an old frame's cut-out.</summary>
     public void NewFrame() { lock (_gate) { _lastAlpha = null; _lastMask = null; } }
@@ -80,7 +82,7 @@ public sealed class BackgroundPipeline : IDisposable
                 {
                     if (!_segmenters.TryGetValue(s.Quality, out var seg))
                         _segmenters[s.Quality] = seg = new PersonSegmenter(s.Quality);
-                    alpha = MaskOps.Upsample(seg.Segment(px, w, h), w, h);
+                    alpha = Refined(MaskOps.Upsample(seg.Segment(px, w, h), w, h), px, w, h);
                     (_reuse, _reuseW, _reuseH) = (alpha, w, h);
                 }
                 (_lastAlpha, _lastW, _lastH) = (alpha, w, h);

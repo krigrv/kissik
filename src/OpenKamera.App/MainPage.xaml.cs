@@ -68,6 +68,7 @@ public sealed partial class MainPage : Page
         try { InitVertical(); } catch { }
         try { InitTray(); } catch (Exception ex) { Status("Tray icon unavailable: " + ex.Message); }
         _ = CheckForUpdateAsync(quiet: true);
+        _ = InitSponsorsAsync();
         try { InitControl(); } catch (Exception ex) { Status("Remote control unavailable: " + ex.Message); }
         Unloaded += async (_, _) => { if (_control is { } c) await c.DisposeAsync(); };
         try { InitGlobalHotkeys(); } catch (Exception ex) { Status("Global shortcuts unavailable: " + ex.Message); }
@@ -571,7 +572,7 @@ public sealed partial class MainPage : Page
                     RecPillText.Text = _recPaused ? $"❚❚ PAUSED {_recordClock.Elapsed:mm\\:ss}" : $"● REC {_recordClock.Elapsed:mm\\:ss}";
                 }
                 HudText.Text = $"{copy.PixelHeight}p {_fps.Fps:0} fps · {_procMs:0} ms{(_smooth.Level > 0 ? " · smooth-first" : "")}{fx}{(_exposureCheck ? " · " + _exposureNote : "")}";
-                if (_session?.Mode is { } m) SourceInfo.Text = $"{m.Width}×{m.Height} @ {m.Fps:0}";
+                if (_session?.Mode is { } m) { SourceInfo.Text = $"{m.Width}×{m.Height} @ {m.Fps:0}"; RefreshSponsor(); }
             }
             catch (Exception ex) when (_session is not null) { Status("Preview error: " + ex.Message); }
             catch { /* frame raced with disconnect */ }
