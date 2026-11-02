@@ -8,7 +8,7 @@ namespace OpenKamera.Core.Tests;
 [CollectionDefinition(nameof(VoiceTests), DisableParallelization = true)]
 public class VoiceTestsCollection;
 
-[Collection(nameof(VoiceTests))]
+[Collection("Timing")]
 public class VoiceTests(ITestOutputHelper output)
 {
     private const int Sr = 48000;

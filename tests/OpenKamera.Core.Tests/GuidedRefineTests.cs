@@ -2,6 +2,7 @@ using System.Diagnostics;
 
 namespace OpenKamera.Core.Tests;
 
+[Collection("Timing")]
 public class GuidedRefineTests
 {
     /// <summary>A bright person on the left half, dark room on the right; the AI mask's edge is blurry and 12 px off.</summary>

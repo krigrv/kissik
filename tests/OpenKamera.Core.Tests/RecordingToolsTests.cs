@@ -1,6 +1,6 @@
 namespace OpenKamera.Core.Tests;
 
-[Collection("Encoding")]
+[Collection("Timing")]
 public class RecordingToolsTests
 {
     private static async Task<string> MakeVideo(string dir, double seconds)

@@ -6,6 +6,7 @@ using Xunit.Abstractions;
 namespace OpenKamera.Core.Tests;
 
 /// <summary>Phone pictures as NV12 for the GPU: turned on the CPU (bytes only), coloured on the GPU, same result as before.</summary>
+[Collection("Timing")]
 public class PhoneGpuTests(ITestOutputHelper log)
 {
     [Theory]

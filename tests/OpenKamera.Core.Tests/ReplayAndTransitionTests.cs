@@ -3,7 +3,7 @@ using Windows.Storage;
 
 namespace OpenKamera.Core.Tests;
 
-[Collection("Encoding")]
+[Collection("Timing")]
 public class ReplayAndTransitionTests
 {
     private static byte[] Solid(int w, int h, byte v) { var p = new byte[w * h * 4]; for (int i = 0; i < p.Length; i += 4) { p[i] = p[i + 1] = p[i + 2] = v; p[i + 3] = 255; } return p; }

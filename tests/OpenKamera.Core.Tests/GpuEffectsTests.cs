@@ -4,6 +4,7 @@ using Xunit.Abstractions;
 namespace OpenKamera.Core.Tests;
 
 /// <summary>The GPU frame path must match the CPU path (still the fallback) to within a level or two per channel.</summary>
+[Collection("Timing")]
 public class GpuEffectsTests(ITestOutputHelper log)
 {
     private const int W = 320, H = 180;

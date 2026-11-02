@@ -8,7 +8,7 @@ namespace OpenKamera.Core.Tests;
 /// Opens the real default microphone through <see cref="AudioEngine"/> and switches every noise removal mode
 /// while audio keeps running. Needs a microphone, so it only runs when KISSIK_LIVE_AUDIO=1.
 /// </summary>
-[Collection(nameof(VoiceTests))]
+[Collection("Timing")]
 public class LiveAudioTests(ITestOutputHelper output)
 {
     [Fact]

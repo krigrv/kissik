@@ -3,6 +3,7 @@ using Xunit.Abstractions;
 
 namespace OpenKamera.Core.Tests;
 
+[Collection("Timing")]
 public class BackgroundTests(ITestOutputHelper output)
 {
     private static byte[] Solid(int w, int h, byte b, byte g, byte r)

@@ -1,5 +1,6 @@
 namespace OpenKamera.Core.Tests;
 
+[Collection("Timing")]
 public class WhisperRefinerTests
 {
     [Fact]
