@@ -51,6 +51,29 @@ foreach (var (w, h) in new[] { (1920, 1080), (3840, 2160) })
             while (sw.Elapsed.TotalSeconds < 3) { FrameProcessor.Process(nv12, blur, bg, bake, (1920, 1080)); n++; }
             Console.WriteLine($"{w}x{h} gpu nv12 blur+bake, preview at 1080p: {n / sw.Elapsed.TotalSeconds:F1} fps");
         }
+        if (GpuRecorder.Available)
+        {
+            // Recording only, as the app runs it on the GPU encoder: the bake becomes a texture (no readback of it),
+            // the preview comes back at 1080p, and a real recorder encodes to a temporary file.
+            string file = Path.Combine(Path.GetTempPath(), $"kissik-bench-{w}x{h}.mp4");
+            var rec = new GpuRecorder(w, h, 30);
+            await rec.StartAsync(file);
+            var texBake = bake with { Texture = true, Bytes = false };
+            using var bg = new BackgroundPipeline();
+            for (int i = 0; i < 5; i++) FrameProcessor.Process(nv12, blur, bg, texBake, (1920, 1080)).Baked?.Texture?.Dispose();
+            var sw = Stopwatch.StartNew(); int n = 0;
+            while (sw.Elapsed.TotalSeconds < 3)
+            {
+                var o = FrameProcessor.Process(nv12, blur, bg, texBake, (1920, 1080));
+                if (o.Baked?.Texture is { } t) rec.PushTexture(t, sw.Elapsed);
+                n++;
+            }
+            double fps = n / sw.Elapsed.TotalSeconds;
+            await rec.StopAsync();
+            await rec.DisposeAsync();
+            Console.WriteLine($"{w}x{h} gpu nv12 blur+bake, recording from textures: {fps:F1} fps ({rec.FramesWritten} encoded, {rec.FramesDropped} dropped while the encoder was busy)");
+            try { File.Delete(file); } catch { }
+        }
         {
             // What the same bake costs on the CPU (MainPage's fallback), per frame, on top of the frame path.
             var frame = new byte[w * h * 4];

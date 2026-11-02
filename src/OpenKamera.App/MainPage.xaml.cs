@@ -537,7 +537,10 @@ public sealed partial class MainPage : Page
             var cap = _captionImage;
             // The meeting camera alone takes at most 1080p: shrink on the GPU so only that much comes back.
             (int, int)? fit = fullSize ? null : (VirtualCameraChannel.MaxWidth, VirtualCameraChannel.MaxHeight);
-            bake = new OutputBake(FrontAt, fadeT, cap?.Pixels, cap?.Width ?? 0, cap?.Height ?? 0, ShutterNow, fit, _settings.Transition);
+            // A recording on the GPU encoder takes the frame as a texture; bytes come back only for the others.
+            bool texture = rec is { TakesTextures: true };
+            bool bytes = !texture || vcam || live is not null || replay is not null || _vertical is not null;
+            bake = new OutputBake(FrontAt, fadeT, cap?.Pixels, cap?.Width ?? 0, cap?.Height ?? 0, ShutterNow, fit, _settings.Transition, texture, bytes);
         }
         FrameOutput output;
         // On the GPU the preview, thumbnails and picture checks get at most 1080p; the outputs keep full size.
@@ -567,7 +570,7 @@ public sealed partial class MainPage : Page
         byte[] Baked()
         {
             if (baked is not null) return baked;
-            if (onGpu is not null) return baked = onGpu.Pixels;
+            if (onGpu?.Pixels is { } gpuBytes) return baked = gpuBytes;
             baked = pixels;
             if (FrontAt(w, h) is { } front) { baked = (byte[])pixels.Clone(); SceneCompositor.BlendOver(baked, front); }
             // Scene switch: cross-fade from the last frame of the old scene.
@@ -585,7 +588,13 @@ public sealed partial class MainPage : Page
         if (vcam) FeedVirtualCamera(Baked(), ow, oh);
         live?.Push(Baked(), ow, oh);
         // Recording gets the scene layers baked in; the preview shows them as live XAML instead.
-        if (rec is not null) { var b = Baked(); rec.Push(b, ow, oh, _recordClock.Elapsed); PushVertical(b, ow, oh); }
+        if (onGpu?.Texture is { } tex)
+        {
+            // The recorder owns the texture from here (it frees it once encoded, or when it drops it).
+            if (rec is not null) rec.PushTexture(tex, _recordClock.Elapsed); else tex.Dispose();
+            if (rec is not null && onGpu.Pixels is { } b) PushVertical(b, ow, oh);
+        }
+        else if (rec is not null) { var b = Baked(); rec.Push(b, ow, oh, _recordClock.Elapsed); PushVertical(b, ow, oh); }
         replay?.Push(Baked(), ow, oh, _replayClock.Elapsed);
         Volatile.Write(ref _processing, 0);
 
@@ -958,7 +967,7 @@ public sealed partial class MainPage : Page
             RecPill.Visibility = Visibility.Visible;
             _recPaused = false; PauseBtn.Visibility = Visibility.Visible; SetPauseLook();
             AutomationProperties.SetName(RecordBtn, "■ Stop");
-            Status($"Recording {rec.Width}×{rec.Height} @ {rec.Fps} fps: {rec.Path}");
+            Status($"Recording {rec.Width}×{rec.Height} @ {rec.Fps} fps{(rec.OnGpu ? " (GPU encoder)" : "")}: {rec.Path}");
         }
         catch (Exception ex) { _recorder = null; Status("Record failed: " + ex.Message); }
     }

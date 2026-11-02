@@ -136,9 +136,11 @@ Still to test by hand before v1 (needs a person at the PC):
     and session, and reads shared memory. A texture handoff means a shared NT handle across that boundary, a new
     channel version and rebuilding and reinstalling the native source (admin). Its 1080p limit now keeps the
     readback small.
-  - *Hardware encoder from textures:* recording already encodes on the hardware (`MediaTranscoder` with hardware
-    acceleration). Feeding it textures needs a sink writer with a DXGI device manager; while the meeting camera,
-    stream or replay buffer is on, the baked frame is read back for them anyway.
+  - *Hardware encoder from textures:* done. Recording pieces are written by Media Foundation's sink writer on the
+    frame path's own device (`GpuRecorder`), so the finished frame goes to the hardware encoder as a texture and
+    the GPU converts it to the encoder's format. Bytes still come back while the meeting camera, a stream, the
+    replay buffer or the vertical copy is on. No hardware encoder (or the driver refuses): the Windows transcoder,
+    as before.
   - *Preview from a texture:* the preview now reads back at most 1080p. Drawing it straight from a texture
     (SwapChainPanel) would save that too, but the thumbnails, auto picture and meeting check still read its bytes.
 
@@ -175,6 +177,8 @@ measured in the same run for comparison). The bake is a translucent front overla
 | 4K | NV12 in + bake + privacy shutter | 83 |
 | 4K | NV12 in + bake, meeting camera only (shrunk to 1080p on the GPU) | 119 |
 | 4K | NV12 in + full-size bake, preview read back at 1080p (as when recording) | 112 (95 with a 4K preview) |
+| 4K | Recording only, frames handed to the hardware encoder as textures (real encode, none dropped) | 166 |
+| 1080p | Recording only, frames handed to the hardware encoder as textures (real encode, none dropped) | 288 |
 
 The same bake with the shutter costs 2.9 ms (1080p) and 10.8 ms (4K) a frame on the CPU, on top of the frame
 path; on the GPU it adds about 3 ms at 4K, most of it the second readback. Not yet measured in the running app:

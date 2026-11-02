@@ -20,6 +20,12 @@ public sealed class GpuEffects : IDisposable
 
     public string AdapterName { get; }
 
+    /// <summary>True when the device was made with video support, so a hardware encoder can take its textures.</summary>
+    public bool VideoSupport { get; }
+
+    /// <summary>The device frames live on (the recorder hands it to Media Foundation).</summary>
+    internal ID3D11Device Device => _device;
+
     private readonly ID3D11Device _device;
     private readonly ID3D11DeviceContext _ctx;
     private readonly Dictionary<string, ID3D11ComputeShader> _cs = [];
@@ -41,15 +47,22 @@ public sealed class GpuEffects : IDisposable
 
     private GpuEffects()
     {
-        D3D11.D3D11CreateDevice(null, DriverType.Hardware, DeviceCreationFlags.None, [FeatureLevel.Level_11_0],
-            out _device!, out _ctx!).CheckError();
+        // Video support lets the hardware encoder share this device (recording straight from textures); some drivers
+        // refuse it, and then the frame path runs without.
+        if (D3D11.D3D11CreateDevice(null, DriverType.Hardware, DeviceCreationFlags.VideoSupport, [FeatureLevel.Level_11_0],
+                out _device!, out _ctx!).Failure)
+            D3D11.D3D11CreateDevice(null, DriverType.Hardware, DeviceCreationFlags.None, [FeatureLevel.Level_11_0],
+                out _device!, out _ctx!).CheckError();
+        else VideoSupport = true;
+        // Media Foundation uses the immediate context from its own threads.
+        using (var mt = _device.QueryInterface<ID3D11Multithread>()) mt.SetMultithreadProtected(true);
         using (var dxgi = _device.QueryInterface<Vortice.DXGI.IDXGIDevice>())
         using (var adapter = dxgi.GetAdapter())
             AdapterName = adapter.Description.Description;
 
         using var stream = typeof(GpuEffects).Assembly.GetManifestResourceStream("OpenKamera.Core.GpuEffects.hlsl")!;
         string source = new StreamReader(stream).ReadToEnd();
-        foreach (var entry in new[] { "Transform", "Fit", "Small", "Upsample", "GuideDown", "GuideBoxH", "GuideBoxV", "GuideAB", "GuideApply", "Retouch", "BlurDown", "BoxH", "BoxV", "Effects", "Sharpen", "Scene", "Nv12", "Yuy2", "Over", "Fade", "Caption", "PixBlock", "PixFill", "Slide", "Zoom", "Place" })
+        foreach (var entry in new[] { "Transform", "Fit", "Small", "Upsample", "GuideDown", "GuideBoxH", "GuideBoxV", "GuideAB", "GuideApply", "Retouch", "BlurDown", "BoxH", "BoxV", "Effects", "Sharpen", "Scene", "Nv12", "Yuy2", "Over", "Fade", "Caption", "PixBlock", "PixFill", "Slide", "Zoom", "Place", "ToTexture" })
         {
             var code = Compiler.Compile(source, entry, "GpuEffects.hlsl", "cs_5_0", ShaderFlags.OptimizationLevel3);
             _cs[entry] = _device.CreateComputeShader(code.Span);
@@ -265,10 +278,62 @@ public sealed class GpuEffects : IDisposable
             if (b.Shutter == ShutterMode.Away) PrivacyShutter.DrawPause(small, nw, nh);
             return new BakedFrame(small, nw, nh);
         }
-        if (k is null) return new BakedFrame(pixels ?? Download(cur, n * 4), w, h);
+        // The recorder can take a texture (the Away sign is drawn on the CPU, so that one comes back as bytes).
+        GpuFrame? texture = b.Texture && VideoSupport && b.Shutter != ShutterMode.Away ? ToTexture(k ?? cur, w, h) : null;
+        if (texture is not null && !b.Bytes) return new BakedFrame(null, w, h, texture);
+        if (k is null) return new BakedFrame(pixels ?? Download(cur, n * 4), w, h, texture);
         var baked = Download(k, n * 4);
         if (b.Shutter == ShutterMode.Away) PrivacyShutter.DrawPause(baked, w, h);
-        return new BakedFrame(baked, w, h);
+        return new BakedFrame(baked, w, h, texture);
+    }
+
+    /// <summary>
+    /// Copies a frame into a new B8G8R8A8 texture for the hardware encoder. A fresh texture per frame: the encoder
+    /// holds samples for a while and frees each texture when it is done with it. Null if the GPU can't write that format.
+    /// </summary>
+    private GpuFrame? ToTexture(string src, int w, int h)
+    {
+        if (_textureFails) return null;
+        try
+        {
+            var tex = _device.CreateTexture2D(new Texture2DDescription(Vortice.DXGI.Format.B8G8R8A8_UNorm, (uint)w, (uint)h, 1, 1,
+                BindFlags.UnorderedAccess | BindFlags.ShaderResource | BindFlags.RenderTarget));
+            using (var uav = _device.CreateUnorderedAccessView(tex, new UnorderedAccessViewDescription(tex, UnorderedAccessViewDimension.Texture2D)))
+            {
+                SetParams(new Params { I0 = new(w, h, 0, 0) });
+                _ctx.CSSetShader(_cs["ToTexture"]);
+                _ctx.CSSetConstantBuffer(0, _params);
+                _ctx.CSSetShaderResource(0, Get(src).Srv);
+                _ctx.CSSetUnorderedAccessView(3, uav);
+                int groups = (w * h + 255) / 256, gx = Math.Min(groups, 65535), gy = (groups + gx - 1) / gx;
+                _ctx.Dispatch((uint)gx, (uint)gy, 1);
+                _ctx.CSSetShaderResource(0, null!);
+                _ctx.CSSetUnorderedAccessView(3, null!);
+            }
+            return new GpuFrame(tex, w, h);
+        }
+        catch (Exception) { _textureFails = true; return null; }
+    }
+
+    private bool _textureFails;
+
+    /// <summary>Reads a texture made by the frame path back as BGRA (tests).</summary>
+    public byte[] ReadTexture(GpuFrame f)
+    {
+        lock (_gate)
+        {
+            using var staging = _device.CreateTexture2D(new Texture2DDescription(Vortice.DXGI.Format.B8G8R8A8_UNorm, (uint)f.Width, (uint)f.Height, 1, 1,
+                BindFlags.None, ResourceUsage.Staging, CpuAccessFlags.Read));
+            _ctx.CopyResource(staging, f.Texture);
+            var map = _ctx.Map(staging, 0, MapMode.Read);
+            try
+            {
+                var px = new byte[f.Width * f.Height * 4];
+                for (int y = 0; y < f.Height; y++) Marshal.Copy(map.DataPointer + (nint)(y * map.RowPitch), px, y * f.Width * 4, f.Width * 4);
+                return px;
+            }
+            finally { _ctx.Unmap(staging, 0); }
+        }
     }
 
     /// <summary>Start a scene cross-fade from the last baked output frame (then pass <see cref="OutputBake.FadeT"/>).</summary>

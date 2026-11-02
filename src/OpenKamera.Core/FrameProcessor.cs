@@ -24,10 +24,24 @@ public sealed record PlacedSource(byte[] Pixels, int Width, int Height, SceneLay
 public sealed record OutputBake(
     Func<int, int, byte[]?>? Front = null, double? FadeT = null,
     byte[]? Caption = null, int CaptionWidth = 0, int CaptionHeight = 0, ShutterMode Shutter = ShutterMode.Off,
-    (int Width, int Height)? FitWithin = null, SceneTransition Transition = SceneTransition.Fade);
+    (int Width, int Height)? FitWithin = null, SceneTransition Transition = SceneTransition.Fade,
+    bool Texture = false, bool Bytes = true);
 
-/// <summary>The baked output frame; smaller than the processed frame when <see cref="OutputBake.FitWithin"/> shrank it.</summary>
-public sealed record BakedFrame(byte[] Pixels, int Width, int Height);
+/// <summary>The baked output frame; smaller than the processed frame when <see cref="OutputBake.FitWithin"/> shrank it.
+/// <see cref="Pixels"/> is null when only a <see cref="Texture"/> was asked for (OutputBake.Bytes false).</summary>
+public sealed record BakedFrame(byte[]? Pixels, int Width, int Height, GpuFrame? Texture = null);
+
+/// <summary>
+/// A finished output frame on the GPU, for the hardware encoder. Whoever ends up with it disposes it (the encoder
+/// keeps its own reference while it works).
+/// </summary>
+public sealed class GpuFrame(Vortice.Direct3D11.ID3D11Texture2D texture, int width, int height) : IDisposable
+{
+    internal Vortice.Direct3D11.ID3D11Texture2D Texture { get; } = texture;
+    public int Width { get; } = width;
+    public int Height { get; } = height;
+    public void Dispose() => Texture.Dispose();
+}
 
 /// <summary>A processed frame; Baked is the output bake, or null when it wasn't asked for or the CPU path ran.</summary>
 public sealed record FrameOutput(byte[] Pixels, int Width, int Height, BakedFrame? Baked);

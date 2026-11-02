@@ -687,3 +687,15 @@ void Place(uint3 id : SV_DispatchThreadID)
     }
     Dst[p] = Pack(o);
 }
+
+// The finished frame into a B8G8R8A8 texture for the hardware encoder (the view's float4 is r, g, b, a).
+RWTexture2D<unorm float4> OutTex : register(u3);
+
+[numthreads(256, 1, 1)]
+void ToTexture(uint3 id : SV_DispatchThreadID)
+{
+    uint p = Index(id);
+    if (p >= (uint)(W * H)) return;
+    float4 c = Unpack(Src[p]) / 255;
+    OutTex[uint2(p % (uint)W, p / (uint)W)] = float4(c.z, c.y, c.x, c.w);
+}

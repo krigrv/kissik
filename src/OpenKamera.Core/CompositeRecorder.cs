@@ -12,7 +12,7 @@ namespace OpenKamera.Core;
 /// from the audio mix. Frames and audio are pushed from any thread with times on the same clock; the encoder
 /// pulls them in order.
 /// </summary>
-public sealed class CompositeRecorder : IAsyncDisposable
+public sealed class CompositeRecorder : IRecorderPart
 {
     private readonly BlockingCollection<(byte[] Pixels, TimeSpan Time)> _queue = new(boundedCapacity: 45);
     private readonly BlockingCollection<(byte[] Pcm, TimeSpan Time, TimeSpan Duration)> _audio = new(boundedCapacity: 400);
@@ -85,6 +85,11 @@ public sealed class CompositeRecorder : IAsyncDisposable
             finally { stream.Dispose(); }
         });
     }
+
+    public bool TakesTextures => false;
+
+    /// <summary>This recorder only takes bytes: a texture is dropped (and disposed).</summary>
+    public void PushTexture(GpuFrame frame, TimeSpan captureTime) { FramesDropped++; frame.Dispose(); }
 
     /// <summary>Queues a frame. Frames of the wrong size are dropped (the profile changed mid-recording).</summary>
     public void Push(byte[] bgra, int width, int height, TimeSpan captureTime)

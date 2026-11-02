@@ -16,7 +16,7 @@ public sealed class SegmentedRecorder : IAsyncDisposable
     private readonly int _w, _h, _fps;
     private readonly bool _audio;
     private readonly List<Task> _finishing = [];
-    private volatile CompositeRecorder? _current;
+    private volatile IRecorderPart? _current;
     private int _rotating;
     private TimeSpan _partStart;
     private string _partsDir = "";
@@ -33,6 +33,15 @@ public sealed class SegmentedRecorder : IAsyncDisposable
 
     public SegmentedRecorder(int width, int height, int fps, bool withAudio = false) { _w = width; _h = height; _fps = fps; _audio = withAudio; }
 
+    /// <summary>Write pieces with the GPU's hardware encoder when there is one (frames can then stay on the GPU).</summary>
+    public bool PreferGpu { get; init; } = true;
+
+    /// <summary>True when the piece being written takes GPU frames (<see cref="PushTexture"/>).</summary>
+    public bool TakesTextures => _current?.TakesTextures == true;
+
+    /// <summary>True when the pieces are written by the GPU's encoder (shown in the status line).</summary>
+    public bool OnGpu { get; private set; }
+
     public async Task StartAsync(string path)
     {
         Path = UniquePath(path);
@@ -41,12 +50,28 @@ public sealed class SegmentedRecorder : IAsyncDisposable
         _current = await NewPartAsync();
     }
 
-    private async Task<CompositeRecorder> NewPartAsync()
+    private async Task<IRecorderPart> NewPartAsync()
     {
+        string path = System.IO.Path.Combine(_partsDir, $"part{++_index:D4}.mp4");
+        if (PreferGpu && GpuRecorder.Available && !_gpuFailed)
+        {
+            var gpu = new GpuRecorder(_w, _h, _fps, _audio);
+            try { await gpu.StartAsync(path); OnGpu = true; return gpu; }
+            catch
+            {
+                // No hardware encoder for this size, or the driver said no: the Windows transcoder from here on.
+                _gpuFailed = true;
+                try { await gpu.DisposeAsync(); } catch { }
+                try { File.Delete(path); } catch { }
+            }
+        }
         var rec = new CompositeRecorder(_w, _h, _fps, _audio);
-        await rec.StartAsync(System.IO.Path.Combine(_partsDir, $"part{++_index:D4}.mp4"));
+        await rec.StartAsync(path);
+        OnGpu = false;
         return rec;
     }
+
+    private bool _gpuFailed;
 
     public void Push(byte[] bgra, int width, int height, TimeSpan captureTime)
     {
@@ -54,6 +79,21 @@ public sealed class SegmentedRecorder : IAsyncDisposable
         if (rec is null) return;
         if (rec.FramesWritten == 0 && _partStart == default) _partStart = captureTime;
         rec.Push(bgra, width, height, captureTime);
+        Rotate(captureTime);
+    }
+
+    /// <summary>Queues a GPU frame; this recorder owns it from here (a piece that only takes bytes drops it).</summary>
+    public void PushTexture(GpuFrame frame, TimeSpan captureTime)
+    {
+        var rec = _current;
+        if (rec is null) { frame.Dispose(); return; }
+        if (rec.FramesWritten == 0 && _partStart == default) _partStart = captureTime;
+        rec.PushTexture(frame, captureTime);
+        Rotate(captureTime);
+    }
+
+    private void Rotate(TimeSpan captureTime)
+    {
         if (captureTime - _partStart >= SegmentLength && Interlocked.Exchange(ref _rotating, 1) == 0)
         {
             _partStart = captureTime;
@@ -75,7 +115,7 @@ public sealed class SegmentedRecorder : IAsyncDisposable
 
     public void PushAudio(float[] interleaved, TimeSpan captureTime) => _current?.PushAudio(interleaved, captureTime);
 
-    private async Task FinishAsync(CompositeRecorder rec)
+    private async Task FinishAsync(IRecorderPart rec)
     {
         // A piece that started just before Stop can be empty; its failure must never lose the pieces before it.
         try { await rec.StopAsync(); }
