@@ -26,6 +26,13 @@ class H264Encoder(val width: Int, val height: Int, fps: Int, surfaceInput: Boole
     private val mime = if (hevc) MediaFormat.MIMETYPE_VIDEO_HEVC else MediaFormat.MIMETYPE_VIDEO_AVC
     private val codec = MediaCodec.createEncoderByType(mime)
     private var config: ByteArray? = null
+    /**
+     * Added to the encoder's timestamps to put them on SystemClock.elapsedRealtime: camera timestamps are either
+     * already on that clock (REALTIME source) or on the monotonic clock (UNKNOWN source). Set by the service.
+     */
+    @Volatile var clockOffsetUs = 0L
+    /** Capture → encoded delay of recent frames (µs), for the status. */
+    val captureToEncodedUs = Window()
     /** Where the camera draws, in zero-copy mode. */
     val surface: android.view.Surface?
     @Volatile private var running = true
@@ -116,7 +123,11 @@ class H264Encoder(val width: Int, val height: Int, fps: Int, surfaceInput: Boole
                         val isKey = info.flags and MediaCodec.BUFFER_FLAG_KEY_FRAME != 0
                         val body = if (isKey && config != null) config!! + data else data
                         val p = ByteBuffer.allocate(10 + body.size).order(ByteOrder.LITTLE_ENDIAN)
-                        p.put('V'.code.toByte()).put((if (isKey) 1 else 0).toByte()).putLong(info.presentationTimeUs).put(body)
+                        // Timestamp = when the sensor captured the frame, on the phone's elapsedRealtime clock (µs).
+                        val ptsUs = info.presentationTimeUs + clockOffsetUs
+                        val nowUs = android.os.SystemClock.elapsedRealtimeNanos() / 1000
+                        if (surface != null) captureToEncodedUs.add(nowUs - ptsUs)
+                        p.put('V'.code.toByte()).put((if (isKey) 1 else 0).toByte()).putLong(ptsUs).put(body)
                         onPacket(p.array(), isKey)
                     }
                 }
@@ -140,6 +151,13 @@ class H264Encoder(val width: Int, val height: Int, fps: Int, surfaceInput: Boole
     fun release() {
         running = false
         runCatching { codec.stop() }; runCatching { codec.release() }; surface?.release()
+    }
+
+    /** A small rolling average. */
+    class Window(private val size: Int = 30) {
+        private val values = ArrayDeque<Long>()
+        @Synchronized fun add(v: Long) { if (v in 0..5_000_000) { values.addLast(v); if (values.size > size) values.removeFirst() } }
+        @Synchronized fun averageMs(): Double? = if (values.isEmpty()) null else values.average() / 1000.0
     }
 
     companion object {

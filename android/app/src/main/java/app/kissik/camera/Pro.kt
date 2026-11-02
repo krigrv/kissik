@@ -49,7 +49,8 @@ object Pro {
     val wb = MutableStateFlow("auto")
     /** Target frame rate; 0 = automatic. */
     val fps = MutableStateFlow(0)
-    val stab = MutableStateFlow(true)
+    /** Off by default: stabilization holds frames back to smooth motion, which adds delay. */
+    val stab = MutableStateFlow(false)
     val hdr = MutableStateFlow(false)
     /** "jpeg" (works with every KISSIK) or "h264" (hardware encoder; only when the PC asks for it). */
     val codec = MutableStateFlow("jpeg")

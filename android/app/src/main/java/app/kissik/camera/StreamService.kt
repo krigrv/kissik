@@ -192,7 +192,7 @@ class StreamService : LifecycleService() {
             while (isActive) {
                 delay(1000)
                 txFps = txSent; val dropped = txDropped; txSent = 0; txDropped = 0
-                if (ws != null) netLog("tx ${txFps} fps, dropped $dropped, queue ${(ws?.queueSize() ?: 0) / 1024} KB, bitrate ${(encoder?.currentBitrate ?: 0) / 1000} kbps")
+                if (ws != null) netLog("tx ${txFps} fps, dropped $dropped, queue ${(ws?.queueSize() ?: 0) / 1024} KB, bitrate ${(encoder?.currentBitrate ?: 0) / 1000} kbps, capture->encoded ${encoder?.captureToEncodedUs?.averageMs()?.let { "%.0f ms".format(it) } ?: "-"}")
             }
         }
     }
@@ -253,6 +253,7 @@ class StreamService : LifecycleService() {
             val size = request.resolution
             val enc = runCatching { H264Encoder(size.width, size.height, videoFps, surfaceInput = true, kind = key.codec, onPacket = ::sendVideo) }.getOrNull()
             if (enc?.surface == null) { request.willNotProvideSurface(); Live.message.value = "This phone's video encoder couldn't start."; return@VideoFeed }
+            enc.clockOffsetUs = clockOffsetUs()
             encoder?.release(); encoder = enc; needKey = true
             netLog("zero-copy ${key.codec} encoder ${size.width}x${size.height} @ $videoFps fps")
             request.provideSurface(enc.surface, encoderExecutor) { if (encoder === enc) encoder = null; enc.release() }
@@ -324,10 +325,12 @@ class StreamService : LifecycleService() {
         val now = System.nanoTime()
         // Smart bitrate, at most twice a second: back off when the link can't keep up, creep back up when clear.
         if (enc != null && now - lastRateChange > 500_000_000L) {
-            if (queued > 512 * 1024) { enc.setBitrate(enc.currentBitrate * 3 / 4); lastRateChange = now }
+            if (queued > 32 * 1024) { enc.setBitrate(enc.currentBitrate * 3 / 4); lastRateChange = now }
             else if (queued < 64 * 1024 && enc.currentBitrate < enc.maxBitrate) { enc.setBitrate(enc.currentBitrate * 9 / 8); lastRateChange = now }
         }
-        if (queued > 2 * 1024 * 1024) {
+        // Keep the queue to about 300 ms of video (but always room for a whole keyframe): anything older is lag.
+        val maxQueued = maxOf(256 * 1024, (enc?.currentBitrate ?: 3_000_000) / 8 * 3 / 10)
+        if (queued > maxQueued) {
             // Too far behind: drop this frame, then resume from a keyframe. Ask for that keyframe only once a second;
             // asking on every packet turns every frame into a large keyframe and keeps the link clogged.
             needKey = true
@@ -419,6 +422,16 @@ class StreamService : LifecycleService() {
         }
     }
 
+    /** Camera timestamps on the monotonic clock need this to land on elapsedRealtime (the PC's reference). */
+    @androidx.annotation.OptIn(ExperimentalCamera2Interop::class)
+    private fun clockOffsetUs(): Long {
+        val source = runCatching {
+            Camera2CameraInfo.from(camera!!.cameraInfo).getCameraCharacteristic(CameraCharacteristics.SENSOR_INFO_TIMESTAMP_SOURCE)
+        }.getOrNull()
+        return if (source == CameraCharacteristics.SENSOR_INFO_TIMESTAMP_SOURCE_REALTIME) 0L
+        else (android.os.SystemClock.elapsedRealtimeNanos() - System.nanoTime()) / 1000
+    }
+
     private val REJECTED = "rejected"
     private fun netLog(msg: String) { if (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0) android.util.Log.d("KissikNet", msg) }
 
@@ -430,7 +443,9 @@ class StreamService : LifecycleService() {
             if (pairing == null) { Live.message.value = "Not paired. Scan the code in KISSIK."; delay(2000); continue }
             val usb = usbReachable(pairing.port + 1)
             Live.link.value = Link.Connecting
+            // TCP_NODELAY: send each frame at once instead of letting the OS batch small packets.
             val builder = OkHttpClient.Builder().pingInterval(5, TimeUnit.SECONDS).connectTimeout(4, TimeUnit.SECONDS)
+                .socketFactory(NoDelaySocketFactory)
             if (!usb) {
                 val trust = PinningTrust(pairing.pin) { fp -> pairing.copy(pin = fp).save(this) }
                 builder.sslSocketFactory(trust.socketFactory(), trust).hostnameVerifier { _, _ -> true } // the pin is the check
@@ -558,6 +573,12 @@ class StreamService : LifecycleService() {
         if (enc != null) json.put("w", if (rot % 180 == 0) enc.width else enc.height).put("h", if (rot % 180 == 0) enc.height else enc.width)
         json.put("rot", rot)
         json.put("txFps", txFps).put("txQueueKB", (socket?.queueSize() ?: 0) / 1024)
+        // Where the phone's share of the delay goes: sensor capture → encoded, then waiting in the send queue.
+        encoder?.let { e ->
+            e.captureToEncodedUs.averageMs()?.let { json.put("capEncMs", "%.1f".format(java.util.Locale.ROOT, it).toDouble()) }
+            json.put("queueMs", ((socket?.queueSize() ?: 0) * 8000L / maxOf(1, e.currentBitrate)).toInt())
+            json.put("ptsClock", "elapsedRealtime")
+        }
         encoder?.let { json.put("bitrate", it.currentBitrate) }
         Pro.putStatus(json)
         Mic.putStatus(json)
