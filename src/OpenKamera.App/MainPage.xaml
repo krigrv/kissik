@@ -371,6 +371,19 @@
                                 <Button x:Name="ConnectBtn" Grid.Column="2" Content="Connect" Click="ConnectBtn_Click" CornerRadius="10" />
                             </Grid>
                         </Border>
+                        <!-- Phone remote: shown while the phone is the camera. -->
+                        <Grid x:Name="PhoneControls" Visibility="Collapsed" Margin="0,8,0,0" ColumnSpacing="6">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                            <Button x:Name="PhoneFlipBtn" Click="PhoneFlip_Click" AutomationProperties.Name="Switch the phone's front and back camera" ToolTipService.ToolTip="Front / back camera">
+                                <StackPanel Orientation="Horizontal" Spacing="6"><FontIcon Glyph="&#xE89E;" FontSize="14" /><TextBlock Text="Flip" /></StackPanel>
+                            </Button>
+                            <ToggleButton x:Name="PhoneTorchBtn" Grid.Column="1" Click="PhoneTorch_Click" IsEnabled="False"
+                                          AutomationProperties.Name="Phone torch" ToolTipService.ToolTip="Phone torch (back camera)">
+                                <StackPanel Orientation="Horizontal" Spacing="6"><FontIcon Glyph="&#xE754;" FontSize="14" /><TextBlock Text="Torch" /></StackPanel>
+                            </ToggleButton>
+                            <Slider x:Name="PhoneZoom" Grid.Column="2" Minimum="1" Maximum="1" StepFrequency="0.1" Value="1" IsEnabled="False"
+                                    ValueChanged="PhoneZoom_ValueChanged" AutomationProperties.Name="Phone zoom" ToolTipService.ToolTip="Phone zoom" VerticalAlignment="Center" />
+                        </Grid>
                         <Grid Margin="0,8,0,0">
                             <TextBlock Text="Focus" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
                             <SelectorBar x:Name="FocusMode" SelectionChanged="FocusMode_SelectionChanged" IsEnabled="False" HorizontalAlignment="Right">

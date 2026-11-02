@@ -101,7 +101,7 @@ everything from the PC, switching between paired phones/PCs.
 - [ ] P1 Recently connected device list
 - [x] P5 Phone as webcam — browser page over HTTPS/WebSocket (QR pairing, verified on a real phone); native Android app later
 - [x] P5 Phone over Wi-Fi and USB (Android: adb reverse to a localhost-only listener, page opens on the phone, no certificate warning)
-- [ ] P5 Control phone camera settings from desktop (lens, focus, exposure, flash, stabilisation)
+- [~] P5 Control the phone from the PC: lens flip, torch, zoom (done). Focus/exposure still to do
 - [ ] P2 DSLR/mirrorless/action cameras — via their UVC webcam mode or an HDMI capture card (both appear as normal sources)
 - [ ] P2 HDMI capture-card sources (UVC; same path)
 - ⚠ Apple Continuity Camera — macOS-only API; needs a Mac build

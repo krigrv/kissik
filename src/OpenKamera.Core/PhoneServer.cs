@@ -11,7 +11,8 @@ using System.Text.Json;
 namespace OpenKamera.Core;
 
 /// <summary>Status the phone page reports alongside its frames.</summary>
-public sealed record PhoneStatus(string? Device, int Width, int Height, double? Battery, bool? Charging, string? Facing);
+public sealed record PhoneStatus(string? Device, int Width, int Height, double? Battery, bool? Charging, string? Facing,
+    bool? Torch = null, double? ZoomMax = null, double? Zoom = null);
 
 /// <summary>
 /// Phone as camera, no app needed: a tiny HTTPS + WebSocket server on the local network. The phone opens the pairing
@@ -209,7 +210,8 @@ public sealed class PhoneServer : IAsyncDisposable
             double? D(string n) => r.TryGetProperty(n, out var v) && v.ValueKind == JsonValueKind.Number ? v.GetDouble() : null;
             bool? B(string n) => r.TryGetProperty(n, out var v) && v.ValueKind is JsonValueKind.True or JsonValueKind.False ? v.GetBoolean() : null;
             string? S(string n) => r.TryGetProperty(n, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
-            return new PhoneStatus(S("device"), (int)(D("w") ?? 0), (int)(D("h") ?? 0), D("battery"), B("charging"), S("facing"));
+            return new PhoneStatus(S("device"), (int)(D("w") ?? 0), (int)(D("h") ?? 0), D("battery"), B("charging"), S("facing"),
+                B("torch"), D("zoomMax"), D("zoom"));
         }
         catch { return null; }
     }

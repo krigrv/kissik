@@ -64,15 +64,30 @@ function connect() {
   ws.onmessage = async e => {
     if (e.data === 'front' || e.data === 'back') { facing = e.data === 'front' ? 'user' : 'environment'; await openCamera(); sendStatus(); }
     else if (typeof e.data === 'string' && e.data.startsWith('q:')) { quality = +e.data.slice(2) || 720; document.getElementById('q').value = String(quality); await openCamera(); }
+    else if (typeof e.data === 'string' && e.data.startsWith('torch:')) await setTrack({ torch: e.data === 'torch:on' });
+    else if (typeof e.data === 'string' && e.data.startsWith('zoom:')) {
+      const caps = stream?.getVideoTracks()[0]?.getCapabilities?.() || {};
+      if (caps.zoom) await setTrack({ zoom: Math.min(caps.zoom.max, Math.max(caps.zoom.min, +e.data.slice(5) || 1)) });
+    }
   };
+}
+
+// Torch and zoom are camera-track settings; phones that don't support them simply ignore the request.
+async function setTrack(c) {
+  const t = stream?.getVideoTracks()[0];
+  if (!t) return;
+  try { await t.applyConstraints({ advanced: [c] }); } catch {}
+  sendStatus();
 }
 
 async function sendStatus() {
   if (!ws || ws.readyState !== 1) return;
   let battery = null, charging = null;
   try { const b = await navigator.getBattery(); battery = b.level; charging = b.charging; } catch {}
+  const caps = stream?.getVideoTracks()[0]?.getCapabilities?.() || {}, set = stream?.getVideoTracks()[0]?.getSettings?.() || {};
   ws.send(JSON.stringify({ device: navigator.userAgent.match(/\(([^)]+)\)/)?.[1] || 'phone',
-    w: v.videoWidth, h: v.videoHeight, battery, charging, facing: facing === 'user' ? 'front' : 'back' }));
+    w: v.videoWidth, h: v.videoHeight, battery, charging, facing: facing === 'user' ? 'front' : 'back',
+    torch: caps.torch ? !!set.torch : null, zoomMax: caps.zoom ? caps.zoom.max : null, zoom: set.zoom ?? null }));
 }
 
 function pump() {
