@@ -30,7 +30,7 @@ class IosPlatform : StudioPlatform {
     override val camera: CameraService = iosCamera
     override val audio: AudioService = iosAudio
     override val media: MediaService = IosMedia(iosCamera, iosAudio)
-    override val live: LiveService = IosLive()
+    override val live: LiveService = IosLiveStream(iosCamera, iosAudio)
     override val captions: CaptionService = IosCaptions()
     override val scanner: ScannerService = IosScanner { host }
     override val webcam: WebcamService = IosWebcam(iosCamera, iosAudio, store)
@@ -143,25 +143,6 @@ class IosAudio : AudioService {
     private fun maybeStop() { if (users <= 0) { users = 0; engine.inputNode.removeTapOnBus(0u); engine.stop(); level.value = 0f } }
 }
 
-// ── Live (RTMP) ──────────────────────────────────────────────────────────────
-
-/**
- * iOS has no system RTMP client. The Swift host can plug one in (e.g. HaishinKit, BSD-3-Clause) through [IosLive.bridge];
- * without it, Go live reports that streaming needs the bridge.
- */
-class IosLive : LiveService {
-    interface Bridge { fun start(urls: List<Pair<String, String>>, settings: app.kissik.studio.stream.StreamSettings, state: (String, app.kissik.studio.stream.LinkState) -> Unit); fun stop() }
-    companion object { var bridge: Bridge? = null }
-    override val states = MutableStateFlow<Map<String, app.kissik.studio.stream.LinkState>>(emptyMap())
-    override val supportsHevc = true
-    override fun start(destinations: List<app.kissik.studio.stream.Destination>, settings: app.kissik.studio.stream.StreamSettings) {
-        val b = bridge
-        if (b == null) { states.value = destinations.associate { it.id to app.kissik.studio.stream.LinkState.Failed }; return }
-        b.start(destinations.map { it.id to it.publishUrl }, settings) { id, s -> onMain { states.value = states.value + (id to s) } }
-    }
-    override fun stop() { bridge?.stop(); states.value = states.value.mapValues { app.kissik.studio.stream.LinkState.Idle } }
-}
-
 // ── Captions ─────────────────────────────────────────────────────────────────
 
 class IosCaptions : CaptionService {
@@ -230,6 +211,23 @@ class IosScanner(private val host: () -> UIViewController?) : ScannerService {
         }
         delegate = d; vc.delegate = d
         host()?.presentViewController(vc, true, null)
+    }
+
+    private var codePicker: NSObject? = null
+    override fun readCodesFromPicture(onCodes: (List<String>?) -> Unit) {
+        val picker = UIImagePickerController().apply { sourceType = UIImagePickerControllerSourceType.UIImagePickerControllerSourceTypePhotoLibrary }
+        val d = object : NSObject(), UIImagePickerControllerDelegateProtocol, UINavigationControllerDelegateProtocol {
+            override fun imagePickerController(picker: UIImagePickerController, didFinishPickingMediaWithInfo: Map<Any?, *>) {
+                picker.dismissViewControllerAnimated(true, null)
+                val cg = (didFinishPickingMediaWithInfo[UIImagePickerControllerOriginalImage] as? UIImage)?.CGImage ?: run { onCodes(emptyList()); return }
+                val req = VNDetectBarcodesRequest()
+                VNImageRequestHandler(cg, emptyMap<Any?, Any?>()).performRequests(listOf(req), null)
+                onCodes(req.results?.mapNotNull { (it as? VNBarcodeObservation)?.payloadStringValue } ?: emptyList())
+            }
+            override fun imagePickerControllerDidCancel(picker: UIImagePickerController) { picker.dismissViewControllerAnimated(true, null); onCodes(null) }
+        }
+        codePicker = d; picker.delegate = d
+        host()?.presentViewController(picker, true, null)
     }
 
     override fun recognizeText(page: ScannedPage, onText: (String?) -> Unit) {

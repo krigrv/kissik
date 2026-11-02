@@ -42,7 +42,7 @@ class CaptionTrack(private val maxChars: Int = 42, private val holdMs: Long = 40
 
 enum class CaptionEngineKind(val label: String, val detail: String) {
     Fast("Fast", "The phone's own on-device speech recognition"),
-    Accurate("Accurate", "Whisper on the phone: slower, better with accents and noise"),
+    Accurate("Accurate", "Whisper on the phone: slower, better with accents and noise. Downloads a 148 MB model once"),
 }
 
 /** SRT subtitle file from timed caption segments, saved next to recordings. */

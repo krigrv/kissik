@@ -80,8 +80,9 @@ class AndroidCamera(private val activity: ComponentActivity, private val reduced
     @Volatile var lastFrame: Bitmap? = null; private set
 
     private val compositor = Compositor()
-    private val segmenter by lazy { Segmentation.getClient(SelfieSegmenterOptions.Builder().setDetectorMode(SelfieSegmenterOptions.STREAM_MODE).build()) }
-    private val faceDetector by lazy { FaceDetection.getClient(FaceDetectorOptions.Builder().setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST).build()) }
+    @Volatile private var visionEngine = PersonVision.MEDIAPIPE
+    @Volatile private var vision: PersonVision? = null
+    private fun vision(): PersonVision = vision ?: PersonVision.create(activity, visionEngine).also { vision = it }
     private val barcodeScanner by lazy { BarcodeScanning.getClient() }
 
     // Chosen settings (re-applied after every rebind).
@@ -271,9 +272,7 @@ class AndroidCamera(private val activity: ComponentActivity, private val reduced
                 Tasks.await(barcodeScanner.process(InputImage.fromBitmap(bmp, 0)), 2, TimeUnit.SECONDS).forEach { b -> b.rawValue?.let { barcodes.tryEmit(it) } }
             }
             if (wantFaces && frameNo % 3 == 0L) runCatching {
-                val found = Tasks.await(faceDetector.process(InputImage.fromBitmap(bmp, 0)), 2, TimeUnit.SECONDS)
-                lastFaces = found.map { f -> val r = f.boundingBox
-                    NRect(r.left / bmp.width.toFloat(), r.top / bmp.height.toFloat(), r.width() / bmp.width.toFloat(), r.height() / bmp.height.toFloat()) }
+                lastFaces = vision().faces(bmp)
                 faces.value = lastFaces
             }
             if (!fx.needsProcessing && sinks.isEmpty()) { if (processed.value != null) processed.value = null; return }
@@ -292,12 +291,14 @@ class AndroidCamera(private val activity: ComponentActivity, private val reduced
         } finally { image.close() }
     }
 
-    private fun segment(bmp: Bitmap): Mask? = runCatching {
-        val r = Tasks.await(segmenter.process(InputImage.fromBitmap(bmp, 0)), 2, TimeUnit.SECONDS)
-        val buf = r.buffer.asFloatBuffer()
-        val v = FloatArray(r.width * r.height); buf.get(v)
-        Mask(r.width, r.height, v)
-    }.getOrNull()
+    private fun segment(bmp: Bitmap): Mask? = vision().mask(bmp)
+
+    /** "mediapipe" (open source, default) or "mlkit". The old engine is closed on the analysis thread. */
+    override fun setVisionEngine(engine: String) {
+        if (engine == visionEngine) return
+        visionEngine = engine
+        analysisExec.execute { vision?.close(); vision = null }
+    }
 
     // ── CameraService controls ─────────────────────────────────────────────
     override fun setEffects(effects: Effects) { this.effects = effects; if (!effects.needsProcessing) processed.value = null }
@@ -327,6 +328,7 @@ class AndroidCamera(private val activity: ComponentActivity, private val reduced
     override fun setHdr(on: Boolean) { hdr = on; applyOptions() }
     override fun setStabilization(on: Boolean) { stab = on; applyOptions() }
     override fun setQuality(shortSide: Int) { this.shortSide = shortSide; rebind() }
+    override val visionEngines = listOf(PersonVision.MEDIAPIPE to "MediaPipe (open source)", PersonVision.MLKIT to "ML Kit")
 
-    fun release() { stop(); analysisExec.shutdown(); runCatching { segmenter.close(); faceDetector.close(); barcodeScanner.close() } }
+    fun release() { stop(); analysisExec.shutdown(); runCatching { vision?.close(); barcodeScanner.close() } }
 }

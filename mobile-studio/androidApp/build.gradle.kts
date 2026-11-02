@@ -15,7 +15,22 @@ android {
         versionName = "0.1.0"
     }
     buildTypes {
-        release { isMinifyEnabled = false }
+        release {
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            // Local test builds are signed with the debug key; a store build replaces this with a real signing config.
+            signingConfig = signingConfigs.getByName("debug")
+        }
+    }
+    // One APK per processor type: ML Kit's native libraries are most of the size.
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a", "armeabi-v7a", "x86_64")
+            isUniversalApk = false
+        }
     }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
     buildFeatures { compose = true }

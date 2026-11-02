@@ -3,11 +3,17 @@ name: iosApp
 options:
   bundleIdPrefix: app.kissik
   deploymentTarget: { iOS: "16.0" }
+packages:
+  HaishinKit:
+    url: https://github.com/shogo4405/HaishinKit.swift
+    from: 2.0.0
 targets:
   iosApp:
     type: application
     platform: iOS
     sources: [iosApp]
+    dependencies:
+      - package: HaishinKit
     info: { path: iosApp/Info.plist }
     settings:
       base:

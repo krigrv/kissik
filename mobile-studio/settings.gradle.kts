@@ -6,4 +6,4 @@ dependencyResolutionManagement {
     repositories { google(); mavenCentral(); maven("https://jitpack.io") }
 }
 rootProject.name = "KISSIK-Camera-Studio"
-include(":shared", ":androidApp")
+include(":shared", ":androidApp", ":whisper")

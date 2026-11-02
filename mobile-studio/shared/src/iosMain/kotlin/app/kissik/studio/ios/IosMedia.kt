@@ -175,20 +175,32 @@ class IosWebcam(private val camera: IosCamera, private val audio: IosAudio, priv
     private var sink: IosFrameSink? = null
     private var pcm: IosAudio.PcmListener? = null
     private var lastMs = 0L
+    private var codec = "jpeg"
+    private var encoderStarted = false
 
     override fun connect(pairing: Pairing, useUsb: Boolean) {
         disconnect()
         state.value = WebcamState.Connecting
-        // Wi-Fi uses the PC's self-made certificate: the Swift host may install a pinning URLSession delegate; this uses the shared session.
-        val t = NSURLSession.sharedSession.webSocketTaskWithURL(NSURL.URLWithString(if (useUsb) pairing.usbUrl else pairing.wifiUrl)!!)
+        // Wi-Fi uses the PC's self-made certificate, pinned on first use.
+        val session = NSURLSession.sessionWithConfiguration(NSURLSessionConfiguration.defaultSessionConfiguration, PinningDelegate(store, pairing.host), null)
+        val t = session.webSocketTaskWithURL(NSURL.URLWithString(if (useUsb) pairing.usbUrl else pairing.wifiUrl)!!)
         task = t; t.resume()
         state.value = WebcamState.Connected; detail.value = if (useUsb) "Over USB" else "Over Wi-Fi to ${pairing.host}"
         sendStatus(); receive()
-        sink = IosFrameSink { f, _ ->
+        sink = IosFrameSink { f, t ->
             val now = (NSDate().timeIntervalSince1970 * 1000).toLong()
             if (now - lastMs < 33) return@IosFrameSink
             lastMs = now
-            f.toUIImage()?.let { UIImageJPEGRepresentation(it, 0.8) }?.let { send(NSURLSessionWebSocketMessage(data = it)) }
+            val enc = Bridges.h264
+            if (codec == "h264" && enc != null) {
+                if (!encoderStarted) {
+                    encoderStarted = true
+                    enc.start(f.width and 1.inv(), f.height and 1.inv(), 30, 4000) { data, key, us ->
+                        send(NSURLSessionWebSocketMessage(data = PhoneProtocol.videoPacket(data.toByteArray(), key, us).toNSData()))
+                    }
+                }
+                enc.encode(f.toBgraData(), f.width, f.height, t)
+            } else f.toUIImage()?.let { UIImageJPEGRepresentation(it, 0.8) }?.let { send(NSURLSessionWebSocketMessage(data = it)) }
         }.also { camera.sinks += it }
         pcm = IosAudio.PcmListener { s, rate, _ -> send(NSURLSessionWebSocketMessage(data = PhoneProtocol.audioPacket(s, rate).toNSData())) }.also { audio.addListener(it) }
     }
@@ -206,7 +218,7 @@ class IosWebcam(private val camera: IosCamera, private val audio: IosAudio, priv
     private fun sendStatus() {
         UIDevice.currentDevice.batteryMonitoringEnabled = true
         val link = LinkStatus(UIDevice.currentDevice.model, UIDevice.currentDevice.batteryLevel, UIDevice.currentDevice.batteryState == UIDeviceBatteryState.UIDeviceBatteryStateCharging,
-            mics = audio.mics.value.map { it.id to it.label }, micDev = audio.selectedMic.value, ns = audio.noiseSuppression.value)
+            codec = codec, mics = audio.mics.value.map { it.id to it.label }, micDev = audio.selectedMic.value, ns = audio.noiseSuppression.value)
         send(NSURLSessionWebSocketMessage(string = PhoneProtocol.status(camera.state.value, link)))
     }
 
@@ -230,12 +242,17 @@ class IosWebcam(private val camera: IosCamera, private val audio: IosAudio, priv
             is PcCommand.MicDevice -> audio.selectMic(c.id)
             is PcCommand.NoiseSuppression -> audio.setNoiseSuppression(c.on)
             is PcCommand.Mic -> audio.setMuted(!c.on)
-            else -> {} // H.264 'V' packets are Android-only for now; iOS stays on JPEG.
+            is PcCommand.Codec -> {
+                codec = if (c.name == "h264" && Bridges.h264 != null) "h264" else "jpeg"
+                if (codec == "jpeg" && encoderStarted) { Bridges.h264?.stop(); encoderStarted = false }
+            }
+            PcCommand.KeyFrame -> Bridges.h264?.requestKeyFrame()
+            else -> {}
         }
         sendStatus()
     }
 
     private fun fail(msg: String) { cleanup(); state.value = WebcamState.Failed; detail.value = msg }
-    private fun cleanup() { sink?.let { camera.sinks -= it }; sink = null; pcm?.let { audio.removeListener(it) }; pcm = null }
+    private fun cleanup() { if (encoderStarted) { Bridges.h264?.stop(); encoderStarted = false }; codec = "jpeg"; sink?.let { camera.sinks -= it }; sink = null; pcm?.let { audio.removeListener(it) }; pcm = null }
     override fun disconnect() { cleanup(); task?.cancelWithCloseCode(1000, null); task = null; state.value = WebcamState.Off; detail.value = "" }
 }

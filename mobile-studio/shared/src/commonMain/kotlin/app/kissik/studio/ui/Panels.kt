@@ -1,6 +1,7 @@
 package app.kissik.studio.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -329,8 +330,9 @@ fun CaptionsPanel(studio: Studio) {
     SectionTitle("Engine")
     CaptionEngineKind.entries.forEach { k ->
         val reason = cs.unavailableReason(k)
-        Row(Modifier.fillMaxWidth().heightIn(min = Brand.minTouch), verticalAlignment = Alignment.CenterVertically) {
-            RadioButton(studio.captionEngine == k, { studio.captionEngine = k }, enabled = reason == null)
+        Row(Modifier.fillMaxWidth().heightIn(min = Brand.minTouch)
+            .selectable(studio.captionEngine == k, enabled = reason == null, role = Role.RadioButton) { studio.captionEngine = k }, verticalAlignment = Alignment.CenterVertically) {
+            RadioButton(studio.captionEngine == k, null, enabled = reason == null)
             Column { Text(k.label); Text(reason ?: k.detail, style = MaterialTheme.typography.bodySmall) }
         }
     }
@@ -362,6 +364,11 @@ fun ToolsPanel(studio: Studio) {
     LaunchedEffect(scanning) { if (scanning) cam.barcodes.collect { if (it !in codes) codes.add(0, it) } }
     SectionTitle("QR and barcodes")
     SwitchRow("Read codes", scanning, "Point the camera at a QR code or barcode") { scanning = it }
+    OutlinedButton(onClick = { studio.platform.scanner.readCodesFromPicture { found ->
+        if (found == null) return@readCodesFromPicture
+        if (found.isEmpty()) studio.say("No code found in that picture")
+        found.forEach { if (it !in codes) codes.add(0, it) }
+    } }) { Text("Read a code from a picture") }
     codes.take(5).forEach { SelectableText(it) }
     // A KISSIK pairing code is picked up straight away for the PC webcam.
     LaunchedEffect(codes.size) { codes.firstOrNull()?.let { if (Pairing.parse(it) != null) { studio.updateSettings { s -> s.copy(pairingLink = it) }; studio.say("Paired with your PC. Open PC webcam to connect.") } } }

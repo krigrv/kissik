@@ -167,9 +167,12 @@ class IosCamera(private val reducedMotion: () -> Boolean) : CameraService {
         val mask = if (fx.needsMask) segment(pb) else null
         val out = compositor.process(frame, fx, mask, lastFaces, dt, reducedMotion())
         picture.value = out.toImageBitmap()
-        lastFrame = out
         val us = (t * 1_000_000).toLong()
-        sinks.toList().forEach { it.onFrame(out, us) }
+        val targets = sinks.toList()
+        // The preview draws the scene in Compose; recordings, streams and the PC get it burned in.
+        val burned = scene?.takeIf { targets.isNotEmpty() }?.let { IosSceneRenderer.draw(out, it) } ?: out
+        lastFrame = burned
+        targets.forEach { it.onFrame(burned, us) }
     }
 
     private fun segment(pb: CVPixelBufferRef): Mask? {

@@ -66,6 +66,10 @@ interface CameraService {
     fun setHdr(on: Boolean)
     fun setStabilization(on: Boolean)
     fun setQuality(shortSide: Int)
+    /** Which person/face engine to use where the platform offers a choice (Android: "mediapipe" or "mlkit"). */
+    fun setVisionEngine(engine: String) {}
+    /** Engines offered, as (id, label); empty when there's no choice. */
+    val visionEngines: List<Pair<String, String>> get() = emptyList()
 }
 
 data class Mic(val id: String, val label: String)
@@ -141,6 +145,8 @@ data class ScanResult(val pages: List<ScannedPage>, val pdfPath: String?)
 interface ScannerService {
     /** Opens the system document scanner (edge detection, perspective, clean-up, multi-page). */
     fun scan(onResult: (ScanResult?) -> Unit)
+    /** Reads QR codes and barcodes from a picture the person picks. */
+    fun readCodesFromPicture(onCodes: (List<String>?) -> Unit)
     /** On-device OCR of one page. */
     fun recognizeText(page: ScannedPage, onText: (String?) -> Unit)
     /** Shares or saves a file (PDF, text) with the system sheet. */

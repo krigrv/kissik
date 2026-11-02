@@ -101,16 +101,24 @@ fun StudioScreen(studio: Studio, open: (Screen) -> Unit) {
             }
 
             // Viewfinder with overlays.
-            Box(Modifier.weight(1f).fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color.Black)) {
+            // The overlay box takes the picture's own shape, so scene layers sit where they land in recordings.
+            val aspect = when {
+                studio.effects.vertical -> 9f / 16f
+                cam.width > 0 && cam.height > 0 -> cam.width.toFloat() / cam.height
+                else -> 3f / 4f
+            }
+            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+            Box(Modifier.aspectRatio(aspect, matchHeightConstraintsFirst = aspect < 1f).clip(RoundedCornerShape(12.dp)).background(Color.Black)) {
                 p.camera.Viewfinder(Modifier.fillMaxSize().pointerInput(Unit) {
                     detectTapGestures { o -> p.camera.tapFocus(o.x / size.width, o.y / size.height) }
-                }.semantics { contentDescription = "Camera picture. Double tap to focus in the middle." })
+                }.semantics { contentDescription = "Camera picture. Tap to focus." })
                 SceneOverlay(studio.scene, studio.previousScene, studio.transition, studio.transitionProgress, Modifier.fillMaxSize())
                 if (studio.teleprompterOn) TeleprompterOverlay(studio, Modifier.align(Alignment.TopCenter))
                 if (studio.captionsOn && studio.captionLines.isNotEmpty()) CaptionsOverlay(studio.captionLines, Modifier.align(Alignment.BottomCenter))
                 if (!cam.ready) Text(cam.error ?: "Starting the camera…", color = Color.White, modifier = Modifier.align(Alignment.Center).padding(24.dp),
                     textAlign = TextAlign.Center)
                 if (studioMode && cam.zoomMax > cam.zoomMin) ZoomPills(cam.zoom, cam.zoomMin, cam.zoomMax, { p.camera.setZoom(it) }, Modifier.align(Alignment.BottomCenter).padding(bottom = 64.dp))
+            }
             }
 
             // Tools.

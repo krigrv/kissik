@@ -34,13 +34,15 @@ kotlin {
             implementation("androidx.camera:camera-view:$camerax")
             implementation("androidx.camera:camera-video:$camerax")
             implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
+            implementation("com.google.mediapipe:tasks-vision:1.2.0")
             implementation("com.google.mlkit:segmentation-selfie:16.0.0-beta6")
-            implementation("com.google.mlkit:face-detection:16.1.7")
-            implementation("com.google.mlkit:barcode-scanning:17.3.0")
-            implementation("com.google.mlkit:text-recognition:16.0.1")
+            implementation("com.google.android.gms:play-services-mlkit-face-detection:17.1.0")
+            implementation("com.google.android.gms:play-services-mlkit-barcode-scanning:18.3.1")
+            implementation("com.google.android.gms:play-services-mlkit-text-recognition:19.0.1")
             implementation("com.google.android.gms:play-services-mlkit-document-scanner:16.0.0-beta1")
             implementation("com.squareup.okhttp3:okhttp:4.12.0")
             implementation("com.github.pedroSG94.RootEncoder:rtmp:2.6.1")
+            implementation(project(":whisper"))
         }
     }
 }

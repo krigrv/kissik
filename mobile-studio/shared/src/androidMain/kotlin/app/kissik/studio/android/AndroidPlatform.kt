@@ -66,7 +66,7 @@ class AndroidPlatform(private val activity: ComponentActivity) : StudioPlatform 
     override val media: MediaService = androidMedia
     override val live: LiveService = androidLive
     override val webcam: WebcamService = androidWebcam
-    override val captions = AndroidCaptions(activity)
+    override val captions = AndroidCaptions(activity, androidAudio)
     override val files = AndroidFiles(activity)
     override val scanner = AndroidScanner(activity)
 
@@ -197,22 +197,40 @@ private class VideoBackground(ctx: Context, uri: Uri) : BackgroundSource {
 
 // ── Captions ─────────────────────────────────────────────────────────────────
 
-class AndroidCaptions(private val activity: Activity) : CaptionService {
+/**
+ * Captions. Fast: the phone's SpeechRecognizer (its on-device recogniser when available). Accurate: whisper.cpp on the
+ * phone with the same ggml-base model as the desktop, downloaded once on first use.
+ */
+class AndroidCaptions(private val activity: Activity, private val audio: AndroidAudio) : CaptionService {
+    companion object {
+        const val MODEL_FILE = "ggml-base.bin"
+        const val MODEL_URL = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin"
+    }
     override val events = MutableSharedFlow<CaptionEvent>(extraBufferCapacity = 32)
     private var rec: SpeechRecognizer? = null
     private var running = false
     private var language = "en-US"
+    private var useOnDevice = true
 
-    private fun onDevice() = Build.VERSION.SDK_INT >= 31 && SpeechRecognizer.isOnDeviceRecognitionAvailable(activity)
+    private fun onDevice() = useOnDevice && Build.VERSION.SDK_INT >= 31 && SpeechRecognizer.isOnDeviceRecognitionAvailable(activity)
+    private fun modelFile() = File(activity.filesDir, "whisper/$MODEL_FILE")
     override fun isAvailable(kind: CaptionEngineKind) = unavailableReason(kind) == null
     override fun unavailableReason(kind: CaptionEngineKind): String? = when (kind) {
-        CaptionEngineKind.Fast -> if (onDevice() || SpeechRecognizer.isRecognitionAvailable(activity)) null else "This phone has no speech recognition service"
-        CaptionEngineKind.Accurate -> "Accurate mode (whisper.cpp) isn't included in this build yet"
+        CaptionEngineKind.Fast -> if (SpeechRecognizer.isRecognitionAvailable(activity) || onDevice()) null else "This phone has no speech recognition service"
+        CaptionEngineKind.Accurate -> null
     }
 
     override fun start(kind: CaptionEngineKind, language: String) {
         this.language = language; running = true
-        activity.runOnUiThread { listen() }
+        if (kind == CaptionEngineKind.Accurate) startWhisper() else activity.runOnUiThread { listen() }
+    }
+
+    // ── Fast: SpeechRecognizer ──────────────────────────────────────────────
+    private fun intent() = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+        putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+        putExtra(RecognizerIntent.EXTRA_LANGUAGE, language)
+        putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+        putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
     }
 
     private fun listen() {
@@ -227,6 +245,13 @@ class AndroidCaptions(private val activity: Activity) : CaptionService {
                 when (error) {
                     SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT, SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> activity.window.decorView.postDelayed({ listen() }, 300)
                     SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> { running = false; events.tryEmit(CaptionEvent.Error("Captions need microphone permission")) }
+                    SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED, SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE -> {
+                        // The on-device pack for this language isn't installed: ask the system to fetch it and use the
+                        // phone's regular recogniser meanwhile.
+                        if (useOnDevice && Build.VERSION.SDK_INT >= 33) runCatching { r.triggerModelDownload(intent()) }
+                        if (useOnDevice) { useOnDevice = false; events.tryEmit(CaptionEvent.Partial("Getting the speech pack for $language…")); listen() }
+                        else { running = false; events.tryEmit(CaptionEvent.Error("Captions aren't available for $language on this phone")) }
+                    }
                     else -> { running = false; events.tryEmit(CaptionEvent.Error("Captions stopped (speech error $error)")) }
                 }
             }
@@ -237,15 +262,88 @@ class AndroidCaptions(private val activity: Activity) : CaptionService {
             override fun onEndOfSpeech() {}
             override fun onEvent(t: Int, p: Bundle?) {}
         })
-        r.startListening(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, language)
-            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
-        })
+        r.startListening(intent())
     }
 
-    override fun stop() { running = false; activity.runOnUiThread { rec?.destroy(); rec = null } }
+    // ── Accurate: whisper.cpp ───────────────────────────────────────────────
+    private var whisper: app.kissik.whisper.Whisper? = null
+    private var pcm: AndroidAudio.PcmListener? = null
+    private val worker = java.util.concurrent.Executors.newSingleThreadExecutor()
+    @Volatile private var busy = false
+
+    private fun startWhisper() = worker.execute {
+        try {
+            val f = modelFile()
+            if (!f.exists() && download(f) == null) return@execute
+            events.tryEmit(CaptionEvent.Partial("Loading the speech model…"))
+            val w = whisper ?: app.kissik.whisper.Whisper.load(f.path)
+                ?: run { events.tryEmit(CaptionEvent.Error("The speech model couldn't be loaded")); return@execute }
+            whisper = w
+            if (!running) return@execute
+            events.tryEmit(CaptionEvent.Partial(""))
+            val window = WhisperWindow()
+            pcm = AndroidAudio.PcmListener { p, n, _ ->
+                val chunk = window.add(p, n) ?: return@PcmListener
+                if (busy) return@PcmListener // still working on the last window: skip rather than fall behind
+                busy = true
+                worker.execute {
+                    try {
+                        val text = w.transcribe(chunk, language.substringBefore('-'), threads = 4)
+                        if (running && text.isNotBlank() && !text.startsWith("[")) events.tryEmit(CaptionEvent.Final(text))
+                    } finally { busy = false }
+                }
+            }.also { audio.addListener(it) }
+        } catch (t: Throwable) { events.tryEmit(CaptionEvent.Error("Accurate captions failed: ${t.message}")) }
+    }
+
+    /** Downloads the model with progress; returns the file, or null after reporting the error. */
+    private fun download(f: File): File? {
+        f.parentFile?.mkdirs()
+        val tmp = File(f.path + ".part")
+        return runCatching {
+            val c = java.net.URL(MODEL_URL).openConnection() as java.net.HttpURLConnection
+            c.connectTimeout = 20000; c.readTimeout = 30000
+            val total = c.contentLengthLong
+            var got = 0L; var lastPct = -1
+            c.inputStream.use { inp -> tmp.outputStream().use { out ->
+                val buf = ByteArray(1 shl 16)
+                while (running) {
+                    val n = inp.read(buf); if (n < 0) break
+                    out.write(buf, 0, n); got += n
+                    val pct = if (total > 0) (got * 100 / total).toInt() else -1
+                    if (pct != lastPct) { lastPct = pct; events.tryEmit(CaptionEvent.Partial("Downloading the speech model (one time, ${total / 1_000_000} MB): $pct%")) }
+                }
+            } }
+            if (!running) { tmp.delete(); return null }
+            check(total <= 0 || got == total) { "download incomplete" }
+            tmp.renameTo(f); f
+        }.getOrElse { tmp.delete(); events.tryEmit(CaptionEvent.Error("Couldn't download the speech model: ${it.message}")); null }
+    }
+
+    override fun stop() {
+        running = false
+        pcm?.let { audio.removeListener(it) }; pcm = null
+        activity.runOnUiThread { rec?.destroy(); rec = null }
+    }
+}
+
+/** Collects 48 kHz mic audio into 4-second 16 kHz windows (0.5 s overlap) for Whisper; quiet windows are skipped. */
+class WhisperWindow(seconds: Float = 4f) {
+    private val size = (16000 * seconds).toInt()
+    private val buf = FloatArray(size)
+    private var n = 0
+    fun add(pcm: ShortArray, count: Int): FloatArray? {
+        var i = 0
+        while (i + 2 < count) {
+            if (n < size) buf[n++] = (pcm[i] + pcm[i + 1] + pcm[i + 2]) / (3f * 32768f)
+            i += 3
+        }
+        if (n < size) return null
+        val out = buf.copyOf()
+        val keep = 8000 // 0.5 s carried over so words on the boundary aren't cut in half
+        System.arraycopy(buf, size - keep, buf, 0, keep); n = keep
+        return if (out.maxOf { kotlin.math.abs(it) } < 0.01f) null else out
+    }
 }
 
 // ── Document scanner ─────────────────────────────────────────────────────────
@@ -270,6 +368,15 @@ class AndroidScanner(private val activity: ComponentActivity) : ScannerService {
                 }
             }
             .addOnFailureListener { onResult(null); activity.runOnUiThread { android.widget.Toast.makeText(activity, "The scanner isn't available: ${it.message}", android.widget.Toast.LENGTH_LONG).show() } }
+    }
+
+    override fun readCodesFromPicture(onCodes: (List<String>?) -> Unit) {
+        activity.launchOnce(ActivityResultContracts.GetContent(), "image/*") { uri ->
+            if (uri == null) { onCodes(null); return@launchOnce }
+            com.google.mlkit.vision.barcode.BarcodeScanning.getClient().process(InputImage.fromFilePath(activity, uri))
+                .addOnSuccessListener { list -> onCodes(list.mapNotNull { it.rawValue }) }
+                .addOnFailureListener { onCodes(emptyList()) }
+        }
     }
 
     override fun recognizeText(page: ScannedPage, onText: (String?) -> Unit) {
