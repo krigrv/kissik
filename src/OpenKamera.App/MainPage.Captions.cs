@@ -1,16 +1,16 @@
 using System.Runtime.InteropServices.WindowsRuntime;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media.Imaging;
 using OpenKamera.Core;
-using Windows.Media.SpeechRecognition;
 
 namespace OpenKamera_App;
 
-// Live captions: Windows speech recognition turns your voice into text, shown over the preview and burnt into
+// Live captions: an offline speech model on this PC turns your voice into text, shown over the preview and burnt into
 // the meeting camera and recordings so everyone can read along.
 public sealed partial class MainPage
 {
-    private SpeechRecognizer? _speech;
+    private OfflineCaptions? _offline;
     private readonly CaptionBuffer _captions = new();
     private Microsoft.UI.Dispatching.DispatcherQueueTimer? _captionTimer;
     private volatile CaptionImage? _captionImage;
@@ -18,53 +18,80 @@ public sealed partial class MainPage
 
     private sealed record CaptionImage(byte[] Pixels, int Width, int Height);
 
+    private static string SpeechRoot => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "OpenKamera", "Speech");
+
     private async void CaptionsToggle_Click(object sender, RoutedEventArgs e)
     {
         if (CaptionsToggle.IsChecked) await StartCaptionsAsync(); else await StopCaptionsAsync();
     }
 
+    /// <summary>Captions run entirely on this PC (offline model); the first time, the model is downloaded once.</summary>
     private async Task StartCaptionsAsync()
     {
         try
         {
-            _speech = new SpeechRecognizer();
-            _speech.Constraints.Add(new SpeechRecognitionTopicConstraint(SpeechRecognitionScenario.Dictation, "dictation"));
-            var compiled = await _speech.CompileConstraintsAsync();
-            if (compiled.Status != SpeechRecognitionResultStatus.Success) throw new InvalidOperationException(compiled.Status.ToString());
-            _speech.HypothesisGenerated += (_, a) => DispatcherQueue.TryEnqueue(() => _captions.Partial(a.Hypothesis.Text, DateTime.UtcNow));
-            _speech.ContinuousRecognitionSession.ResultGenerated += (_, a) => DispatcherQueue.TryEnqueue(() => _captions.Final(a.Result.Text, DateTime.UtcNow));
-            _speech.ContinuousRecognitionSession.AutoStopSilenceTimeout = TimeSpan.FromHours(4);
-            await _speech.ContinuousRecognitionSession.StartAsync();
+            var lang = OfflineCaptions.Languages.FirstOrDefault(l => l.Code == _settings.CaptionLanguage) ?? OfflineCaptions.Languages[0];
+            string? dir = OfflineCaptions.ModelDir(SpeechRoot, lang.Code);
+            if (dir is null) dir = await DownloadCaptionModelAsync();
+            if (dir is null) { CaptionsToggle.IsChecked = false; return; }
+            if (!_audio.IsRunning) { AudioOnToggle.IsOn = true; await Task.Delay(500); } // captions listen to the audio mix
+            _offline = await Task.Run(() => new OfflineCaptions(dir));
+            _offline.Partial += t => DispatcherQueue.TryEnqueue(() => _captions.Partial(t, DateTime.UtcNow));
+            _offline.Final += t => DispatcherQueue.TryEnqueue(() => _captions.Final(t, DateTime.UtcNow));
 
             _captionTimer ??= DispatcherQueue.CreateTimer();
             _captionTimer.Interval = TimeSpan.FromMilliseconds(150);
-            _captionTimer.Tick += CaptionTick;
+            _captionTimer.Tick -= CaptionTick; _captionTimer.Tick += CaptionTick;
             _captionTimer.Start();
-            Status("Live captions on. Everyone in the meeting sees them.");
+            Status("Live captions on, worked out on this PC (nothing is sent anywhere). Everyone in the meeting sees them.");
         }
         catch (Exception ex)
         {
             CaptionsToggle.IsChecked = false;
             await StopCaptionsAsync();
-            // Dictation needs Windows' speech privacy switch; it's the user's setting, so point to it.
-            bool privacy = ex.HResult == unchecked((int)0x80045509) || ex.Message.Contains("privacy", StringComparison.OrdinalIgnoreCase)
-                           || ex.Message.Contains("TopicLanguageNotSupported");
-            Status(privacy ? "Captions need Windows speech recognition. Turn on Settings → Privacy & security → Speech → Online speech recognition, then try again."
-                           : "Captions unavailable: " + ex.Message);
-            if (privacy) _ = Windows.System.Launcher.LaunchUriAsync(new Uri("ms-settings:privacy-speech"));
+            Status("Captions unavailable: " + ex.Message);
         }
+    }
+
+    /// <summary>Called from the audio mix (any thread).</summary>
+    private void FeedCaptions(float[] samples)
+    {
+        _offline?.Enqueue(samples);
+    }
+
+    /// <summary>One-time download of the offline speech model, with a language choice and progress.</summary>
+    private async Task<string?> DownloadCaptionModelAsync()
+    {
+        var pick = new ComboBox { ItemsSource = OfflineCaptions.Languages.Select(l => $"{l.Name} ({l.SizeMb} MB)").ToList(), SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(pick, "Caption language");
+        var body = new StackPanel { Spacing = 12, MaxWidth = 420 };
+        body.Children.Add(new TextBlock { TextWrapping = TextWrapping.Wrap, Text = "Captions are worked out on your PC, so nothing you say leaves it. KISSIK needs a small speech model once (from the open-source Vosk project)." });
+        body.Children.Add(pick);
+        var res = await new Microsoft.UI.Xaml.Controls.ContentDialog
+        {
+            XamlRoot = XamlRoot, Title = "Turn on live captions", Content = body,
+            PrimaryButtonText = "Download and turn on", CloseButtonText = "Cancel", DefaultButton = Microsoft.UI.Xaml.Controls.ContentDialogButton.Primary,
+        }.ShowAsync();
+        if (res != Microsoft.UI.Xaml.Controls.ContentDialogResult.Primary) return null;
+        var lang = OfflineCaptions.Languages[Math.Max(0, pick.SelectedIndex)];
+        _settings.CaptionLanguage = lang.Code; _settings.Save();
+        try
+        {
+            var progress = new Progress<double>(p => Status($"Downloading the {lang.Name} speech model… {p:P0}"));
+            string dir = await OfflineCaptions.DownloadAsync(lang, SpeechRoot, progress);
+            Status($"{lang.Name} speech model ready.");
+            return dir;
+        }
+        catch (Exception ex) { Status("Couldn't download the speech model: " + ex.Message + ". Check your internet connection and try again."); return null; }
     }
 
     private async Task StopCaptionsAsync()
     {
         _captionTimer?.Stop();
         if (_captionTimer is not null) _captionTimer.Tick -= CaptionTick;
-        if (_speech is { } s)
-        {
-            try { await s.ContinuousRecognitionSession.StopAsync(); } catch { }
-            s.Dispose();
-        }
-        _speech = null; _captionImage = null; _shownCaption = "";
+        var o = _offline; _offline = null;
+        if (o is not null) await Task.Run(o.Dispose); // never on the UI thread: it waits for the worker
+        _captionImage = null; _shownCaption = "";
         CaptionBar.Visibility = Visibility.Collapsed;
     }
 

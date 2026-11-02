@@ -55,7 +55,7 @@ Build order:
 6. [x] ★ Smart mirror (View options → mirror my preview only) and per-app profiles (Preset row → link icon: when Zoom/Teams/… opens a camera, switch to that preset)
 7. [x] ★ Eye-line prompter under the webcam (View options → Prompter: top-centre strip, wpm speed, size, mirror, edit; hidden from shares)
 8. [x] ★ Privacy guard (shutter menu: blur when a second face stays in shot 0.8 s; back after 3 s alone)
-9. [~] ★ Live captions burnt into the video (built on Windows speech; needs "Online speech recognition" on. TODO: fully offline engine)
+9. [x] ★ Live captions burnt into the video, fully offline (Vosk model downloaded once; English, English India, Hindi, Spanish, French, German)
 10. [x] ★ Smooth-first mode + latency meter (effects ms in HUD; auto steps down: lighter edges → pause steady/face tracking → half-size processing when not recording; steps back up with headroom)
 11. [~] Auto-framing done; crash-safe recordings done (1-minute pieces joined on Stop, leftovers rescued on launch); phone battery shown in the HUD; phone temperature still to do
 12. [ ] iOS app (funded by donations), then the native Android app
