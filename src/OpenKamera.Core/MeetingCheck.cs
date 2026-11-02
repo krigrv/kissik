@@ -53,7 +53,7 @@ public static class MeetingCheck
         else if (i.MicPeak is { } q && q > 0.98) r.Add(new("Microphone", CheckLevel.Warn, "Clipping. Lower the volume or move back from the mic."));
         else r.Add(new("Microphone", CheckLevel.Good, "Hearing you."));
 
-        r.Add(i.MeetingCameraInstalled ? new("Meeting camera", CheckLevel.Good, "Installed. Pick \"OpenKamera\" in Zoom, Teams or Meet.")
+        r.Add(i.MeetingCameraInstalled ? new("Meeting camera", CheckLevel.Good, "Installed. Pick \"KISSIK\" in Zoom, Teams or Meet.")
             : new("Meeting camera", CheckLevel.Bad, "Not installed. Install it from the Meeting camera menu."));
 
         return r.OrderByDescending(x => x.Level).ToList();

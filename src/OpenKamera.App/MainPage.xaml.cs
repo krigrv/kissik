@@ -942,7 +942,7 @@ public sealed partial class MainPage : Page
                 ? AppPaths.Pictures
                 : _settings.ImageFolder;
             Directory.CreateDirectory(folder);
-            string path = Path.Combine(folder, $"OpenKamera-{DateTime.Now:yyyyMMdd-HHmmss}.png");
+            string path = Path.Combine(folder, $"KISSIK-{DateTime.Now:yyyyMMdd-HHmmss}.png");
             await _session.SaveSnapshotAsync(path, CurrentRecipe(withOverlay: true), _bgPipeline);
             _lastSaved = DateTimeOffset.Now;
             Status("Snapshot saved: " + path);

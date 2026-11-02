@@ -100,7 +100,7 @@ public sealed partial class MainPage
             var px = (await rtb.GetPixelsAsync()).ToArray();
             string folder = AppPaths.Pictures;
             Directory.CreateDirectory(folder);
-            string path = Path.Combine(folder, $"OpenKamera-window-{DateTime.Now:yyyyMMdd-HHmmss}.png");
+            string path = Path.Combine(folder, $"KISSIK-window-{DateTime.Now:yyyyMMdd-HHmmss}.png");
             var file = await (await Windows.Storage.StorageFolder.GetFolderFromPathAsync(folder)).CreateFileAsync(Path.GetFileName(path));
             using var stream = await file.OpenAsync(Windows.Storage.FileAccessMode.ReadWrite);
             var enc = await Windows.Graphics.Imaging.BitmapEncoder.CreateAsync(Windows.Graphics.Imaging.BitmapEncoder.PngEncoderId, stream);
