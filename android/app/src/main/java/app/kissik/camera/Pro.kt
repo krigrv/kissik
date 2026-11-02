@@ -65,13 +65,16 @@ object Pro {
                 val facing = when (c2.getCameraCharacteristic(CC.LENS_FACING)) {
                     CC.LENS_FACING_FRONT -> "front"; CC.LENS_FACING_BACK -> "back"; else -> "external"
                 }
-                Triple(c2.cameraId, facing, c2.getCameraCharacteristic(CC.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)?.minOrNull() ?: 0f)
+                // A "logical" camera switches between physical lenses by itself as you zoom.
+                val logical = CC.REQUEST_AVAILABLE_CAPABILITIES_LOGICAL_MULTI_CAMERA in (c2.getCameraCharacteristic(CC.REQUEST_AVAILABLE_CAPABILITIES) ?: IntArray(0))
+                Triple(c2.cameraId, if (logical && facing == "back") "back-auto" else facing, c2.getCameraCharacteristic(CC.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)?.minOrNull() ?: 0f)
             }.getOrNull()
         }
         val mainId = raw.firstOrNull { it.second == "back" }?.first
         val mainFocal = raw.firstOrNull { it.first == mainId }?.third ?: 0f
         val named = raw.map { (id, facing, focal) ->
             val label = when {
+                facing == "back-auto" -> "Auto (all back lenses)"
                 facing == "front" -> "Front"
                 facing == "external" -> "External"
                 id == mainId -> "Main"
@@ -79,7 +82,7 @@ object Pro {
                 mainFocal > 0 && focal > mainFocal * 1.5f -> "Telephoto"
                 else -> "Back"
             }
-            Lens(id, facing, label, focal)
+            Lens(id, if (facing == "back-auto") "back" else facing, label, focal)
         }
         // Two lenses with the same label get numbered ("Front 2").
         return named.map { l -> if (named.count { it.label == l.label } > 1) l.copy(label = "${l.label} ${named.filter { it.label == l.label }.indexOf(l) + 1}") else l }

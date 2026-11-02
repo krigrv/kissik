@@ -287,6 +287,7 @@ class StreamService : LifecycleService() {
     }
 
     private val REJECTED = "rejected"
+    private fun netLog(msg: String) { if (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0) android.util.Log.d("KissikNet", msg) }
 
     /** Connects (USB first when adb reverse is set up, else Wi-Fi) and reconnects quickly whenever the link drops. */
     private suspend fun connectLoop() {
@@ -303,10 +304,14 @@ class StreamService : LifecycleService() {
             }
             val done = CompletableDeferred<String>()
             val request = Request.Builder().url(if (usb) pairing.usbUrl else pairing.wifiUrl).build()
+            netLog("connect ${if (usb) "usb" else "wifi"} ${request.url.host}:${request.url.port}")
             attempt = builder.build().newWebSocket(request, object : WebSocketListener() {
                 override fun onOpen(webSocket: WebSocket, response: Response) {
                     // Re-paired while this connect was in flight: drop it so the loop uses the new pairing.
                     if (Pairing.load(this@StreamService)?.token != pairing.token) { webSocket.cancel(); return }
+                    netLog("open")
+                    // Every connection starts in JPEG, which every KISSIK can show; the PC asks for H.264 if it decodes it.
+                    Pro.codec.value = "jpeg"
                     ws = webSocket; backoff = 500L
                     needKey = true; encoder?.requestKeyframe()
                     Live.link.value = if (usb) Link.Usb else Link.Wifi
@@ -315,8 +320,10 @@ class StreamService : LifecycleService() {
                     sendStatus()
                 }
                 override fun onMessage(webSocket: WebSocket, text: String) = onCommand(text)
-                override fun onClosed(webSocket: WebSocket, code: Int, reason: String) { done.complete("Disconnected.") }
+                override fun onClosed(webSocket: WebSocket, code: Int, reason: String) { netLog("closed $code $reason"); done.complete("Disconnected.") }
+                override fun onClosing(webSocket: WebSocket, code: Int, reason: String) { netLog("closing $code $reason"); webSocket.close(1000, null) }
                 override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                    netLog("failure ${response?.code} $t")
                     val certProblem = generateSequence(t) { it.cause }.any { it.message?.contains("certificate", true) == true }
                     done.complete(when {
                         response?.code == 403 -> REJECTED
