@@ -52,7 +52,7 @@ public static class SceneCompositor
         return output;
     }
 
-    private static bool HasTransparency(byte[] px)
+    internal static bool HasTransparency(byte[] px)
     {
         for (int i = 3; i < px.Length; i += 4 * 97) if (px[i] < 255) return true;
         return false;

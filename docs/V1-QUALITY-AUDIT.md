@@ -100,14 +100,32 @@ Still to test by hand before v1 (needs a person at the PC):
   and a first-run choice of "Simple" (5 big buttons) or "Studio" (everything).
 
 ### Performance
-- **Now:** effects on the CPU after segmentation; about 11 fps at 4K with blur.
-- **Best:** the whole frame path on the GPU (Direct3D 11 compute), zero copies to the CPU.
-- **Upgrade:** GPU frame path. Biggest single gain; required for 4K60.
+- **Now:** effects run on the GPU (Direct3D 11 compute, `GpuEffects`): mask upsampling, retouch, blur, replace,
+  remove, spotlight, "behind me" layers, colour, looks, LUTs, sharpening and the scene. The frame goes up once and
+  comes back once. The CPU code stays as the fallback (no GPU, green screen, or `KISSIK_CPU_EFFECTS=1`), and tests
+  hold the two paths to within 1 level per channel. About 78 fps at 4K with blur.
+- **Best:** the whole frame path on the GPU, zero copies to the CPU.
+- **Upgrade:** keep frames as GPU textures from capture to output: take camera frames as Direct3D surfaces and
+  hand textures to the virtual camera, recorder (hardware encoder) and preview, so the upload and readback go away.
+  Framing (zoom/rotate) and output fit still run on the CPU before the GPU step.
+
+Frame-path benchmark (`dotnet run -c Release --project tests/OpenKamera.Bench`): a synthetic frame through
+`FrameProcessor` with Fast segmentation on DirectML, RTX 4080 SUPER, frames per second. The effects step only;
+the app adds capture, preview and output on top.
+
+| Frame | Effect | CPU (before) | GPU (after) |
+| --- | --- | --- | --- |
+| 1080p | Blur | 68 | 235 |
+| 1080p | Replace | 206 | 227 |
+| 1080p | Look + sharpen | 139 | 335 |
+| 4K | Blur | 28 | 78 |
+| 4K | Replace | 66 | 91 |
+| 4K | Look + sharpen | 32 | 112 |
 
 ## Order of work
 1. Hand tests above (blocker for v1).
 2. Background edges (guided filter, light wrap, motion-aware smoothing) and lens blur.
 3. Noise removal (DeepFilterNet / RNNoise).
 4. Accessibility audit and Simple mode.
-5. GPU frame path.
+5. GPU frame path: done for effects; next is GPU textures from capture to output.
 6. Captions accurate mode, framing rules, phone hardware stream, auto best picture, recording upgrades.

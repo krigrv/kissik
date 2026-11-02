@@ -4,6 +4,7 @@
     <Project Path="src/OpenKamera.Core/OpenKamera.Core.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/OpenKamera.Bench/OpenKamera.Bench.csproj" />
     <Project Path="tests/OpenKamera.Core.Tests/OpenKamera.Core.Tests.csproj" />
   </Folder>
 </Solution>

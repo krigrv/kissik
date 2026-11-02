@@ -14,6 +14,7 @@
 | Microsoft.WindowsAppSDK 2.6.4 | MIT |
 | Microsoft.Windows.AI.MachineLearning 2.4.89 (ONNX Runtime + DirectML) | MIT |
 | QRCoder 1.6.0 (UPI donation QR) | MIT |
+| Vortice.Direct3D11 and Vortice.D3DCompiler 3.8.3 (GPU frame path) | MIT |
 
 ## Assets
 

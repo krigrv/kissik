@@ -54,7 +54,7 @@ public static class ImageFilters
     }
 
     /// <summary>Brightness, contrast and gamma folded into one 256-entry curve.</summary>
-    private static float[] BuildToneCurve(Adjustments adj)
+    internal static float[] BuildToneCurve(Adjustments adj)
     {
         var curve = new float[256];
         for (int v = 0; v < 256; v++)
@@ -99,15 +99,20 @@ public static class ImageFilters
 
     private static void RotateHue(ref float r, ref float g, ref float b, double degrees)
     {
-        // Rotation about the grey axis in RGB space.
+        var m = HueMatrix(degrees);
+        float nr = r * m[0] + g * m[1] + b * m[2], ng = r * m[3] + g * m[4] + b * m[5], nb = r * m[6] + g * m[7] + b * m[8];
+        r = nr; g = ng; b = nb;
+    }
+
+    /// <summary>Row-major 3×3 rotation about the grey axis in RGB space.</summary>
+    internal static float[] HueMatrix(double degrees)
+    {
         double a = degrees * Math.PI / 180.0;
         float c = (float)Math.Cos(a), s = (float)Math.Sin(a);
         const float k = 1f / 3f; float sq = MathF.Sqrt(k);
-        float m00 = c + (1 - c) * k, m01 = k * (1 - c) - sq * s, m02 = k * (1 - c) + sq * s;
-        float m10 = k * (1 - c) + sq * s, m11 = c + k * (1 - c), m12 = k * (1 - c) - sq * s;
-        float m20 = k * (1 - c) - sq * s, m21 = k * (1 - c) + sq * s, m22 = c + k * (1 - c);
-        float nr = r * m00 + g * m01 + b * m02, ng = r * m10 + g * m11 + b * m12, nb = r * m20 + g * m21 + b * m22;
-        r = nr; g = ng; b = nb;
+        return [c + (1 - c) * k, k * (1 - c) - sq * s, k * (1 - c) + sq * s,
+                k * (1 - c) + sq * s, c + k * (1 - c), k * (1 - c) - sq * s,
+                k * (1 - c) - sq * s, k * (1 - c) + sq * s, c + k * (1 - c)];
     }
 
     private static void ApplyPreset(FilterPreset f, ref float r, ref float g, ref float b)
