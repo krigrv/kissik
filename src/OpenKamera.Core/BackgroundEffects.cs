@@ -30,7 +30,7 @@ public static class BackgroundEffects
                 {
                     int radius = 2 + (int)Math.Round(s.BlurStrength * 14); // on a 1/4-scale image
                     var (blur, bw, bh) = MaskedBlur(px, w, h, alpha, radius);
-                    Composite(px, w, h, alpha, (x, y) => SampleQuarter(blur, bw, bh, x, y, w, h));
+                    CompositeBlur(px, w, h, alpha, blur, bw, bh);
                     break;
                 }
             case BackgroundMode.Replace when background is { } bg && bg.Length == px.Length:
@@ -50,6 +50,38 @@ public static class BackgroundEffects
         }
 
         if (s.Spotlight > 0) Spotlight(px, w, h, alpha, (float)s.Spotlight);
+    }
+
+    /// <summary>
+    /// Blends the quarter-size blurred room under the person. Same result as Composite + SampleQuarter, but with the
+    /// bilinear lookup inlined and person pixels skipped early: a per-pixel delegate made this the slowest step at 4K.
+    /// </summary>
+    private static void CompositeBlur(byte[] px, int w, int h, float[] alpha, float[] rgb, int bw, int bh)
+    {
+        float sx = (float)bw / w, sy = (float)bh / h;
+        Parallel.For(0, h, y =>
+        {
+            float fy = Math.Clamp((y + 0.5f) * sy - 0.5f, 0, bh - 1);
+            int y0 = (int)fy, y1 = Math.Min(y0 + 1, bh - 1); float dy = fy - y0;
+            int r0 = y0 * bw * 3, r1 = y1 * bw * 3;
+            for (int x = 0, i = y * w * 4, ai = y * w; x < w; x++, i += 4, ai++)
+            {
+                float a = alpha[ai];
+                if (a >= 0.999f) continue;
+                float fx = Math.Clamp((x + 0.5f) * sx - 0.5f, 0, bw - 1);
+                int x0 = (int)fx, x1 = Math.Min(x0 + 1, bw - 1); float dx = fx - x0;
+                int p00 = r0 + x0 * 3, p01 = r0 + x1 * 3, p10 = r1 + x0 * 3, p11 = r1 + x1 * 3;
+                float ia = 1 - a;
+                for (int c = 0; c < 3; c++)
+                {
+                    float top = rgb[p00 + c] + (rgb[p01 + c] - rgb[p00 + c]) * dx;
+                    float bot = rgb[p10 + c] + (rgb[p11 + c] - rgb[p10 + c]) * dx;
+                    float b = top + (bot - top) * dy;
+                    px[i + c] = (byte)Math.Clamp(px[i + c] * a + b * ia, 0, 255);
+                }
+                px[i + 3] = 255;
+            }
+        });
     }
 
     private static void Composite(byte[] px, int w, int h, float[] alpha, Func<int, int, (byte B, byte G, byte R)> bg)
@@ -77,7 +109,8 @@ public static class BackgroundEffects
     {
         int bw = Math.Max(1, w / 4), bh = Math.Max(1, h / 4);
         var acc = new float[bw * bh * 4]; // b, g, r, weight
-        for (int y = 0; y < bh; y++)
+        Parallel.For(0, bh, y =>
+        {
             for (int x = 0; x < bw; x++)
             {
                 float sb = 0, sg = 0, sr = 0, sw = 0;
@@ -95,6 +128,7 @@ public static class BackgroundEffects
                 int di = (y * bw + x) * 4;
                 acc[di] = sb; acc[di + 1] = sg; acc[di + 2] = sr; acc[di + 3] = sw;
             }
+        });
         for (int pass = 0; pass < 3; pass++) { BoxH(acc, bw, bh, radius); BoxV(acc, bw, bh, radius); }
         var rgb = new float[bw * bh * 3];
         for (int i = 0, j = 0; i < acc.Length; i += 4, j += 3)
