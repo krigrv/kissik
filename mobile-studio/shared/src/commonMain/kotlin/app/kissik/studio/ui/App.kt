@@ -36,7 +36,7 @@ fun App(platform: StudioPlatform) {
     val studio = remember { Studio(platform) }
     val s = studio.settings
     KissikTheme(s.theme, studio.highContrast, s.largeText) {
-        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+        Surface(Modifier.fillMaxSize().safeDrawingPadding(), color = MaterialTheme.colorScheme.background) {
             var screen by remember { mutableStateOf(if (s.onboarded) Screen.Studio else Screen.Onboarding) }
             when (screen) {
                 Screen.Onboarding -> Onboarding(studio) { screen = Screen.Studio }
@@ -92,7 +92,7 @@ fun StudioScreen(studio: Studio, open: (Screen) -> Unit) {
                     modifier = Modifier.padding(horizontal = 4.dp).semantics { contentDescription = "Save the last ${media.replaySeconds} seconds" })
                 FilterChip(selected = studioMode, onClick = {
                     studio.updateSettings { it.copy(mode = if (studioMode) UiMode.Simple else UiMode.Studio) }
-                }, label = { Text(if (studioMode) "Studio" else "Simple") },
+                }, label = { Text(if (studioMode) "Studio" else "Simple", color = if (studioMode) Color.Unspecified else Color.White) },
                     modifier = Modifier.semantics { stateDescription = if (studioMode) "Studio mode" else "Simple mode" })
                 if (cam.hasTorch) IconButton(onClick = { p.camera.setTorch(!cam.torch) }) {
                     Icon(if (cam.torch) Icons.Filled.FlashOn else Icons.Filled.FlashOff, if (cam.torch) "Turn light off" else "Turn light on", tint = Color.White)

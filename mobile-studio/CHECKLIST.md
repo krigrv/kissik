@@ -1,24 +1,33 @@
-# KISSIK Camera Studio (mobile) — feature checklist
+# KISSIK Camera Studio (mobile): feature checklist
 
-Legend: [ ] not started · [~] in progress · [x] built and verified.
-"Shared" = Kotlin in `shared/src/commonMain` (runs on both phones). "Platform" = `androidMain` / `iosMain`.
+Legend: [x] built and verified · [~] built, partly verified (see notes) · [ ] not built.
+"Shared" = Kotlin in `shared/src/commonMain`. "Emulator" = Android emulator (Medium_Phone, API 37) with its virtual scene camera; it has no person in view, so segmentation quality and faces can't be judged there.
+**iOS:** all `iosMain` code is written but has **not been compiled**, because Kotlin/Native for iOS needs a Mac. Every iOS cell below means "written, untested". See README for build steps.
 
 | # | Feature | Status | Shared vs platform | Android API | iOS API | How it's tested |
 |---|---|---|---|---|---|---|
-| 1 | Camera: lenses + pro controls | [ ] | | | | |
-| 2 | Background: blur/replace/remove/green screen, edges, light wrap | [ ] | | | | |
-| 3 | Framing: auto-framing spring, manual zoom/pan/mirror/rotate | [ ] | | | | |
-| 4 | Looks: filters, LUTs, adjustments, Auto best, retouch | [ ] | | | | |
-| 5 | Scenes and overlays (desktop JSON), transitions | [ ] | | | | |
-| 6 | Recording: 1080p/4K, pause, 9:16, replay buffer, snapshots | [ ] | | | | |
-| 7 | RTMP live to multiple destinations | [ ] | | | | |
-| 8 | Audio: mic picker, noise suppression, meter, mute | [ ] | | | | |
-| 9 | Live captions + accurate mode | [ ] | | | | |
-| 10 | Teleprompter | [ ] | | | | |
-| 11 | Document scanner | [ ] | | | | |
-| 12 | QR/barcode, time-lapse | [ ] | | | | |
-| 13 | Use as PC webcam (phone protocol) | [ ] | | | | |
-| 14 | Accessibility | [ ] | | | | |
-| 15 | Simple and Studio modes | [ ] | | | | |
-| 16 | Opt-in crash reports | [ ] | | | | |
-| 17 | Settings, onboarding, privacy | [ ] | | | | |
+| 1 | Camera: lens picker (front/ultra-wide/main/tele), exposure, ISO, shutter, focus, tap-to-focus, white balance, fps, HDR, stabilisation, torch, zoom, capture size | [~] | Shared UI, `CameraState` and `ProControls` helpers; platform camera | CameraX + Camera2 interop (`CaptureRequestOptions`), focal-length lens labels | AVCaptureSession, AVCaptureDevice custom exposure, lens position, WB gains | Unit tests for helpers. Emulator: preview runs, flip and zoom work. Manual ISO/shutter can't be checked on the emulator camera |
+| 2 | Background: blur, replace (picture / looping video), remove, green screen, edge refinement, light wrap | [~] | **Shared** compositor (`Effects.kt`, `Frame.kt`): blur, composite, refine, light wrap, chroma key + despill | ML Kit Selfie Segmentation (mask) | Vision `VNGeneratePersonSegmentationRequest` | Unit tests (composite, refine, key, light wrap, blur only behind person). Emulator: blur pipeline runs with a live mask. A real person is needed to judge the cut-out |
+| 3 | Framing: auto-framing with spring motion, manual zoom/pan/mirror/rotate, vertical crop | [~] | **Shared** `AutoFramer` (dead zone, head room, spring, reduced motion) and `ManualFraming` | ML Kit Face Detection | Vision face rectangles | Unit tests: follows a face, no big overshoot, lets go. No face on the emulator |
+| 4 | Looks: 9 filters, .cube LUTs, adjustments, Auto best picture, skin smoothing | [x] | **Shared** (`Looks.kt`) | (none) | (none) | Unit tests (LUT parse/identity, auto best, skin mask, mono). Emulator: Mono filter applied live (screenshot) |
+| 5 | Scenes and overlays: desktop scene JSON, 100-scene pack, built-in templates, text/shape layers, editing, Fade/Slide/Zoom/Cut | [~] | **Shared** model and serializer with desktop field names, Compose overlay renderer, transitions | `SceneRenderer` burns overlays into recordings, streams and the PC feed | Preview overlay only. **Gap:** not burned into iOS recordings yet | Unit tests: read desktop JSON, round-trip, pack list, transitions. Not checked on the emulator (another session took it over) |
+| 6 | Recording 1080p/4K, pause/resume, 9:16, replay buffer (15/30/60 s), snapshots, saved to gallery | [~] | **Shared** `ReplayBuffer`, `RecordingClock` | MediaCodec + MediaMuxer of processed frames + AAC. 4K via CameraX `VideoCapture`. MediaStore Movies/Pictures/KISSIK | AVAssetWriter, rolling replay chunks, PHPhotoLibrary | Unit tests (keyframe trim, byte cap, pause clock). Emulator: 6 s video and a photo saved to the gallery. Replay save, 4K and pause weren't exercised there |
+| 7 | RTMP live to several destinations, H.264/HEVC hardware encode | [~] | Shared destination model, URL checks, bitrate presets, UI | One MediaCodec encode fanned out to a RootEncoder `RtmpClient` per destination | **Gap:** needs a Swift RTMP bridge (`IosLive.Bridge`) | Unit tests for validation/split. Not tested against a server (none on this PC) |
+| 8 | Audio: mic picker, noise suppression, level meter, mute | [~] | Shared UI | AudioRecord (CAMCORDER), `AudioDeviceInfo` + `setPreferredDevice`, `NoiseSuppressor` | AVAudioEngine tap, AVAudioSession inputs, voice processing | Emulator: mic audio reached the PC stand-in (595 'A' packets). Meter UI not screenshotted |
+| 9 | Live captions (on-device) + accurate mode | [~] | **Shared** `CaptionTrack` (wrap, hold), SRT writer | `SpeechRecognizer` (on-device recogniser when available, offline preferred) | `SFSpeechRecognizer` with `requiresOnDeviceRecognition` | Unit tests. **Gap:** accurate mode (whisper.cpp, MIT) isn't built; the UI says so. Not tried on the emulator |
+| 10 | Teleprompter overlay | [x] | **Shared** scroll model and overlay | (none) | (none) | Unit test (words per minute → pixels); UI built |
+| 11 | Document scanner: edges, perspective, clean B/W, multi-page PDF, OCR | [~] | **Shared** homography warp, adaptive B/W, pure-Kotlin PDF writer (used on iOS) | ML Kit Document Scanner (edges, crop, filters, PDF) + ML Kit Text Recognition | VisionKit `VNDocumentCameraViewController` + `VNRecognizeTextRequest` + shared PDF writer | Unit tests (homography, warp, B/W under shadow, PDF structure). Not tried on the emulator |
+| 12 | QR/barcode reading; time-lapse | [~] | Shared UI and `TimeLapse` timing; KISSIK pairing links are recognised | ML Kit Barcode Scanning; time-lapse via MediaCodec with retimed frames | Vision barcodes; AVAssetWriter retimed | Unit tests for timing. Not tried on the emulator |
+| 13 | Use as a PC webcam (phone protocol) | [x] Android, [~] iOS | **Shared** pairing parser, command parser, status JSON, 'V'/'A' packets | OkHttp WebSocket, TLS pinned on first use, JPEG and H.264 'V' (SPS/PPS on keyframes), 'A' audio, all commands | NSURLSession WebSocket, JPEG + 'A' + commands. **Gap:** no H.264 or pinning yet | Unit tests for every command and the packet layouts. Emulator against a local stand-in server on a spare port (the real PC app wasn't launched): correct path and token, status JSON, 88 JPEG frames, then `codec:h264` → 169 'V' packets, 595 'A' packets |
+| 14 | Accessibility: screen-reader labels, Dynamic Type, high contrast, reduced motion, 48 dp targets | [~] | **Shared**: every icon labelled, live regions (REC, captions, link state), headings, whole-row toggles, 48 dp minimum, high-contrast schemes, larger-text option on top of the system size, reduced motion follows the system | Animator scale, high-text-contrast setting | `UIAccessibilityIsReduceMotionEnabled`, darker system colours | Checked through the emulator's accessibility tree (uiautomator) while driving the app. A full TalkBack/VoiceOver pass is still to do |
+| 15 | Simple and Studio modes | [x] | Shared | (none) | (none) | Emulator: toggle shows 3 tools in Simple and all 12 + Scan in Studio |
+| 16 | Opt-in crash reports (same DSN, same scrubbing) | [~] | **Shared** port of `CrashReports.cs` (scrub, split, DSN, envelope) + consent flow | Uncaught-exception handler → crash.log; HttpURLConnection | Kotlin/Native exception hook; NSURLSession | Unit tests: scrubbing, DSN endpoint, envelope. Onboarding consent screen seen on the emulator. Nothing was sent |
+| 17 | Settings, onboarding, privacy | [x] | Shared screens, JSON settings that ignore unknown fields | SharedPreferences | NSUserDefaults | Emulator: 3-step onboarding into the studio. Unit test for settings round-trip |
+| (design) | KISSIK name, orange brand, framing-hands icon | [x] | Shared theme + logo drawn from the SVG geometry | Adaptive icon (bg gradient + fg + monochrome) | AppIcon 1024 full-bleed (generated from the SVG geometry) | Seen on the emulator launcher and onboarding |
+
+## Known gaps / next steps
+- Compile and fix `iosMain` on a Mac. Then add a Swift RTMP bridge, burn scenes into iOS recordings, and add certificate pinning and H.264 for the iOS webcam link.
+- Accurate captions with whisper.cpp (MIT): build it with the NDK on Android and as an XCFramework on iOS.
+- Test on a real phone with a person in view: segmentation edges, auto-framing, manual ISO/shutter, captions, scanner, RTMP to a test server.
+- The debug APK is about 200 MB because it bundles ML Kit natives for every ABI. Add ABI splits for release.
+- Licences: RootEncoder (Apache-2.0), OkHttp (Apache-2.0), AndroidX/Compose (Apache-2.0), kotlinx (Apache-2.0). ML Kit and Play services are Google's free-to-use SDKs, not open source; open-source alternatives are MediaPipe (Apache-2.0) and on-device OpenCV (Apache-2.0).

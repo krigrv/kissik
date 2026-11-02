@@ -1,6 +1,7 @@
 package app.kissik.studio.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -46,12 +47,13 @@ fun LabeledSlider(label: String, value: Float, range: ClosedFloatingPointRange<F
 
 @Composable
 fun SwitchRow(label: String, checked: Boolean, detail: String? = null, enabled: Boolean = true, onChange: (Boolean) -> Unit) {
-    Row(Modifier.fillMaxWidth().heightIn(min = Brand.minTouch).semantics(mergeDescendants = true) {}, verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().heightIn(min = Brand.minTouch)
+        .toggleable(value = checked, enabled = enabled, role = Role.Switch, onValueChange = onChange), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text(label)
             if (detail != null) Text(detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        Switch(checked, onChange, enabled = enabled)
+        Switch(checked, null, enabled = enabled)
     }
 }
 
