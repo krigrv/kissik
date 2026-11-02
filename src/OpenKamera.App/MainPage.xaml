@@ -82,6 +82,16 @@
             <Setter Property="FontSize" Value="12" />
             <Setter Property="MinHeight" Value="40" />
         </Style>
+        <!-- Small "Auto" pill next to a manual slider: orange when on. -->
+        <Style x:Key="AutoPill" TargetType="ToggleButton" BasedOn="{StaticResource DefaultToggleButtonStyle}">
+            <Setter Property="MinHeight" Value="28" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="MinWidth" Value="52" />
+            <Setter Property="Padding" Value="10,0" />
+            <Setter Property="CornerRadius" Value="14" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="VerticalAlignment" Value="Top" />
+        </Style>
         <!-- Picture tile (Background modes): selected = accent outline. -->
         <Style x:Key="Tile" TargetType="ToggleButton" BasedOn="{StaticResource DefaultToggleButtonStyle}">
             <Setter Property="Height" Value="64" />
@@ -435,21 +445,21 @@
                             <Grid x:Name="PhoneIsoRow" ColumnSpacing="8" Visibility="Collapsed">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                                 <Slider x:Name="PhoneIso" IsThumbToolTipEnabled="False" Header="ISO" StepFrequency="1" ValueChanged="PhoneIso_ValueChanged" AutomationProperties.Name="Phone ISO" />
-                                <CheckBox x:Name="PhoneIsoAuto" Grid.Column="1" Content="Auto" MinWidth="0" VerticalAlignment="Bottom"
+                                <ToggleButton x:Name="PhoneIsoAuto" Grid.Column="1" Content="Auto" Style="{StaticResource AutoPill}"
                                           Click="PhoneIsoAuto_Click" AutomationProperties.Name="Automatic ISO" />
                             </Grid>
                             <Grid x:Name="PhoneShutterRow" ColumnSpacing="8" Visibility="Collapsed">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                                 <Slider x:Name="PhoneShutter" Header="Shutter" Minimum="0" Maximum="1000" StepFrequency="1" IsThumbToolTipEnabled="False"
                                         ValueChanged="PhoneShutter_ValueChanged" AutomationProperties.Name="Phone shutter speed" />
-                                <CheckBox x:Name="PhoneShutterAuto" Grid.Column="1" Content="Auto" MinWidth="0" VerticalAlignment="Bottom"
+                                <ToggleButton x:Name="PhoneShutterAuto" Grid.Column="1" Content="Auto" Style="{StaticResource AutoPill}"
                                           Click="PhoneShutterAuto_Click" AutomationProperties.Name="Automatic shutter speed" />
                             </Grid>
                             <Grid x:Name="PhoneFocusRow" ColumnSpacing="8" Visibility="Collapsed">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                                 <Slider x:Name="PhoneFocus" IsThumbToolTipEnabled="False" Header="Focus" Minimum="0" Maximum="100" StepFrequency="1" ValueChanged="PhoneFocus_ValueChanged"
                                         AutomationProperties.Name="Phone focus, far to near" ToolTipService.ToolTip="Far to near. Or click the picture to focus there." />
-                                <CheckBox x:Name="PhoneFocusAuto" Grid.Column="1" Content="Auto" MinWidth="0" VerticalAlignment="Bottom"
+                                <ToggleButton x:Name="PhoneFocusAuto" Grid.Column="1" Content="Auto" Style="{StaticResource AutoPill}"
                                           Click="PhoneFocusAuto_Click" AutomationProperties.Name="Autofocus" />
                             </Grid>
                             <Grid ColumnSpacing="6">
@@ -1072,22 +1082,19 @@
                     </ListView.ItemContainerStyle>
                     <ListView.ItemTemplate>
                         <DataTemplate x:DataType="core:SceneDocument">
-                            <Grid Width="148" Height="96" CornerRadius="13" Background="#44000000">
-                                <Viewbox Stretch="UniformToFill">
-                                    <Canvas Width="320" Height="180" />
-                                </Viewbox>
-                                <Border HorizontalAlignment="Left" VerticalAlignment="Top" Margin="8,6,0,0" Padding="6,1" CornerRadius="4"
-                                        Background="#99000000" Opacity="{x:Bind ShortcutOpacity}">
-                                    <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="White" Text="{x:Bind ShortcutText}" />
-                                </Border>
-                                <Grid VerticalAlignment="Bottom" Padding="10,16,10,6">
-                                    <Grid.Background>
-                                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                                            <GradientStop Color="#00000000" Offset="0" /><GradientStop Color="#CC000000" Offset="1" />
-                                        </LinearGradientBrush>
-                                    </Grid.Background>
-                                    <TextBlock Text="{x:Bind Name}" FontSize="12" FontWeight="Medium" Foreground="White" TextTrimming="CharacterEllipsis" />
+                            <Grid Width="148" Height="96" RowSpacing="4">
+                                <Grid.RowDefinitions><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                                <Grid CornerRadius="10" Background="#44000000">
+                                    <Viewbox Stretch="UniformToFill">
+                                        <Canvas Width="320" Height="180" />
+                                    </Viewbox>
+                                    <Border HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,5,5,0" Padding="5,0" CornerRadius="4"
+                                            Background="#99000000" Opacity="{x:Bind ShortcutOpacity}">
+                                        <TextBlock FontSize="10" FontWeight="SemiBold" Foreground="White" Text="{x:Bind ShortcutText}" />
+                                    </Border>
                                 </Grid>
+                                <TextBlock Grid.Row="1" Text="{x:Bind Name}" FontSize="12" FontWeight="Medium" HorizontalAlignment="Center"
+                                           Foreground="{ThemeResource TextFillColorPrimaryBrush}" TextTrimming="CharacterEllipsis" />
                             </Grid>
                         </DataTemplate>
                     </ListView.ItemTemplate>
@@ -1346,7 +1353,7 @@
         </Border>
 
         <!-- ═══ Status toast (bottom-right) ═══ -->
-        <Border Background="{ThemeResource SolidBackgroundFillColorQuarternaryBrush}" CornerRadius="12" Padding="12,6" Margin="0,0,12,12" MaxWidth="320"
+        <Border Background="{ThemeResource SolidBackgroundFillColorQuarternaryBrush}" CornerRadius="12" Padding="12,6" Margin="0,0,12,12" MaxWidth="236"
                 HorizontalAlignment="Right" VerticalAlignment="Bottom" IsHitTestVisible="False">
             <TextBlock x:Name="StatusText" Text="Ready." AutomationProperties.LiveSetting="Polite" FontSize="12" Foreground="{ThemeResource TextFillColorPrimaryBrush}" TextWrapping="Wrap" MaxLines="3" TextTrimming="CharacterEllipsis" />
         </Border>
