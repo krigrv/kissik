@@ -20,7 +20,10 @@ private:
 
     HANDLE _mapping = nullptr;
     BYTE* _view = nullptr;
-    std::vector<BYTE> _live;
+    std::vector<BYTE> _live;      // last complete live frame
+    std::vector<BYTE> _scratch;   // copy in progress (a torn copy never replaces _live)
+    UINT32 _liveW = 0, _liveH = 0;
+    ULONGLONG _liveAt = 0;        // GetTickCount64 when _live was copied
     std::vector<BYTE> _slate;
     UINT32 _slateW = 0, _slateH = 0;
 };

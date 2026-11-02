@@ -45,10 +45,10 @@ bool FrameSource::CopyLive(std::vector<BYTE>& bgra, UINT32& w, UINT32& h)
 {
     if (!_view) return false;
     auto* hdr = reinterpret_cast<FrameHeader*>(_view);
-    for (int attempt = 0; attempt < 3; attempt++)
+    for (int attempt = 0; attempt < 8; attempt++)
     {
         LONG before = hdr->sequence;
-        if (before & 1) { Sleep(0); continue; }
+        if (before & 1) { Sleep(1); continue; } // a full-HD write takes a few ms
         MemoryBarrier();
         w = hdr->width; h = hdr->height;
         if (w == 0 || h == 0 || w > kMaxWidth || h > kMaxHeight || hdr->stride != w * 4) return false;
@@ -111,7 +111,7 @@ const std::vector<BYTE>& FrameSource::Slate(UINT32 width, UINT32 height)
         SelectObject(dc, of); DeleteObject(f);
     };
     text(L"KISSIK", int(height) / 14, FW_SEMIBOLD, RGB(0xF4, 0xF5, 0xF7), cy + ring + int(height) / 20);
-    text(L"Open the OpenKamera app to start your camera", int(height) / 30, FW_NORMAL, RGB(0xB8, 0xBC, 0xC2), cy + ring + int(height) / 20 + int(height) / 9);
+    text(L"Open the KISSIK app to start your camera", int(height) / 30, FW_NORMAL, RGB(0xB8, 0xBC, 0xC2), cy + ring + int(height) / 20 + int(height) / 9);
     GdiFlush();
     memcpy(_slate.data(), bits, _slate.size());
     for (size_t i = 3; i < _slate.size(); i += 4) _slate[i] = 255; // GDI leaves alpha at 0
@@ -123,9 +123,12 @@ const std::vector<BYTE>& FrameSource::Slate(UINT32 width, UINT32 height)
 bool FrameSource::Fill(BYTE* dst, LONG stride, UINT32 width, UINT32 height, const GUID& subtype)
 {
     UINT32 w = 0, h = 0;
-    bool live = CopyLive(_live, w, h);
+    ULONGLONG now = GetTickCount64();
+    if (CopyLive(_scratch, w, h)) { _live.swap(_scratch); _liveW = w; _liveH = h; _liveAt = now; }
+    // Caught the app mid-write: repeat the last good frame. Showing the slate here made the picture flicker.
+    bool live = _liveAt != 0 && now - _liveAt < 1500;
     const BYTE* src; UINT32 sw, sh;
-    if (live) { src = _live.data(); sw = w; sh = h; }
+    if (live) { src = _live.data(); sw = _liveW; sh = _liveH; }
     else { const auto& s = Slate(width, height); src = s.data(); sw = width; sh = height; }
     if (subtype == MFVideoFormat_NV12) BgraToNv12(src, sw, sh, dst, stride, width, height);
     else BgraToRgb32(src, sw, sh, dst, stride, width, height);
