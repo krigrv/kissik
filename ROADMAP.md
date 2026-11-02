@@ -77,9 +77,9 @@ More from reviews of the desktop + iPhone apps (2026-11-02; see docs/research/co
 11. [ ] Free on every computer: no per-device licence
 12. [ ] Honest money if store builds are ever sold: one-time price, no auto-renew, one-click refunds
 13. [~] Clean uninstall: "Remove the camera" now also removes every registration (old names too), and start-up clears registrations left from renames. Checking it in Zoom/Teams after removal still to do
-14. [ ] Compatibility test matrix per release (meeting apps, Chromium/Firefox/Safari, streaming apps), results published
+14. [~] Release checklist written (docs/RELEASE-CHECKLIST.md); run it and publish results each release
 15. [ ] Opt-in crash reporting
-16. [ ] Main app needs no admin rights; admin only for optional virtual devices; short IT/deployment guide
+16. [x] Main app needs no admin; admin only for the optional meeting camera and phone firewall rule; IT guide in docs/IT-DEPLOYMENT.md
 17. [~] Audio-drop watchdog: engine stall or Windows audio error → restart within ~3 s and warn, recording keeps going (done). Phone mic: dropped with a reason when it stops sending (done). Device mics rely on the engine watchdog
 18. [x] Explain resolution limits: camera ("supports up to 1080p, scaled up") and phone ("sending 720p; pick 1080p on the phone")
 19. [ ] Public status / known-issues page linked from the troubleshooter
