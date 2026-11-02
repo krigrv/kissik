@@ -37,5 +37,6 @@ private:
     MF_STREAM_STATE _state = MF_STREAM_STATE_STOPPED;
     bool _shutdown = false;
     LONGLONG _startTime = 0;
+    LONGLONG _nextFrame = 0;   // when the next sample is due (100 ns, MFGetSystemTime)
     FrameSource _frames;
 };

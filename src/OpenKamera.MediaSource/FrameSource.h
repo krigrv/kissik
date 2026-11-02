@@ -15,8 +15,11 @@ public:
 private:
     bool CopyLive(std::vector<BYTE>& bgra, UINT32& w, UINT32& h);
     const std::vector<BYTE>& Slate(UINT32 width, UINT32 height);
-    static void BgraToNv12(const BYTE* src, UINT32 sw, UINT32 sh, BYTE* dst, LONG stride, UINT32 dw, UINT32 dh);
-    static void BgraToRgb32(const BYTE* src, UINT32 sw, UINT32 sh, BYTE* dst, LONG stride, UINT32 dw, UINT32 dh);
+    void Maps(UINT32 sw, UINT32 sh, UINT32 dw, UINT32 dh);
+    void BgraToNv12(const BYTE* src, UINT32 sw, UINT32 sh, BYTE* dst, LONG stride, UINT32 dw, UINT32 dh);
+    void BgraToRgb32(const BYTE* src, UINT32 sw, UINT32 sh, BYTE* dst, LONG stride, UINT32 dw, UINT32 dh);
+    std::vector<UINT32> _xmap, _ymap;
+    UINT32 _mapSW = 0, _mapSH = 0, _mapDW = 0, _mapDH = 0;
 
     HANDLE _mapping = nullptr;
     BYTE* _view = nullptr;

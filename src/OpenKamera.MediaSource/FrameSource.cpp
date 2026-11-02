@@ -142,31 +142,43 @@ static inline void MapCover(UINT32 sw, UINT32 sh, UINT32 dw, UINT32 dh, double& 
     offX = (sw - dw / scale) / 2.0; offY = (sh - dh / scale) / 2.0;
 }
 
+// Source column/row for each output column/row, computed once per size pair (was a division per pixel,
+// which at 1080p took longer than a frame and made the meeting picture stutter).
+void FrameSource::Maps(UINT32 sw, UINT32 sh, UINT32 dw, UINT32 dh)
+{
+    if (sw == _mapSW && sh == _mapSH && dw == _mapDW && dh == _mapDH) return;
+    _mapSW = sw; _mapSH = sh; _mapDW = dw; _mapDH = dh;
+    double s, ox, oy; MapCover(sw, sh, dw, dh, s, ox, oy);
+    _xmap.resize(dw); _ymap.resize(dh);
+    for (UINT32 x = 0; x < dw; x++) _xmap[x] = std::min(sw - 1, UINT32(ox + (x + 0.5) / s));
+    for (UINT32 y = 0; y < dh; y++) _ymap[y] = std::min(sh - 1, UINT32(oy + (y + 0.5) / s));
+}
+
 void FrameSource::BgraToRgb32(const BYTE* src, UINT32 sw, UINT32 sh, BYTE* dst, LONG stride, UINT32 dw, UINT32 dh)
 {
-    double s, ox, oy; MapCover(sw, sh, dw, dh, s, ox, oy);
+    Maps(sw, sh, dw, dh);
     for (UINT32 y = 0; y < dh; y++)
     {
-        UINT32 syy = std::min(sh - 1, UINT32(oy + (y + 0.5) / s));
         auto* row = reinterpret_cast<UINT32*>(dst + LONG(y) * stride);
-        const auto* srow = reinterpret_cast<const UINT32*>(src + size_t(syy) * sw * 4);
-        for (UINT32 x = 0; x < dw; x++) row[x] = srow[std::min(sw - 1, UINT32(ox + (x + 0.5) / s))] | 0xFF000000u;
+        const auto* srow = reinterpret_cast<const UINT32*>(src + size_t(_ymap[y]) * sw * 4);
+        if (sw == dw) { for (UINT32 x = 0; x < dw; x++) row[x] = srow[x] | 0xFF000000u; continue; }
+        for (UINT32 x = 0; x < dw; x++) row[x] = srow[_xmap[x]] | 0xFF000000u;
     }
 }
 
 void FrameSource::BgraToNv12(const BYTE* src, UINT32 sw, UINT32 sh, BYTE* dst, LONG stride, UINT32 dw, UINT32 dh)
 {
-    double s, ox, oy; MapCover(sw, sh, dw, dh, s, ox, oy);
+    Maps(sw, sh, dw, dh);
+    const UINT32* xm = _xmap.data();
     BYTE* yPlane = dst;
     BYTE* uv = dst + size_t(stride) * dh;
     for (UINT32 y = 0; y < dh; y++)
     {
-        UINT32 syy = std::min(sh - 1, UINT32(oy + (y + 0.5) / s));
-        const BYTE* srow = src + size_t(syy) * sw * 4;
+        const BYTE* srow = src + size_t(_ymap[y]) * sw * 4;
         BYTE* yrow = yPlane + size_t(y) * stride;
         for (UINT32 x = 0; x < dw; x++)
         {
-            const BYTE* p = srow + size_t(std::min(sw - 1, UINT32(ox + (x + 0.5) / s))) * 4;
+            const BYTE* p = srow + size_t(xm[x]) * 4;
             yrow[x] = BYTE(((66 * p[2] + 129 * p[1] + 25 * p[0] + 128) >> 8) + 16);
         }
         if ((y & 1) == 0)
@@ -174,7 +186,7 @@ void FrameSource::BgraToNv12(const BYTE* src, UINT32 sw, UINT32 sh, BYTE* dst, L
             BYTE* uvrow = uv + size_t(y / 2) * stride;
             for (UINT32 x = 0; x + 1 < dw + 1; x += 2)
             {
-                const BYTE* p = srow + size_t(std::min(sw - 1, UINT32(ox + (x + 0.5) / s))) * 4;
+                const BYTE* p = srow + size_t(xm[x]) * 4;
                 int r = p[2], g = p[1], b = p[0];
                 uvrow[x] = BYTE(((-38 * r - 74 * g + 112 * b + 128) >> 8) + 128);
                 if (x + 1 < dw) uvrow[x + 1] = BYTE(((112 * r - 94 * g - 18 * b + 128) >> 8) + 128);

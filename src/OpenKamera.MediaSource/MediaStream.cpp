@@ -126,6 +126,14 @@ IFACEMETHODIMP MediaStream::RequestSample(IUnknown* token)
     LONG stride = LONG(nv12 ? w : w * 4);
     DWORD size = nv12 ? w * h * 3 / 2 : w * h * 4;
 
+    // Steady pace: one frame per 1/kFps on a fixed grid (no faster, and evenly spaced timestamps).
+    constexpr LONGLONG period = 10'000'000 / kFps;
+    LONGLONG now = MFGetSystemTime();
+    if (_nextFrame == 0 || now - _nextFrame > period * 2) _nextFrame = now; // first frame, or we fell far behind
+    if (_nextFrame > now) Sleep(DWORD((_nextFrame - now) / 10'000));
+    LONGLONG frameTime = _nextFrame;
+    _nextFrame += period;
+
     ComPtr<IMFMediaBuffer> buffer;
     RETURN_IF_FAILED(MFCreateMemoryBuffer(size, &buffer));
     BYTE* data = nullptr;
@@ -137,9 +145,8 @@ IFACEMETHODIMP MediaStream::RequestSample(IUnknown* token)
     ComPtr<IMFSample> sample;
     RETURN_IF_FAILED(MFCreateSample(&sample));
     RETURN_IF_FAILED(sample->AddBuffer(buffer.Get()));
-    LONGLONG now = MFGetSystemTime();
-    RETURN_IF_FAILED(sample->SetSampleTime(now));
-    RETURN_IF_FAILED(sample->SetSampleDuration(10'000'000 / kFps));
+    RETURN_IF_FAILED(sample->SetSampleTime(frameTime));
+    RETURN_IF_FAILED(sample->SetSampleDuration(period));
     if (token) RETURN_IF_FAILED(sample->SetUnknown(MFSampleExtension_Token, token));
     return _queue->QueueEventParamUnk(MEMediaSample, GUID_NULL, S_OK, sample.Get());
 }
