@@ -49,6 +49,9 @@ public sealed partial class MainPage
             "*fav" => _scenes.Where(s => _settings.Favourites.Contains("scene:" + s.Id)),
             _ => _scenes.Where(s => s.Category == tag),
         };
+        string q = SceneSearch?.Text.Trim() ?? "";
+        if (q.Length > 0)
+            shown = _scenes.Where(s => s.Name.Contains(q, StringComparison.OrdinalIgnoreCase) || s.Category.Contains(q, StringComparison.OrdinalIgnoreCase));
         _loadingScene = true;
         SceneList.ItemsSource = shown.ToList();
         _loadingScene = false;
@@ -56,6 +59,8 @@ public sealed partial class MainPage
         if (SceneList.Items.Contains(target)) SceneList.SelectedItem = target;
         else LoadScene(target);
     }
+
+    private void SceneSearch_TextChanged(object sender, TextChangedEventArgs e) => RefreshSceneRail(_scene.Id);
 
     private void SelectSceneByShortcut(int n)
     {

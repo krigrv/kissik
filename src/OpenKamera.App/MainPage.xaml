@@ -886,6 +886,17 @@
                         <ComboBoxItem Content="Wellness" Tag="Wellness" />
                         <ComboBoxItem Content="Utility" Tag="Utility" />
                     </ComboBox>
+                    <Button x:Name="SceneSearchBtn" Style="{StaticResource IconButton}" Width="44"
+                            Background="{ThemeResource ControlFillColorDefaultBrush}"
+                            ToolTipService.ToolTip="Find a scene by name" AutomationProperties.Name="Find a scene">
+                        <FontIcon Glyph="&#xE721;" FontSize="14" />
+                        <Button.Flyout>
+                            <Flyout Placement="Top">
+                                <TextBox x:Name="SceneSearch" Width="240" PlaceholderText="Find a scene: podcast, birthday…"
+                                         TextChanged="SceneSearch_TextChanged" AutomationProperties.Name="Find a scene" />
+                            </Flyout>
+                        </Button.Flyout>
+                    </Button>
                     <Button x:Name="GalleryBtn" Style="{StaticResource IconButton}" Width="44" Click="GalleryBtn_Click"
                             Background="{ThemeResource ControlFillColorDefaultBrush}"
                             ToolTipService.ToolTip="Open the gallery (scenes, backgrounds, filters)" AutomationProperties.Name="Open gallery">
