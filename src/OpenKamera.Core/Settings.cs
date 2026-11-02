@@ -24,6 +24,8 @@ public sealed class AppSettings
     public bool Mirror { get; set; }
     /// <summary>Mirror only the on-screen preview; meetings and recordings get the true (unmirrored) view.</summary>
     public bool SmartMirror { get; set; }
+    /// <summary>Ask the native phone app for H.264 instead of JPEG when it offers it.</summary>
+    public bool PhoneH264 { get; set; } = true;
     public bool PrivacyGuard { get; set; }
     public BackgroundSettings Background { get; set; } = BackgroundSettings.Off;
     /// <summary>Gallery favourites: "scene:id", "bg:id", "filter:Name", "lut:Name".</summary>

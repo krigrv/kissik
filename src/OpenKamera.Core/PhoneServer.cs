@@ -16,7 +16,47 @@ public sealed record PhoneStatus(string? Device, int Width, int Height, double? 
 {
     /// <summary>The longest side the phone camera can deliver (either orientation), or null if it didn't say.</summary>
     public int? MaxLongSide => MaxWidth is { } w && MaxHeight is { } h ? Math.Max(w, h) : null;
+
+    // Pro controls from the native app. Null/empty = the lens (or the browser page) doesn't have it, so hide it.
+    public double? ZoomMin { get; init; }
+    /// <summary>Clockwise degrees H.264 frames must be turned (JPEG frames arrive upright).</summary>
+    public int Rotation { get; init; }
+    public IReadOnlyList<PhoneLens> Lenses { get; init; } = [];
+    /// <summary>Chosen lens id, or null when following front/back.</summary>
+    public string? Lens { get; init; }
+    public int? Ev { get; init; }
+    public int? EvMin { get; init; }
+    public int? EvMax { get; init; }
+    public double? EvStep { get; init; }
+    public bool Manual { get; init; }
+    public int? Iso { get; init; }
+    public int? IsoMin { get; init; }
+    public int? IsoMax { get; init; }
+    /// <summary>Exposure time in nanoseconds; null = automatic.</summary>
+    public long? Shutter { get; init; }
+    public long? ShutterMin { get; init; }
+    public long? ShutterMax { get; init; }
+    public bool FocusManual { get; init; }
+    /// <summary>0 = far … 1 = nearest; null = autofocus.</summary>
+    public double? Focus { get; init; }
+    public IReadOnlyList<string> WbModes { get; init; } = [];
+    public string? Wb { get; init; }
+    public IReadOnlyList<int> FpsList { get; init; } = [];
+    /// <summary>0 = automatic.</summary>
+    public int? Fps { get; init; }
+    public bool? Stab { get; init; }
+    public bool? Hdr { get; init; }
+    public IReadOnlyList<string> Codecs { get; init; } = [];
+    public string? Codec { get; init; }
+
+    public bool HasEv => EvMin is { } lo && EvMax is { } hi && hi > lo && EvStep is > 0;
+    public bool HasIso => Manual && IsoMin is { } lo && IsoMax is { } hi && hi > lo;
+    public bool HasShutter => Manual && ShutterMin is { } lo && ShutterMax is { } hi && hi > lo;
+    public bool CanH264 => Codecs.Contains("h264");
 }
+
+/// <summary>One of the phone's lenses, e.g. ("2", "back", "Ultra-wide").</summary>
+public sealed record PhoneLens(string Id, string? Facing, string Label);
 
 /// <summary>
 /// Phone as camera, no app needed: a tiny HTTPS + WebSocket server on the local network. The phone opens the pairing
@@ -221,8 +261,41 @@ public sealed class PhoneServer : IAsyncDisposable
             double? D(string n) => r.TryGetProperty(n, out var v) && v.ValueKind == JsonValueKind.Number ? v.GetDouble() : null;
             bool? B(string n) => r.TryGetProperty(n, out var v) && v.ValueKind is JsonValueKind.True or JsonValueKind.False ? v.GetBoolean() : null;
             string? S(string n) => r.TryGetProperty(n, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
+            int? I(string n) => D(n) is { } d ? (int)Math.Round(d) : null;
+            long? L(string n) => D(n) is { } d ? (long)Math.Round(d) : null;
+            IEnumerable<JsonElement> A(string n) => r.TryGetProperty(n, out var v) && v.ValueKind == JsonValueKind.Array ? v.EnumerateArray() : [];
+            var lenses = A("lenses").Where(l => l.ValueKind == JsonValueKind.Object).Select(l =>
+            {
+                string? Field(string n) => l.TryGetProperty(n, out var v) ? v.ValueKind switch
+                {
+                    JsonValueKind.String => v.GetString(),
+                    JsonValueKind.Number => v.GetRawText(),
+                    _ => null,
+                } : null;
+                return Field("id") is { } id ? new PhoneLens(id, Field("facing"), Field("label") ?? id) : null;
+            }).OfType<PhoneLens>().ToList();
+            int rot = ((I("rot") ?? 0) % 360 + 360) % 360;
             return new PhoneStatus(S("device"), (int)(D("w") ?? 0), (int)(D("h") ?? 0), D("battery"), B("charging"), S("facing"),
-                B("torch"), D("zoomMax"), D("zoom"), (int?)D("maxW"), (int?)D("maxH"), D("maxFps"));
+                B("torch"), D("zoomMax"), D("zoom"), (int?)D("maxW"), (int?)D("maxH"), D("maxFps"))
+            {
+                ZoomMin = D("zoomMin"),
+                Rotation = rot % 90 == 0 ? rot : 0,
+                Lenses = lenses,
+                Lens = r.TryGetProperty("lens", out var lv) && lv.ValueKind == JsonValueKind.Number ? lv.GetRawText() : S("lens"),
+                Ev = I("ev"), EvMin = I("evMin"), EvMax = I("evMax"), EvStep = D("evStep"),
+                Manual = B("manual") == true,
+                Iso = I("iso"), IsoMin = I("isoMin"), IsoMax = I("isoMax"),
+                Shutter = L("shutter"), ShutterMin = L("shutterMin"), ShutterMax = L("shutterMax"),
+                FocusManual = B("focusManual") == true,
+                Focus = D("focus") is { } f ? Math.Clamp(f, 0, 1) : null,
+                WbModes = A("wbModes").Where(e => e.ValueKind == JsonValueKind.String).Select(e => e.GetString()!).ToList(),
+                Wb = S("wb"),
+                FpsList = A("fpsList").Where(e => e.ValueKind == JsonValueKind.Number).Select(e => (int)Math.Round(e.GetDouble())).Where(f => f > 0).Distinct().Order().ToList(),
+                Fps = I("fps"),
+                Stab = B("stab"), Hdr = B("hdr"),
+                Codecs = A("codecs").Where(e => e.ValueKind == JsonValueKind.String).Select(e => e.GetString()!.ToLowerInvariant()).ToList(),
+                Codec = S("codec")?.ToLowerInvariant(),
+            };
         }
         catch { return null; }
     }
