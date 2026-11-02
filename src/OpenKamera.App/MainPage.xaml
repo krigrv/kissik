@@ -737,10 +737,31 @@
                                                   Toggled="Mix_Toggled" AutomationProperties.Name="Limiter" />
                                 </Grid>
                                 <Grid>
-                                    <TextBlock Text="Noise suppression" FontSize="14" VerticalAlignment="Center"
-                                               ToolTipService.ToolTip="Windows voice processing: removes background noise and echo" />
+                                    <TextBlock Text="Windows echo removal" FontSize="14" VerticalAlignment="Center"
+                                               ToolTipService.ToolTip="Windows voice processing: removes echo and some noise" />
                                     <ToggleSwitch x:Name="NoiseToggle" HorizontalAlignment="Right" MinWidth="0" OffContent="" OnContent="" IsOn="True"
-                                                  Toggled="Noise_Toggled" AutomationProperties.Name="Noise suppression" />
+                                                  Toggled="Noise_Toggled" AutomationProperties.Name="Windows echo removal" />
+                                </Grid>
+                                <Grid>
+                                    <TextBlock Text="Low cut" FontSize="14" VerticalAlignment="Center"
+                                               ToolTipService.ToolTip="Removes rumble below 80 Hz" />
+                                    <ToggleSwitch x:Name="LowCutToggle" HorizontalAlignment="Right" MinWidth="0" OffContent="" OnContent="" IsOn="True"
+                                                  Toggled="Voice_Toggled" AutomationProperties.Name="Low cut"
+                                                  AutomationProperties.HelpText="Removes rumble below 80 Hz" />
+                                </Grid>
+                                <Grid>
+                                    <TextBlock Text="Auto level" FontSize="14" VerticalAlignment="Center"
+                                               ToolTipService.ToolTip="Slowly evens out your voice level" />
+                                    <ToggleSwitch x:Name="AutoLevelToggle" HorizontalAlignment="Right" MinWidth="0" OffContent="" OnContent=""
+                                                  Toggled="Voice_Toggled" AutomationProperties.Name="Auto level"
+                                                  AutomationProperties.HelpText="Slowly evens out your voice level" />
+                                </Grid>
+                                <Grid>
+                                    <TextBlock Text="De-esser" FontSize="14" VerticalAlignment="Center"
+                                               ToolTipService.ToolTip="Softens harsh s sounds" />
+                                    <ToggleSwitch x:Name="DeEssToggle" HorizontalAlignment="Right" MinWidth="0" OffContent="" OnContent=""
+                                                  Toggled="Voice_Toggled" AutomationProperties.Name="De-esser"
+                                                  AutomationProperties.HelpText="Softens harsh s sounds" />
                                 </Grid>
                                 <TextBlock Text="Equaliser" FontSize="14" Margin="0,6,0,0" />
                                 <Grid ColumnSpacing="6">

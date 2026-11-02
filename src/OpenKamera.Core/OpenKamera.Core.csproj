@@ -34,6 +34,11 @@
   <ItemGroup>
     <!-- Segmentation models (Apache-2.0, see THIRD_PARTY.md). -->
     <None Include="Models\*.onnx" CopyToOutputDirectory="PreserveNewest" Link="Models\%(Filename)%(Extension)" />
+    <!-- Voice noise removal (see THIRD_PARTY.md): RNNoise (BSD-3-Clause) and DeepFilterNet 3 low latency (MIT/Apache-2.0). -->
+    <None Include="Models\DeepFilterNet3_ll_onnx.tar.gz" CopyToOutputDirectory="PreserveNewest" Link="Models\%(Filename)%(Extension)" />
+    <None Include="Native\x64\*.dll" CopyToOutputDirectory="PreserveNewest" Link="voice\x64\%(Filename)%(Extension)" />
+    <None Include="Native\x86\*.dll" CopyToOutputDirectory="PreserveNewest" Link="voice\x86\%(Filename)%(Extension)" />
+    <None Include="Native\arm64\*.dll" CopyToOutputDirectory="PreserveNewest" Link="voice\arm64\%(Filename)%(Extension)" />
   </ItemGroup>
 
   <ItemGroup>

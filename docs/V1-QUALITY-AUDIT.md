@@ -54,7 +54,15 @@ Still to test by hand before v1 (needs a person at the PC):
   (bokeh, depth falloff) instead of a flat box blur. Measure against hand-cut test frames (edge error).
 
 ### Noise removal (mic)
-- **Now:** none (mixer, gain, mute, watchdog only).
+- **Now (done):** per-mic noise removal, picked in each mic card: "Light" (RNNoise, the default) or "Studio voice"
+  (DeepFilterNet 3 low-latency), plus 80 Hz low cut, de-esser and auto level toward −16 LUFS (BS.1770 K-weighted)
+  with a −1 dBFS peak guard, all at 48 kHz before the mix. Changes apply live, without restarting audio. Each mic
+  card shows how many dB are being removed. Measured on the dev PC (16 threads), per mic: Light ≈ 1 % of one
+  core and no extra delay; Studio voice ≈ 6 % of one core and 10 ms (plus the graph's 10 ms quantum). On spoken
+  test audio, noise in pauses drops 21 dB (Light) / 22 dB (Studio voice) with the voice level kept within 1 dB.
+  Studio voice errors pass audio through instead of closing the app. Built for x64, x86 and ARM64 (ARM64 not yet run on
+  real ARM hardware).
+- **Before:** none (mixer, gain, mute, watchdog only).
 - **Best known (open):** DeepFilterNet (MIT/Apache) beats RNNoise (BSD) clearly; RNNoise uses
   far less CPU.
 - **Upgrade:** DeepFilterNet as "Studio voice", RNNoise as the light option, both on-device. Add a

@@ -16,6 +16,18 @@ public sealed class AudioTrack
     internal IAudioInputNode? Input;
     internal AudioEngine.PushSource? Push;
     internal AudioFrameOutputNode? Tap;
+    /// <summary>Raw device audio for the voice chain; the chain's output feeds <see cref="Processed"/>.</summary>
+    internal AudioFrameOutputNode? Raw;
+    internal AudioEngine.PushSource? Processed;
+    internal VoiceChain? Chain;
+    /// <summary>Held by the audio thread while the chain runs, so a live swap never frees it mid-frame.</summary>
+    internal readonly object ChainLock = new();
+    /// <summary>Why the chosen noise removal isn't running on this mic, or null.</summary>
+    public string? VoiceNote { get; internal set; }
+    /// <summary>How much noise removal is taking out now, in dB.</summary>
+    public double NoiseReductionDb => Chain?.ReductionDb ?? 0;
+    /// <summary>Noise removal hit an error and is passing this mic through untouched.</summary>
+    public bool NoiseFailed => Chain?.DenoiserFailed == true;
     private double _volume = 1;
     private bool _muted;
 
@@ -25,6 +37,9 @@ public sealed class AudioTrack
     /// <summary>Last quantum's peak per channel, 0..1 (before volume, so you can see a muted mic).</summary>
     public float PeakL { get; internal set; }
     public float PeakR { get; internal set; }
+
+    /// <summary>Noise removal actually running on this mic (Off if it couldn't start).</summary>
+    public NoiseRemoval Noise => Chain is { DenoiserFailed: false } c ? c.Mode : NoiseRemoval.Off;
 
     internal void Apply() { if (Input is not null) Input.OutgoingGain = _muted ? 0 : _volume; }
 }
@@ -37,6 +52,15 @@ public sealed class AudioMixSettings
     /// <summary>Four equaliser bands in dB (−12..+12): low, low-mid, high-mid, high.</summary>
     public double[] EqDb { get; set; } = [0, 0, 0, 0];
     public bool NoiseSuppression { get; set; } = true;
+    /// <summary>On-device noise removal per microphone id (missing = Light, which costs about 1 % of one core).</summary>
+    public Dictionary<string, NoiseRemoval> MicNoise { get; set; } = [];
+    public NoiseRemoval NoiseFor(string micId) => MicNoise.TryGetValue(micId, out var m) ? m : NoiseRemoval.Light;
+    /// <summary>80 Hz high-pass on every microphone (rumble, desk bumps, air conditioning).</summary>
+    public bool LowCut { get; set; } = true;
+    /// <summary>Slowly levels each microphone toward −16 LUFS.</summary>
+    public bool AutoLevel { get; set; }
+    /// <summary>Softens harsh "s" sounds on every microphone.</summary>
+    public bool DeEss { get; set; }
     public List<string> MicIds { get; set; } = [];
     public Dictionary<string, double> MicVolumes { get; set; } = [];
     public HashSet<string> MutedMics { get; set; } = [];
@@ -179,6 +203,15 @@ public sealed class AudioEngine : IAsyncDisposable
         }
         if (result.Status != AudioDeviceNodeCreationStatus.Success) { LastError = $"{name}: {result.Status}"; return; }
         var track = new AudioTrack { DeviceId = id, Name = name, Input = result.DeviceInputNode };
+        (track.Chain, track.VoiceNote) = await Task.Run(() => BuildChain(id));
+        // Device → raw tap → voice chain (in OnQuantum) → frame input node → mix. Always wired this way, so
+        // noise removal, low cut and auto level can change while audio keeps running.
+        track.Raw = _graph.CreateFrameOutputNode(_graph.EncodingProperties);
+        result.DeviceInputNode.AddOutgoingConnection(track.Raw);
+        var processed = _graph.CreateFrameInputNode(_graph.EncodingProperties);
+        track.Processed = new PushSource(processed);
+        track.Input = processed;
+        processed.Start();
         track.Tap = _graph.CreateFrameOutputNode(_graph.EncodingProperties);
         track.Input!.AddOutgoingConnection(_submix);
         track.Input.AddOutgoingConnection(track.Tap, 1.0); // meter tap sees the raw mic
@@ -187,6 +220,36 @@ public sealed class AudioEngine : IAsyncDisposable
         // The tap connection must stay at unity even when the mix gain changes: OutgoingGain applies to all
         // outgoing connections, so meters show post-gain; that is what users expect from a fader meter.
         _tracks.Add(track);
+    }
+
+    /// <summary>The voice chain this mic's settings ask for (null when every step is off), and a note if its noise removal can't run.</summary>
+    private (VoiceChain? Chain, string? Note) BuildChain(string id)
+    {
+        var mode = Mix.NoiseFor(id);
+        bool any = Mix.LowCut || Mix.AutoLevel || Mix.DeEss;
+        if (mode == NoiseRemoval.Off && !any) return (null, null);
+        try { return (new VoiceChain(mode, Mix.LowCut, Mix.AutoLevel, Mix.DeEss), null); }
+        catch (Exception ex) when (ex is DllNotFoundException or BadImageFormatException or EntryPointNotFoundException
+                                       or InvalidOperationException or PlatformNotSupportedException)
+        {
+            string note = mode == NoiseRemoval.Studio ? "Studio voice can't run on this PC." : "Noise removal can't run on this PC.";
+            return (any ? new VoiceChain(NoiseRemoval.Off, Mix.LowCut, Mix.AutoLevel, Mix.DeEss) : null, note);
+        }
+    }
+
+    /// <summary>
+    /// Applies changed noise removal, low cut, auto level or de-esser settings to every open microphone
+    /// without stopping audio: new chains are built off the audio thread and swapped in between quanta.
+    /// </summary>
+    public async Task UpdateVoiceAsync()
+    {
+        foreach (var t in _tracks.ToList())
+        {
+            var (chain, note) = await Task.Run(() => BuildChain(t.DeviceId));
+            VoiceChain? old;
+            lock (t.ChainLock) { old = t.Chain; t.Chain = chain; t.VoiceNote = note; }
+            old?.Dispose();
+        }
     }
 
     /// <summary>Pushes master volume, limiter and EQ settings into the graph.</summary>
@@ -228,6 +291,14 @@ public sealed class AudioEngine : IAsyncDisposable
 
     private void ProcessQuantum()
     {
+        foreach (var t in _tracks)
+            if (t is { Raw: { } raw, Processed: { } push })
+            {
+                var (_, _, raw48) = Read(raw.GetFrame(), wantSamples: true);
+                if (raw48 is not { Length: > 0 }) continue;
+                lock (t.ChainLock) t.Chain?.Process(raw48);
+                push.Write(raw48);
+            }
         foreach (var t in _tracks)
             if (t.Tap is { } tap) { var (l, r, _) = Read(tap.GetFrame(), wantSamples: false); t.PeakL = Decay(t.PeakL, l); t.PeakR = Decay(t.PeakR, r); }
         if (_masterTap is null) return;
@@ -330,6 +401,7 @@ public sealed class AudioEngine : IAsyncDisposable
         var node = _graph.CreateFrameInputNode(_graph.EncodingProperties);
         var push = new PushSource(node);
         var track = new AudioTrack { DeviceId = id, Name = name, Input = node, Push = push };
+        (track.Chain, track.VoiceNote) = BuildChain(id);
         track.Tap = _graph.CreateFrameOutputNode(_graph.EncodingProperties);
         node.AddOutgoingConnection(_submix);
         node.AddOutgoingConnection(track.Tap, 1.0);
@@ -340,7 +412,13 @@ public sealed class AudioEngine : IAsyncDisposable
         return track;
     }
 
-    public void PushAudio(string trackId, float[] stereo48k) => _tracks.FirstOrDefault(t => t.DeviceId == trackId)?.Push?.Write(stereo48k);
+    public void PushAudio(string trackId, float[] stereo48k)
+    {
+        var t = _tracks.FirstOrDefault(t => t.DeviceId == trackId);
+        if (t?.Push is null) return;
+        lock (t.ChainLock) t.Chain?.Process(stereo48k);
+        t.Push.Write(stereo48k);
+    }
 
     public void RemovePushTrack(string id)
     {
@@ -348,6 +426,7 @@ public sealed class AudioEngine : IAsyncDisposable
         if (t is null) return;
         _tracks.Remove(t);
         try { t.Input?.Stop(); (t.Input as IDisposable)?.Dispose(); t.Tap?.Dispose(); } catch { }
+        lock (t.ChainLock) { t.Chain?.Dispose(); t.Chain = null; }
     }
 
     public Task StopAsync()
@@ -360,6 +439,7 @@ public sealed class AudioEngine : IAsyncDisposable
         }
         OutputName = null;
         _graph = null; _submix = null; _masterTap = null; _eq = null; _limiter = null;
+        foreach (var t in _tracks) lock (t.ChainLock) { t.Chain?.Dispose(); t.Chain = null; } // graph stopped first
         _tracks.Clear();
         MasterPeakL = MasterPeakR = 0;
         return Task.CompletedTask;
