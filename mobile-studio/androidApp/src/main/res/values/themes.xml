@@ -1,0 +1,8 @@
+<resources>
+    <style name="Theme.Kissik" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">#FF000000</item>
+        <item name="android:statusBarColor">#FF000000</item>
+        <item name="android:navigationBarColor">#FF000000</item>
+    </style>
+    <string name="app_name">KISSIK</string>
+</resources>
