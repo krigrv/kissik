@@ -57,6 +57,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.res.painterResource
 import androidx.core.content.ContextCompat
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.BinaryBitmap
@@ -134,17 +135,10 @@ private fun App(incoming: MutableState<String?>) {
 private fun hasCamera(ctx: android.content.Context) =
     ContextCompat.checkSelfPermission(ctx, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
 
-/** The KISSIK mark: concentric lens rings with a soft glow. Used as the onboarding hero. */
+/** The KISSIK logo tile, used as the onboarding hero. */
 @Composable
-private fun LensHero(accent: Color, modifier: Modifier = Modifier) = Canvas(modifier.size(220.dp)) {
-    val c = center; val r = size.minDimension / 2
-    drawCircle(Brush.radialGradient(listOf(accent.copy(alpha = 0.45f), Color.Transparent), c, r), r, c)
-    drawCircle(accent.copy(alpha = 0.35f), r * 0.72f, c, style = Stroke(2.dp.toPx()))
-    drawCircle(Color(0xFF15151A), r * 0.58f, c)
-    drawCircle(accent, r * 0.58f, c, style = Stroke(6.dp.toPx()))
-    drawCircle(Brush.radialGradient(listOf(Color(0xFF2A3350), Color(0xFF0B0C10)), c, r * 0.4f), r * 0.4f, c)
-    drawCircle(Color.White.copy(alpha = 0.85f), r * 0.08f, c + Offset(r * 0.14f, -r * 0.14f))
-}
+private fun LogoHero(modifier: Modifier = Modifier) =
+    Image(painterResource(R.drawable.kissik_logo), "KISSIK", modifier.size(168.dp).clip(RoundedCornerShape(38.dp)))
 
 private data class IntroPage(val accent: Color, val kicker: String, val title: String, val body: String, val points: List<Pair<ImageVector, String>>)
 
@@ -153,10 +147,10 @@ private data class IntroPage(val accent: Color, val kicker: String, val title: S
 private fun Intro(done: () -> Unit) {
     val pages = remember {
         listOf(
-            IntroPage(K.accent, "KISSIK CAMERA", "Your phone is the better webcam",
+            IntroPage(Color(0xFFFF9A3C), "KISSIK CAMERA", "Your phone is the better webcam",
                 "Use its camera and microphone in KISSIK on your Windows PC, at full resolution.",
                 listOf(Icons.Outlined.HighQuality to "Your camera's full resolution — up to 4K or whatever your phone supports", Icons.Outlined.ScreenLockPortrait to "Keeps streaming with the screen off")),
-            IntroPage(Color(0xFFB98CFF), "SETUP · UNDER 2 MINUTES", "Scan once. Then forget about it",
+            IntroPage(Color(0xFFFFB547), "SETUP · UNDER 2 MINUTES", "Scan once. Then forget about it",
                 "Open KISSIK on your PC, choose Phone, and scan the code. After that it reconnects by itself.",
                 listOf(Icons.Outlined.Wifi to "Same Wi-Fi as your PC", Icons.Outlined.Usb to "Or a USB cable — no Wi-Fi needed")),
             IntroPage(Color(0xFF3DDC97), "PRIVATE · FREE", "Nothing leaves your desk",
@@ -179,7 +173,7 @@ private fun Intro(done: () -> Unit) {
         }
         AnimatedContent(p, Modifier.weight(1f), label = "page") { page ->
             Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.Center) {
-                LensHero(page.accent, Modifier.align(Alignment.CenterHorizontally))
+                LogoHero(Modifier.align(Alignment.CenterHorizontally))
                 Spacer(Modifier.height(28.dp))
                 Text(page.kicker, color = page.accent, fontSize = 13.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
                 Spacer(Modifier.height(10.dp))

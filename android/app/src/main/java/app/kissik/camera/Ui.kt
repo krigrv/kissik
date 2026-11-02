@@ -15,14 +15,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-/** KISSIK look: near-black ground, soft dark cards, one blue accent, status colours for live/connecting. */
+/** KISSIK look: near-black ground, soft dark cards, the logo's orange as the one accent, status colours for live/connecting. */
 object K {
     val bg = Color(0xFF0B0B0E)
     val card = Color(0xFF17171C)
     val raised = Color(0xFF26262E)
     val text = Color(0xFFF2F2F5)
     val muted = Color(0xFF9E9EA8)
-    val accent = Color(0xFF4C7DFF)
+    val accent = Color(0xFFFF7A2E)
     val live = Color(0xFF3DDC97)
     val warn = Color(0xFFFFB020)
 }
