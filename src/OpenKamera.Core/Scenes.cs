@@ -129,8 +129,7 @@ public sealed class SceneDocument
             Id = "just-my-name", Name = "Just my name", Category = "Professional",
             Layers =
             [
-                new() { Kind = "shape", Name = "Plate", X = 0.03, Y = 0.865, W = 0.26, H = 0.075, Color = "#B3101214", CornerRadius = 0.012 },
-                T("Your Name", 0.045, 0.875, 0.24, 0.055, 0.04, bold: true, name: "Name"),
+                T("Your Name", 0.03, 0.87, 0.3, 0.07, 0.036, bold: true, fill: "#B3101214", name: "Name"),
             ],
         },
         new()
@@ -138,23 +137,26 @@ public sealed class SceneDocument
             Id = "lower-third", Name = "Lower Third", Category = "Professional",
             Layers =
             [
-                new() { Kind = "shape", Name = "Bar", X = 0, Y = 0.80, W = 0.62, H = 0.16, Color = "#E6141618", CornerRadius = 0 },
-                new() { Kind = "shape", Name = "Accent", X = 0.035, Y = 0.83, W = 0.006, H = 0.10, Color = "#FF2EA3F2" },
-                T("Your Name", 0.055, 0.815, 0.55, 0.07, 0.055, bold: true, name: "Name"),
-                T("Title or topic", 0.055, 0.885, 0.55, 0.05, 0.034, color: "#FFC9CDD0", name: "Title"),
+                // A floating panel inset from the edge (a full-bleed bar read as TV news), KISSIK orange accent.
+                new() { Kind = "shape", Name = "Panel", X = 0.03, Y = 0.795, W = 0.44, H = 0.135, Color = "#D9101215", CornerRadius = 0.016 },
+                new() { Kind = "shape", Name = "Accent", X = 0.03, Y = 0.795, W = 0.006, H = 0.135, Color = "#FFFF7A1A" },
+                T("Your Name", 0.052, 0.812, 0.41, 0.06, 0.046, bold: true, name: "Name"),
+                T("Title or topic", 0.052, 0.872, 0.41, 0.045, 0.029, color: "#FFC9CDD2", name: "Title"),
             ],
         },
         new()
         {
+            // A compact contact card in the lower left: readable on any room, never covering the face.
             Id = "name-card", Name = "Name Card", Category = "Professional",
             Layers =
             [
-                new() { Kind = "shape", Name = "Badge", X = 0.03, Y = 0.05, W = 0.07, H = 0.124, Shape = "ellipse", Color = "#FF2EA3F2" },
-                T("YN", 0.03, 0.078, 0.07, 0.07, 0.05, bold: true, align: "center", name: "Initials"),
-                T("Your Name", 0.115, 0.045, 0.6, 0.09, 0.075, bold: true, name: "Name"),
-                T("@yourhandle", 0.115, 0.125, 0.6, 0.06, 0.042, color: "#FFDDE3E8", name: "Handle"),
-                T("you@example.com", 0.03, 0.22, 0.6, 0.05, 0.034, name: "Email"),
-                T("City, Country", 0.03, 0.275, 0.6, 0.05, 0.034, name: "Location"),
+                new() { Kind = "shape", Name = "Card", X = 0.03, Y = 0.765, W = 0.36, H = 0.175, Color = "#D9101215", CornerRadius = 0.02 },
+                new() { Kind = "shape", Name = "Badge", X = 0.045, Y = 0.79, W = 0.05, H = 0.089, Shape = "ellipse", Color = "#FFFF7A1A" },
+                T("YN", 0.045, 0.808, 0.05, 0.05, 0.034, bold: true, align: "center", name: "Initials"),
+                T("Your Name", 0.107, 0.785, 0.275, 0.055, 0.04, bold: true, name: "Name"),
+                T("@yourhandle", 0.107, 0.838, 0.275, 0.04, 0.026, color: "#FFFFB27A", name: "Handle"),
+                T("you@example.com", 0.045, 0.888, 0.2, 0.035, 0.023, color: "#FFC9CDD2", name: "Email"),
+                T("City, Country", 0.25, 0.888, 0.13, 0.035, 0.023, color: "#FFC9CDD2", align: "right", name: "Location"),
             ],
         },
         new()

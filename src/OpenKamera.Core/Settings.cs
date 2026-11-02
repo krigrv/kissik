@@ -13,6 +13,9 @@ public sealed class AppSettings
     public string? LastDeviceId { get; set; }
     public string ProfileName { get; set; } = OutputProfile.P720.Name;
     public string SceneId { get; set; } = "blank";
+    /// <summary>Name and details filled into scene placeholders; asked once, the first time a scene needs them.</summary>
+    public MyDetails Me { get; set; } = new();
+    public bool MeAsked { get; set; }
     public string RecordingFolder { get; set; } = "";
     public string ImageFolder { get; set; } = "";
     public Dictionary<string, DeviceSettings> Devices { get; set; } = [];

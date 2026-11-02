@@ -25,6 +25,16 @@ public static class SceneRenderer
 
     public static Brush Brush(string? hex, Color fallback) => new SolidColorBrush(ToColor(hex, fallback));
 
+    /// <summary>The user's name and details, set by the main page from settings.</summary>
+    public static MyDetails Me { get; set; } = new();
+
+    private static SceneLayer Clone(SceneLayer l, string text)
+    {
+        var c = System.Text.Json.JsonSerializer.Deserialize<SceneLayer>(System.Text.Json.JsonSerializer.Serialize(l))!;
+        c.Id = l.Id; c.Text = text;
+        return c;
+    }
+
     /// <summary>
     /// Renders every overlay layer (and the camera's outline) onto <paramref name="canvas"/>.
     /// When <paramref name="withBackground"/> is set (thumbnails) the scene background and a camera
@@ -51,9 +61,16 @@ public static class SceneRenderer
         // bounding box (e.g. 992×144) instead of the whole canvas, and the overlay lands misplaced.
         else canvas.Background = new SolidColorBrush(Colors.Transparent);
 
-        foreach (var layer in scene.Layers)
+        foreach (var source in scene.Layers)
         {
-            if (!layer.Visible) continue;
+            if (!source.Visible) continue;
+            var layer = source;
+            if (layer.Kind == "text")
+            {
+                // The user's own details in place of template placeholders; an empty detail hides its line.
+                if (Me.Fill(layer.Text) is not { } text) continue;
+                if (text != layer.Text) layer = Clone(layer, text);
+            }
             var el = Create(layer, scene, cw, ch, withBackground);
             if (el is null) continue;
             el.Tag = layer.Id;
@@ -70,6 +87,15 @@ public static class SceneRenderer
         double stroke = l.StrokeWidth * ch, radius = l.CornerRadius * ch;
         switch (l.Kind)
         {
+            case "text" when string.IsNullOrEmpty(l.Fill):
+                {
+                    // No panel behind it: a soft dark copy underneath keeps the text readable on a bright room.
+                    var text = TextFor(l, ch, Brush(l.Color, Colors.White));
+                    var shade = TextFor(l, ch, new SolidColorBrush(Color.FromArgb(150, 0, 0, 0)));
+                    double d = Math.Max(1, l.FontSize * ch * 0.06);
+                    shade.Margin = new Thickness(d, d, 0, 0);
+                    return new Grid { Width = w, Height = h, Background = new SolidColorBrush(Colors.Transparent), Children = { shade, text } };
+                }
             case "text":
                 return new Border
                 {
@@ -133,6 +159,18 @@ public static class SceneRenderer
         }
         return null;
     }
+
+    private static TextBlock TextFor(SceneLayer l, double ch, Brush fg) => new()
+    {
+        Text = l.Text,
+        FontSize = Math.Max(1, l.FontSize * ch),
+        FontWeight = l.Bold ? FontWeights.SemiBold : FontWeights.Normal,
+        Foreground = fg,
+        TextWrapping = TextWrapping.Wrap,
+        TextAlignment = l.Align switch { "center" => TextAlignment.Center, "right" => TextAlignment.Right, _ => TextAlignment.Left },
+        VerticalAlignment = VerticalAlignment.Top,
+        LineHeight = l.FontSize * ch * 1.25,
+    };
 
     /// <summary>Thumbnail stand-in for the live camera: a soft shape with a person glyph.</summary>
     private static void AddCameraPlaceholder(Canvas canvas, SceneLayer cam, double cw, double ch, ImageSource? live = null)

@@ -35,7 +35,47 @@ public sealed partial class MainPage
         _captureTimer.Interval = TimeSpan.FromMilliseconds(120);
         _captureTimer.IsRepeating = false;
         _captureTimer.Tick += async (_, _) => await CaptureOverlayAsync();
+        SceneRenderer.Me = _settings.Me;
         RefreshSceneRail(_settings.SceneId);
+    }
+
+    private async void MyDetails_Click(object sender, RoutedEventArgs e) => await EditMyDetailsAsync();
+
+    /// <summary>Asks for the user's name and details (filled into scenes). Empty fields hide their line.</summary>
+    internal async Task EditMyDetailsAsync()
+    {
+        var me = _settings.Me;
+        TextBox Box(string header, string value, string placeholder)
+        {
+            var b = new TextBox { Header = header, Text = value, PlaceholderText = placeholder };
+            AutomationProperties.SetName(b, header);
+            return b;
+        }
+        var name = Box("Your name", me.Name, "Asha Rao");
+        var title = Box("Title or role (optional)", me.Title, "Product designer · Acme");
+        var handle = Box("Social handle (optional)", me.Handle, "@asharao");
+        var email = Box("Email (optional)", me.Email, "asha@example.com");
+        var place = Box("City (optional)", me.Location, "Bengaluru, India");
+        var body = new StackPanel { Spacing = 10, MinWidth = 340 };
+        body.Children.Add(new TextBlock { Text = "Scenes show these in place of \"Your Name\". Leave a line empty to hide it. They stay on this PC.", TextWrapping = TextWrapping.Wrap, Opacity = 0.8 });
+        foreach (var b in new[] { name, title, handle, email, place }) body.Children.Add(b);
+        var dialog = new ContentDialog
+        {
+            XamlRoot = XamlRoot, Title = "Your name in scenes", Content = new ScrollViewer { Content = body, MaxHeight = 520 },
+            PrimaryButtonText = "Save", CloseButtonText = "Not now", DefaultButton = ContentDialogButton.Primary,
+        };
+        _settings.MeAsked = true;
+        ContentDialogResult r;
+        try { r = await dialog.ShowAsync(); } catch { return; } // another dialog is open
+        if (r == ContentDialogResult.Primary)
+        {
+            me.Name = name.Text.Trim(); me.Title = title.Text.Trim(); me.Handle = handle.Text.Trim().TrimStart('@');
+            me.Email = email.Text.Trim(); me.Location = place.Text.Trim();
+            Status(me.IsSet ? $"Scenes now show {me.Name}." : "No name given: scenes show their sample text.");
+        }
+        _settings.Save();
+        RenderScene();
+        RefreshSceneRail(_scene.Id);
     }
 
     private void RefreshSceneRail(string? selectId)
@@ -110,6 +150,9 @@ public sealed partial class MainPage
         RenderScene();
         RefreshLayersTab();
         Status($"Scene: {_scene.Name}");
+        // First scene that shows a name: ask for it once instead of showing "Your Name" to the meeting.
+        if (!_settings.MeAsked && !_settings.Me.IsSet && MyDetails.HasPlaceholders(_scene) && XamlRoot is not null)
+            DispatcherQueue.TryEnqueue(() => _ = EditMyDetailsAsync());
     }
 
     // ── Rendering + capture ─────────────────────────────────────────────
