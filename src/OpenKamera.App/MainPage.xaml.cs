@@ -88,6 +88,7 @@ public sealed partial class MainPage : Page
             (Windows.System.VirtualKey.Z, Windows.System.VirtualKeyModifiers.Control, Undo),
             (Windows.System.VirtualKey.Y, Windows.System.VirtualKeyModifiers.Control, Redo),
             (Windows.System.VirtualKey.Delete, Windows.System.VirtualKeyModifiers.None, DeleteSelectedLayer),
+            (Windows.System.VirtualKey.R, Windows.System.VirtualKeyModifiers.Control | Windows.System.VirtualKeyModifiers.Shift, TogglePause),
             (Windows.System.VirtualKey.H, Windows.System.VirtualKeyModifiers.Control | Windows.System.VirtualKeyModifiers.Shift,
                 () => SetShutter(_shutter == ShutterMode.Off ? ShutterMode.Away : ShutterMode.Off)),
         })
@@ -462,7 +463,7 @@ public sealed partial class MainPage : Page
         if (_recorder is { } rec)
         {
             // Recording gets the scene layers baked in; the preview shows them as live XAML instead.
-            rec.Push(Baked(), w, h, _recordClock.Elapsed);
+            if (!_recPaused) rec.Push(Baked(), w, h, _recordClock.Elapsed);
         }
         Volatile.Write(ref _processing, 0);
 
@@ -484,7 +485,7 @@ public sealed partial class MainPage : Page
                 if (_recorder is not null)
                 {
                     RecordLabel.Text = $"{_recordClock.Elapsed:mm\\:ss}";
-                    RecPillText.Text = $"● REC {_recordClock.Elapsed:mm\\:ss}";
+                    RecPillText.Text = _recPaused ? $"❚❚ PAUSED {_recordClock.Elapsed:mm\\:ss}" : $"● REC {_recordClock.Elapsed:mm\\:ss}";
                 }
                 HudText.Text = $"{copy.PixelHeight}p {_fps.Fps:0} fps · {_procMs:0} ms{(_smooth.Level > 0 ? " · smooth-first" : "")}{fx}";
                 if (_session?.Mode is { } m) SourceInfo.Text = $"{m.Width}×{m.Height} @ {m.Fps:0}";
@@ -783,9 +784,11 @@ public sealed partial class MainPage : Page
         try
         {
             if (_recorder is not null) { await StopRecordingAsync(); return; }
+            if (_countdown is { } running) { running.Cancel(); return; } // pressing Record again cancels the countdown
+            if (!await CountdownAsync()) { Status("Recording cancelled."); return; }
             string folder = RecordingFolder();
             Directory.CreateDirectory(folder);
-            string path = Path.Combine(folder, $"OpenKamera-{DateTime.Now:yyyyMMdd-HHmmss}.mp4");
+            string path = Path.Combine(folder, $"KISSIK-{DateTime.Now:yyyyMMdd-HHmmss}.mp4");
             var rec = new SegmentedRecorder(_profile.Width, _profile.Height, _profile.Fps, withAudio: _audio.IsRunning);
             await rec.StartAsync(path);
             _recordClock.Restart();
@@ -794,6 +797,7 @@ public sealed partial class MainPage : Page
             RecordBtn.Background = (Microsoft.UI.Xaml.Media.Brush)Resources["DgRecBrush"];
             RecordBtn.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.White);
             RecPill.Visibility = Visibility.Visible;
+            _recPaused = false; PauseBtn.Visibility = Visibility.Visible; SetPauseLook();
             AutomationProperties.SetName(RecordBtn, "■ Stop");
             Status($"Recording {rec.Width}×{rec.Height} @ {rec.Fps} fps: {rec.Path}");
         }
@@ -921,6 +925,7 @@ public sealed partial class MainPage : Page
         if (rec is null) return;
         _recorder = null; // stop feeding first
         _recordClock.Stop();
+        _recPaused = false; PauseBtn.Visibility = Visibility.Collapsed;
         RecordLabel.Text = "Record"; RecordIcon.Glyph = "";
         RecordBtn.ClearValue(Control.BackgroundProperty);
         RecordBtn.ClearValue(Control.ForegroundProperty);

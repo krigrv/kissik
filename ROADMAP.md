@@ -166,7 +166,7 @@ everything from the PC, switching between paired phones/PCs.
 - [~] P3 Record what the preview shows (2026-11-02: framing, background effects, filters, LUT, adjustments → H.264 MP4 at profile size; live 6 s recordings at 29.5–29.6 fps) — still missing: scene overlays (need the scene renderer) and audio (P3 audio batch)
 - [x] P1 FPS counter in the HUD (processed frames per second) + camera mode + REC timer
 - [ ] P1 Choose save location; use output profiles
-- [ ] P3 3-2-1 countdown, pause/resume
+- [x] P3 3-2-1 countdown (press Record again to cancel), pause/resume with no gap (Ctrl+Shift+R)
 - [ ] P3 Recording gallery: browse, trim, share
 - [ ] P3 Dual-format (landscape + portrait) recording with separate canvases
 - [ ] P3 Isolated per-source recordings

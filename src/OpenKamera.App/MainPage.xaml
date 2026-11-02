@@ -131,6 +131,11 @@
                        TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
         </Border>
 
+        <!-- 3-2-1 before recording starts -->
+        <TextBlock x:Name="CountdownText" Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Center"
+                   FontSize="160" FontWeight="SemiBold" Foreground="White" IsHitTestVisible="False"
+                   AutomationProperties.LiveSetting="Assertive" />
+
         <!-- Empty state -->
         <StackPanel x:Name="EmptyText" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="10">
             <FontIcon Glyph="&#xE714;" FontSize="48" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
@@ -161,6 +166,13 @@
                     <StackPanel Orientation="Horizontal" Spacing="7">
                         <FontIcon x:Name="RecordIcon" Glyph="&#xE7C8;" FontSize="14" />
                         <TextBlock x:Name="RecordLabel" Text="Record" FontWeight="SemiBold" />
+                    </StackPanel>
+                </Button>
+                <Button x:Name="PauseBtn" Style="{StaticResource CapsuleButton}" Click="PauseBtn_Click" Visibility="Collapsed"
+                        AutomationProperties.Name="Pause recording" ToolTipService.ToolTip="Pause or resume recording (Ctrl+Shift+R)">
+                    <StackPanel Orientation="Horizontal" Spacing="7">
+                        <FontIcon x:Name="PauseIcon" Glyph="&#xE769;" FontSize="14" />
+                        <TextBlock x:Name="PauseLabel" Text="Pause" />
                     </StackPanel>
                 </Button>
                 <DropDownButton x:Name="MeetCamBtn" Height="38" CornerRadius="19" Padding="14,0,10,0" Background="Transparent" BorderThickness="0"
