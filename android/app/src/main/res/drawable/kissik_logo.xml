@@ -6,10 +6,12 @@
                 android:startColor="#FFFF9A3C" android:endColor="#FFE8551A" />
         </aapt:attr>
     </path>
-    <path android:fillColor="#FFFFFFFF" android:pathData="M93.00,265.00a165.00,165.00 0,1 1,330.00,0a165.00,165.00 0,1 1,-330.00,0z" />
-    <path android:fillColor="#FF2B1A14" android:pathData="M130.00,265.00a128.00,128.00 0,1 1,256.00,0a128.00,128.00 0,1 1,-256.00,0z" />
-    <path android:fillColor="#FF5C2E1C" android:pathData="M203.00,255.00a57.00,57.00 0,1 1,114.00,0a57.00,57.00 0,1 1,-114.00,0z" />
-    <path android:fillColor="#FFFFFFFF" android:pathData="M188.00,210.00a22.00,22.00 0,1 1,44.00,0a22.00,22.00 0,1 1,-44.00,0z" />
-    <path android:fillColor="#FFF6873A" android:pathData="M353.00,113.00a42.00,42.00 0,1 1,84.00,0a42.00,42.00 0,1 1,-84.00,0z" />
-    <path android:fillColor="#FFFFFFFF" android:pathData="M365.00,113.00a30.00,30.00 0,1 1,60.00,0a30.00,30.00 0,1 1,-60.00,0z" />
+    <group android:scaleX="1" android:scaleY="1" android:translateX="0" android:translateY="0">
+        <path android:strokeColor="#FFFFFFFF" android:strokeWidth="40" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M262,108 H404 V250" />
+        <path android:strokeColor="#FFFFFFFF" android:strokeWidth="40" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M108,262 V404 H250" />
+        <path android:fillColor="#FFFFFFFF" android:pathData="M163.79,256.00a92.21,92.21 0,1 1,184.41,0a92.21,92.21 0,1 1,-184.41,0z" />
+        <path android:fillColor="#FF2B1A14" android:pathData="M184.47,256.00a71.53,71.53 0,1 1,143.06,0a71.53,71.53 0,1 1,-143.06,0z" />
+        <path android:fillColor="#FF5C2E1C" android:pathData="M225.26,250.41a31.85,31.85 0,1 1,63.71,0a31.85,31.85 0,1 1,-63.71,0z" />
+        <path android:fillColor="#FFFFFFFF" android:pathData="M216.88,225.26a12.29,12.29 0,1 1,24.59,0a12.29,12.29 0,1 1,-24.59,0z" />
+    </group>
 </vector>
