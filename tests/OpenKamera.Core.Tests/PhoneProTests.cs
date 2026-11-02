@@ -125,6 +125,35 @@ public class PhoneVideoTests
     }
 
     [Fact]
+    public void RotationCanChangeMidStreamWithoutARestart()
+    {
+        H264Decoder dec;
+        try { dec = H264Decoder.Create(); }
+        catch (InvalidOperationException) { return; }
+        using var _ = dec;
+        var sizes = new List<(int, int)>(); string? error = null;
+        dec.FrameDecoded += f => { lock (sizes) sizes.Add((f.Width, f.Height)); };
+        dec.Error += e => error = e;
+        var aus = PhoneVideo.SplitAccessUnits(File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "Assets", "test-320x240.h264"))).ToList();
+        long t = 0; int[] turns = [0, 90, 180, 270];
+        for (int i = 0; i < aus.Count; i++)
+        {
+            if (i % 8 == 0)
+            {
+                // The phone was turned: wait for what's queued so the change lands between known pictures.
+                SpinWait.SpinUntil(() => { lock (sizes) return sizes.Count == i; }, TimeSpan.FromSeconds(5));
+                dec.Rotation = turns[i / 8 % 4];
+            }
+            dec.Push(new PhoneVideoPacket(aus[i].Keyframe, t += 33_333, aus[i].Data)); // P-frames too: no keyframe needed
+        }
+        SpinWait.SpinUntil(() => { lock (sizes) return sizes.Count == aus.Count; }, TimeSpan.FromSeconds(10));
+        Assert.Null(error);
+        Assert.Equal(aus.Count, sizes.Count);
+        for (int i = 0; i < sizes.Count; i++)
+            Assert.Equal(turns[i / 8 % 4] is 90 or 270 ? (240, 320) : (320, 240), sizes[i]);
+    }
+
+    [Fact]
     public void DecoderSkipsToTheFirstKeyframe()
     {
         H264Decoder dec;
