@@ -385,7 +385,7 @@ public sealed partial class MainPage : Page
             if (_live is not null) await StopLiveAsync();
             LiveBtn.IsEnabled = false;
             ControlsPanel.Children.Clear();
-            FocusMode.IsEnabled = false;
+            FocusMode.IsEnabled = false; FocusRow.Visibility = Visibility.Collapsed;
             EmptyText.Visibility = Visibility.Visible;
             PreviewImage.Source = null;
             HudText.Text = "No device open";
@@ -412,6 +412,7 @@ public sealed partial class MainPage : Page
             BuildControls();
             var focus = _controller?.GetProperties().FirstOrDefault(p => p.Name == "Focus");
             FocusMode.IsEnabled = focus is { CanAuto: true };
+            FocusRow.Visibility = FocusMode.IsEnabled ? Visibility.Visible : Visibility.Collapsed; // only where the camera can do it
             if (focus is not null) { _restoring = true; FocusMode.SelectedItem = focus.Auto ? FocusAuto : FocusManual; _restoring = false; }
             CameraPanel.ChangeView(null, 0, null, disableAnimation: true);
             ConnectBtn.Content = "Disconnect";

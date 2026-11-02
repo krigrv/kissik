@@ -482,7 +482,7 @@
                             <CheckBox x:Name="PhoneH264Box" Content="Sharper stream (H.264)" Visibility="Collapsed" Click="PhoneH264_Click"
                                       AutomationProperties.Name="Sharper stream (H.264)" ToolTipService.ToolTip="Video compression: a cleaner picture on the same Wi-Fi. Turn off if the picture breaks up." />
                         </StackPanel>
-                        <Grid Margin="0,8,0,0">
+                        <Grid x:Name="FocusRow" Margin="0,8,0,0" Visibility="Collapsed">
                             <TextBlock Text="Focus" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
                             <SelectorBar x:Name="FocusMode" SelectionChanged="FocusMode_SelectionChanged" IsEnabled="False" HorizontalAlignment="Right">
                                 <SelectorBarItem x:Name="FocusAuto" Text="AF" IsSelected="True" ToolTipService.ToolTip="Autofocus" AutomationProperties.HelpText="Autofocus" />

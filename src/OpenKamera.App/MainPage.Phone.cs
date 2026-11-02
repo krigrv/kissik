@@ -253,10 +253,12 @@ public sealed partial class MainPage
     {
         PhoneControls.Visibility = DeviceBox.SelectedItem == PhoneDevice && _session is not null ? Visibility.Visible : Visibility.Collapsed;
         PhoneTorchBtn.IsEnabled = st.Torch is not null;
+        PhoneTorchBtn.Visibility = st.Torch is not null ? Visibility.Visible : Visibility.Collapsed; // front lenses have no torch
         PhoneTorchBtn.IsChecked = st.Torch == true;
         ToolTipService.SetToolTip(PhoneTorchBtn, st.Torch is null ? "This camera has no torch (try the back camera)" : "Phone torch");
         _phoneZoomLoading = true;
         PhoneZoom.IsEnabled = st.ZoomMax is > 1;
+        PhoneZoom.Visibility = st.ZoomMax is > 1 ? Visibility.Visible : Visibility.Collapsed;
         PhoneZoom.Maximum = Math.Max(1, Math.Min(st.ZoomMax ?? 1, 10));
         if (DateTime.UtcNow - _phoneZoomSent > TimeSpan.FromSeconds(2) && st.Zoom is { } z) PhoneZoom.Value = z;
         _phoneZoomLoading = false;
