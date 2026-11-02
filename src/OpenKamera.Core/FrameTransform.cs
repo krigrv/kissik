@@ -10,6 +10,28 @@ public sealed record FrameTransform(bool Mirror = false, int Rotation = 0, doubl
     public static readonly FrameTransform Identity = new();
     public bool IsIdentity => !Mirror && Rotation % 360 == 0 && Zoom <= 1.0;
 
+    /// <summary>
+    /// Maps a point on the transformed picture (0..1 each way) back to the camera's own picture: undoes the rotation,
+    /// mirror, zoom and pan, the same way <see cref="Apply"/> samples. Used for tap-to-focus.
+    /// </summary>
+    public (double U, double V) ToSource(double nx, double ny)
+    {
+        int rot = ((Rotation % 360) + 360) % 360;
+        double u, v;
+        switch (rot)
+        {
+            case 90: u = ny; v = 1 - nx; break;
+            case 180: u = 1 - nx; v = 1 - ny; break;
+            case 270: u = 1 - ny; v = nx; break;
+            default: u = nx; v = ny; break;
+        }
+        if (Mirror) u = 1 - u;
+        double zoom = Math.Max(1.0, Zoom);
+        double left = (1 - 1 / zoom) / 2 * (1 + Math.Clamp(PanX, -1, 1));
+        double top = (1 - 1 / zoom) / 2 * (1 + Math.Clamp(PanY, -1, 1));
+        return (Math.Clamp(left + u / zoom, 0, 1), Math.Clamp(top + v / zoom, 0, 1));
+    }
+
     /// <summary>Returns the transformed BGRA buffer and its dimensions (swapped for 90°/270°).</summary>
     public (byte[] Pixels, int Width, int Height) Apply(byte[] src, int width, int height)
     {
