@@ -182,7 +182,7 @@ everything from the PC, switching between paired phones/PCs.
 
 ## 9. Controls and automation
 - [~] P1 Keyboard shortcuts done (Ctrl+1…9, Ctrl+R, Ctrl+Shift+S, Ctrl+Shift+H); pause/resume feed still to do
-- [ ] P4 Tray flyout with global shortcut
+- [~] P4 Global shortcuts from any app: Ctrl+Alt+H hide, +M mute mix, +R record, +1…9 scenes (falls back to Ctrl+Alt+Shift if taken). Tray flyout still to do
 - [ ] P4 Elgato Stream Deck plugin (scenes, camera, mute, stream)
 - [ ] P4 MCP server so AI agents (e.g. Claude) can switch scenes and adjust the camera
 
