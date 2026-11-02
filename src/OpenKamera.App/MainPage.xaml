@@ -271,6 +271,9 @@
                             <ToggleMenuFlyoutItem x:Name="CaptionsToggle" Text="Live captions" Click="CaptionsToggle_Click">
                                 <ToggleMenuFlyoutItem.Icon><FontIcon Glyph="&#xED1E;" /></ToggleMenuFlyoutItem.Icon>
                             </ToggleMenuFlyoutItem>
+                            <ToggleMenuFlyoutItem x:Name="ControlToggle" Text="Let AI assistants and Stream Deck control KISSIK" Click="ControlToggle_Click">
+                                <ToggleMenuFlyoutItem.Icon><FontIcon Glyph="&#xE99A;" /></ToggleMenuFlyoutItem.Icon>
+                            </ToggleMenuFlyoutItem>
                             <MenuFlyoutItem Text="Prompter under the webcam" Click="PrompterBtn_Click">
                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8D2;" /></MenuFlyoutItem.Icon>
                             </MenuFlyoutItem>

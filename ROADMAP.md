@@ -184,7 +184,7 @@ everything from the PC, switching between paired phones/PCs.
 - [~] P1 Keyboard shortcuts done (Ctrl+1…9, Ctrl+R, Ctrl+Shift+S, Ctrl+Shift+H); pause/resume feed still to do
 - [~] P4 Global shortcuts from any app: Ctrl+Alt+H hide, +M mute mix, +R record, +1…9 scenes (falls back to Ctrl+Alt+Shift if taken). Tray flyout still to do
 - [ ] P4 Elgato Stream Deck plugin (scenes, camera, mute, stream)
-- [ ] P4 MCP server so AI agents (e.g. Claude) can switch scenes and adjust the camera
+- [x] P4 MCP server + REST control (localhost, token, off by default): scenes, privacy, background, record, captions, snapshot, status — see docs/CONTROL-API.md
 
 ## 10. Compatibility
 - [ ] P5 Works in Zoom, Meet, Teams, Slack, Discord, OBS, Streamlabs, browsers — follows from the virtual camera + mic

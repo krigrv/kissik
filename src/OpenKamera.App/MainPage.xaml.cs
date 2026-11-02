@@ -65,6 +65,8 @@ public sealed partial class MainPage : Page
         StartAudioWatchdog();
         _ = ShowWelcomeOnceAsync();
         ResumePairedPhone();
+        try { InitControl(); } catch (Exception ex) { Status("Remote control unavailable: " + ex.Message); }
+        Unloaded += async (_, _) => { if (_control is { } c) await c.DisposeAsync(); };
         try { InitGlobalHotkeys(); } catch (Exception ex) { Status("Global shortcuts unavailable: " + ex.Message); }
         Unloaded += async (_, _) => await StopPhoneAsync();
         _ = RecoverRecordingsAsync();
