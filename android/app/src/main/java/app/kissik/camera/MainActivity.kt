@@ -150,8 +150,8 @@ private fun Intro(done: () -> Unit) {
     val pages = remember {
         listOf(
             IntroPage(K.accent, "KISSIK CAMERA", "Your phone is the better webcam",
-                "Use its camera and microphone in KISSIK on your Windows PC.",
-                listOf(Icons.Outlined.HighQuality to "Up to your camera's full resolution, front or back", Icons.Outlined.ScreenLockPortrait to "Keeps streaming with the screen off")),
+                "Use its camera and microphone in KISSIK on your Windows PC, at full resolution.",
+                listOf(Icons.Outlined.HighQuality to "Your camera's full resolution — up to 4K or whatever your phone supports", Icons.Outlined.ScreenLockPortrait to "Keeps streaming with the screen off")),
             IntroPage(Color(0xFFB98CFF), "SETUP · UNDER 2 MINUTES", "Scan once. Then forget about it",
                 "Open KISSIK on your PC, choose Phone, and scan the code. After that it reconnects by itself.",
                 listOf(Icons.Outlined.Wifi to "Same Wi-Fi as your PC", Icons.Outlined.Usb to "Or a USB cable — no Wi-Fi needed")),
@@ -208,8 +208,9 @@ private fun Intro(done: () -> Unit) {
 }
 
 @Composable
-private fun DockButton(icon: ImageVector, label: String, on: Boolean = false, onClick: () -> Unit) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clip(RoundedCornerShape(16.dp)).clickable(onClick = onClick).padding(6.dp)) {
+private fun DockButton(icon: ImageVector, label: String, on: Boolean = false, enabled: Boolean = true, onClick: () -> Unit) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.graphicsLayer(alpha = if (enabled) 1f else 0.4f)
+        .clip(RoundedCornerShape(16.dp)).clickable(onClick = onClick).padding(6.dp)) {
         Box(Modifier.size(48.dp).clip(RoundedCornerShape(16.dp)).background(if (on) K.accent else K.raised), contentAlignment = Alignment.Center) {
             Icon(icon, label, tint = if (on) Color.White else K.text)
         }
@@ -230,6 +231,7 @@ private fun Home(pairing: Pairing?, onSettings: () -> Unit, onPair: () -> Unit) 
     val mic by Live.mic.collectAsState()
     val quality by Live.quality.collectAsState()
     val maxSize by Live.maxSize.collectAsState()
+    val hasTorch by Live.hasTorch.collectAsState()
     val saving by Live.saving.collectAsState()
     val micLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok -> if (ok) { Live.mic.value = true; Live.save(ctx) } }
     val camLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok -> if (ok) StreamService.start(ctx) }
@@ -278,7 +280,14 @@ private fun Home(pairing: Pairing?, onSettings: () -> Unit, onPair: () -> Unit) 
                 Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(K.card.copy(alpha = 0.92f)).padding(12.dp)) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                         DockButton(Icons.Filled.Cameraswitch, if (front) "Front" else "Back") { Live.front.value = !front; Live.torch.value = false; Live.save(ctx) }
-                        DockButton(if (torch) Icons.Filled.FlashOn else Icons.Filled.FlashOff, "Light", torch) { Live.torch.value = !torch }
+                        // The torch is the phone's flash LED; most front cameras have none.
+                        DockButton(if (torch) Icons.Filled.FlashOn else Icons.Filled.FlashOff, "Torch", torch, enabled = hasTorch == true) {
+                            when (hasTorch) {
+                                true -> Live.torch.value = !torch
+                                false -> android.widget.Toast.makeText(ctx, if (front) "The front camera has no torch. Switch to the back camera." else "This camera has no torch.", android.widget.Toast.LENGTH_SHORT).show()
+                                null -> android.widget.Toast.makeText(ctx, "Start streaming to use the torch.", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        }
                         DockButton(if (mic) Icons.Filled.Mic else Icons.Filled.MicOff, "Mic", mic) {
                             if (mic) { Live.mic.value = false; Live.save(ctx) }
                             else if (ContextCompat.checkSelfPermission(ctx, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) { Live.mic.value = true; Live.save(ctx) }
@@ -462,7 +471,7 @@ private fun Settings(pairing: Pairing?, onClose: () -> Unit, onPair: () -> Unit,
         SettingsCard {
             Text("KISSIK Camera $version", color = K.text, fontSize = 17.sp)
             Spacer(Modifier.height(6.dp))
-            Text("Free and open source. No account, no ads, no watermark, no tracking. Video and sound go only to the PC you paired, over your own Wi-Fi or cable.",
+            Text("Streams at your phone camera's full resolution, up to 4K or whatever your phone supports. Free and open source. No account, no ads, no watermark, no tracking. Video and sound go only to the PC you paired, over your own Wi-Fi or cable.",
                 color = K.muted, fontSize = 13.sp, lineHeight = 19.sp)
         }
         Spacer(Modifier.height(12.dp))

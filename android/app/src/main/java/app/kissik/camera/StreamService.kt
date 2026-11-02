@@ -162,6 +162,8 @@ class StreamService : LifecycleService() {
             .recoverCatching { provider.bindToLifecycle(this, other, analysis) }.getOrNull()
         if (camera == null) Live.message.value = "Couldn't open the camera. Is another app using it?"
         readCapabilities()
+        Live.hasTorch.value = camera?.cameraInfo?.hasFlashUnit()
+        if (Live.hasTorch.value != true) Live.torch.value = false
         camera?.cameraControl?.enableTorch(Live.torch.value)
         camera?.cameraControl?.setZoomRatio(Live.zoom.value)
         sendStatus()
@@ -323,7 +325,7 @@ class StreamService : LifecycleService() {
     }
 
     override fun onDestroy() {
-        Live.running.value = false; Live.link.value = Link.Off; Live.message.value = ""; Live.torch.value = false
+        Live.running.value = false; Live.hasTorch.value = null; Live.link.value = Link.Off; Live.message.value = ""; Live.torch.value = false
         Live.preview.value = null
         ws?.close(1000, "stopped"); ws = null
         micJob?.cancel()

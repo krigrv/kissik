@@ -13,7 +13,8 @@ It speaks the same protocol as the phone web page KISSIK already serves, so noth
   uses `ws://localhost:47821` with no TLS; otherwise `wss://<pc>:47820`.
 - **Reconnects by itself** within about 3 seconds after a drop, keeping the lens, quality and mic choice.
 - **Screen off is fine:** streaming runs in a foreground service with a clear notification and a Stop button.
-- Front/back switch, torch, 480p/720p/1080p, mic on/off (mic is opened only while on, and released straight away).
+- **Full resolution:** streams at the phone camera's maximum, up to 4K or whatever the phone supports.
+- Front/back switch, torch, zoom, quality, mic on/off (mic is opened only while on, and released straight away).
 - **Battery & heat saver** (on by default): drops to 480p when the phone runs hot or battery is under 20% and not charging.
 - One short onboarding: three quick pages (what it is, how pairing works, privacy + permissions), then the scanner.
 
@@ -23,8 +24,8 @@ It speaks the same protocol as the phone web page KISSIK already serves, so noth
 |---|---|
 | phone → PC, binary | JPEG frame |
 | phone → PC, binary | `'A'` + uint32 LE sample rate + mono float32 LE samples (20 ms at 48 kHz) |
-| phone → PC, text | `{"device","w","h","battery","charging","facing","torch","zoomMax","zoom"}` on connect, on lens/torch/zoom change, and every 15 s. `torch` is null when the lens has no light |
-| PC → phone, text | `front`, `back`, `q:480` / `q:720` / `q:1080`, `torch:on` / `torch:off`, `zoom:<factor>` (clamped to the lens) |
+| phone → PC, text | `{"device","w","h","battery","charging","facing","torch","zoomMax","zoom","maxW","maxH","maxFps"}` on connect, on lens/torch/zoom change, and every 15 s. `torch` is null when the lens has no light |
+| PC → phone, text | `front`, `back`, `q:<short side>` (e.g. `q:2160`; closest size the lens supports), `torch:on` / `torch:off`, `zoom:<factor>` (clamped to the lens) |
 
 ## Build
 
