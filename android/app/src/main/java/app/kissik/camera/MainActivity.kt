@@ -5,6 +5,8 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -79,7 +81,21 @@ class MainActivity : ComponentActivity() {
         // A rebuilt activity gets its old launch intent back: only a fresh launch carries a new link.
         if (savedInstanceState == null) takeLink(intent)
         setContent { MaterialTheme(colorScheme = KColors) { App(incoming) } }
+        // Screen dimming: 15 s after the last touch while streaming, the screen goes nearly dark (less heat and
+        // battery); any touch lights it again. Off when not streaming or when the PC turns it off.
+        lifecycleScope.launch {
+            while (true) {
+                kotlinx.coroutines.delay(1000)
+                val streaming = Live.link.value == Link.Wifi || Live.link.value == Link.Usb
+                val dark = streaming && Live.dim.value && System.currentTimeMillis() - lastTouch > 15_000
+                val want = if (dark) 0.01f else android.view.WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+                if (window.attributes.screenBrightness != want) window.attributes = window.attributes.also { it.screenBrightness = want }
+            }
+        }
     }
+
+    private var lastTouch = System.currentTimeMillis()
+    override fun onUserInteraction() { super.onUserInteraction(); lastTouch = System.currentTimeMillis() }
 
     override fun onNewIntent(intent: Intent) { super.onNewIntent(intent); takeLink(intent) }
 

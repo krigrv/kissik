@@ -34,6 +34,17 @@ public class MyDetailsTests
     }
 
     [Fact]
+    public void PronounsAndYourOwnFieldsFillScenes()
+    {
+        var me = new MyDetails { Name = "Asha Rao", Pronouns = "she/her" };
+        me.SetCustom("Company = Acme\n{Show} = Friday Live\nnot a field\n");
+        Assert.Equal("she/her", me.Fill("they/them"));
+        Assert.Equal("Asha Rao at Acme · Friday Live", me.Fill("Your Name at {company} · {Show}"));
+        Assert.Equal("Company = Acme\nShow = Friday Live", me.CustomText);
+        Assert.False(me.HasLogo);
+    }
+
+    [Fact]
     public void NameCardIsCompactAndInTheLowerLeft()
     {
         var card = SceneDocument.Templates.First(s => s.Id == "name-card");

@@ -237,6 +237,7 @@ public sealed partial class MainPage
     private void MatchPhoneQuality()
     {
         if (_phone is not { } ph || DeviceBox.SelectedItem != PhoneDevice) return;
+        _ = SendPhoneDimAsync();
         var p = _profile;
         int shortSide = Math.Min(p.Width, p.Height);
         if (ph.LastStatus?.MaxLongSide is { } max) shortSide = Math.Min(shortSide, max * 9 / 16);

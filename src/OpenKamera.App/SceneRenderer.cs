@@ -71,7 +71,14 @@ public static class SceneRenderer
                 if (Me.Fill(layer.Text) is not { } text) continue;
                 if (text != layer.Text) layer = Clone(layer, text);
             }
-            var el = Create(layer, scene, cw, ch, withBackground);
+            // Your logo or picture in place of the initials circle.
+            var el = source.Kind == "text" && source.Text == "YN" && Me.IsSet && Me.HasLogo
+                ? new Border
+                {
+                    Width = Math.Max(1, layer.W * cw), Height = Math.Max(1, layer.H * ch), CornerRadius = new CornerRadius(layer.H * ch / 2),
+                    Child = new Image { Source = new BitmapImage(new Uri(Me.LogoPath)), Stretch = Stretch.UniformToFill },
+                }
+                : Create(layer, scene, cw, ch, withBackground);
             if (el is null) continue;
             el.Tag = layer.Id;
             el.Opacity = Math.Clamp(layer.Opacity, 0, 1);

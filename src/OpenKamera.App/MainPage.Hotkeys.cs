@@ -14,6 +14,7 @@ public sealed partial class MainPage
         _hotkeys.Add(0x48 /* H */, "Ctrl+Alt+H", () => SetShutter(_shutter == ShutterMode.Off ? ShutterMode.Away : ShutterMode.Off));
         _hotkeys.Add(0x4D /* M */, "Ctrl+Alt+M", ToggleMixMute);
         _hotkeys.Add(0x52 /* R */, "Ctrl+Alt+R", () => RecordBtn_Click(this, new Microsoft.UI.Xaml.RoutedEventArgs()));
+        _hotkeys.Add(0x4B /* K */, "Ctrl+Alt+K", BringToFront);
         for (uint n = 1; n <= 9; n++) { int scene = (int)n; _hotkeys.Add(0x30 + n, $"Ctrl+Alt+{n}", () => SelectSceneByShortcut(scene)); }
         var notes = new List<string>();
         if (_hotkeys.Moved.Count > 0) notes.Add("another app uses some Ctrl+Alt keys, so use " + string.Join(", ", _hotkeys.Moved) + " instead");

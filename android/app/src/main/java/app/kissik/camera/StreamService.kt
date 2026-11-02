@@ -594,6 +594,7 @@ class StreamService : LifecycleService() {
             Mic.command(text) -> return
             Pro.command(text) -> return
             text.startsWith("q:") -> text.drop(2).toIntOrNull()?.takeIf { it in 144..8640 }?.let { Live.quality.value = it }
+            text == "dim:on" || text == "dim:off" -> { Live.dim.value = text == "dim:on"; return }
             text == "torch:on" || text == "torch:off" -> { Live.torch.value = text == "torch:on"; return }
             text.startsWith("zoom:") -> {
                 val info = camera?.cameraInfo?.zoomState?.value

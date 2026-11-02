@@ -69,6 +69,7 @@ public sealed partial class MainPage : Page
         _ = ShowWelcomeAndModeAsync().ContinueWith(_ => DispatcherQueue.TryEnqueue(() => _ = OfferCrashReportAsync()), TaskScheduler.Default);
         ResumePairedPhone();
         try { InitVertical(); } catch { }
+        try { InitExtras(); } catch { }
         try { InitTray(); } catch (Exception ex) { Status("Tray icon unavailable: " + ex.Message); }
         _ = CheckForUpdateAsync(quiet: true);
         _ = InitSponsorsAsync();
@@ -250,10 +251,10 @@ public sealed partial class MainPage : Page
     /// <summary>Radio menu of output profiles; the details ("1080p 16:9 at 30 FPS") sit on the right.</summary>
     private void BuildProfileMenu()
     {
-        var current = OutputProfile.All.FirstOrDefault(p => p.Name == _settings.ProfileName) ?? OutputProfile.P720;
+        var current = AllProfiles.FirstOrDefault(p => p.Name == _settings.ProfileName) ?? OutputProfile.P720;
         ProfileMenu.Items.Clear();
         int? phoneMax = DeviceBox.SelectedItem == PhoneDevice ? _phone?.LastStatus?.MaxLongSide : null;
-        foreach (var p in OutputProfile.All)
+        foreach (var p in AllProfiles)
         {
             bool tooBig = phoneMax is { } m && Math.Max(p.Width, p.Height) > m;
             var item = new RadioMenuFlyoutItem
@@ -268,6 +269,7 @@ public sealed partial class MainPage : Page
             };
             ProfileMenu.Items.Add(item);
         }
+        AddProfileTools();
         ApplyProfile(current);
     }
 

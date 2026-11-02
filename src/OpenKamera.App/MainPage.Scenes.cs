@@ -56,9 +56,42 @@ public sealed partial class MainPage
         var handle = Box("Social handle (optional)", me.Handle, "@asharao");
         var email = Box("Email (optional)", me.Email, "asha@example.com");
         var place = Box("City (optional)", me.Location, "Bengaluru, India");
+        var pronouns = Box("Pronouns (optional)", me.Pronouns, "she/her");
+        string logoPath = me.LogoPath;
+        var logoName = new TextBlock { Text = me.HasLogo ? Path.GetFileName(me.LogoPath) : "No logo", VerticalAlignment = VerticalAlignment.Center, Opacity = 0.8 };
+        var pickLogo = new Button { Content = "Choose…" };
+        var clearLogo = new Button { Content = "Remove" };
+        pickLogo.Click += async (_, _) =>
+        {
+            var picker = new Windows.Storage.Pickers.FileOpenPicker();
+            WinRT.Interop.InitializeWithWindow.Initialize(picker, WinRT.Interop.WindowNative.GetWindowHandle(App.MainWindow));
+            foreach (var ext in new[] { ".png", ".jpg", ".jpeg" }) picker.FileTypeFilter.Add(ext);
+            if (await picker.PickSingleFileAsync() is { } f)
+            {
+                // A copy in KISSIK's folder, so moving or deleting the original doesn't break scenes.
+                string dest = Path.Combine(AppPaths.Data, "my-logo" + Path.GetExtension(f.Path).ToLowerInvariant());
+                Directory.CreateDirectory(AppPaths.Data);
+                File.Copy(f.Path, dest, overwrite: true);
+                logoPath = dest; logoName.Text = f.Name;
+            }
+        };
+        clearLogo.Click += (_, _) => { logoPath = ""; logoName.Text = "No logo"; };
+        var logoRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        logoRow.Children.Add(pickLogo); logoRow.Children.Add(clearLogo); logoRow.Children.Add(logoName);
+        var logoBlock = new StackPanel { Spacing = 4 };
+        logoBlock.Children.Add(new TextBlock { Text = "Logo or picture (optional, shown in place of your initials)" });
+        logoBlock.Children.Add(logoRow);
+        var custom = new TextBox
+        {
+            Header = "Your own fields (optional): one per line, like Company = Acme. Use {Company} in any scene text.",
+            Text = me.CustomText, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MinHeight = 72,
+        };
+        AutomationProperties.SetName(custom, "Your own fields");
         var body = new StackPanel { Spacing = 10, MinWidth = 340 };
         body.Children.Add(new TextBlock { Text = "Scenes show these in place of \"Your Name\". Leave a line empty to hide it. They stay on this PC.", TextWrapping = TextWrapping.Wrap, Opacity = 0.8 });
-        foreach (var b in new[] { name, title, handle, email, place }) body.Children.Add(b);
+        foreach (var b in new[] { name, title, pronouns, handle, email, place }) body.Children.Add(b);
+        body.Children.Add(logoBlock);
+        body.Children.Add(custom);
         var dialog = new ContentDialog
         {
             XamlRoot = XamlRoot, Title = "Your name in scenes", Content = new ScrollViewer { Content = body, MaxHeight = 520 },
@@ -71,6 +104,7 @@ public sealed partial class MainPage
         {
             me.Name = name.Text.Trim(); me.Title = title.Text.Trim(); me.Handle = handle.Text.Trim().TrimStart('@');
             me.Email = email.Text.Trim(); me.Location = place.Text.Trim();
+            me.Pronouns = pronouns.Text.Trim(); me.LogoPath = logoPath; me.SetCustom(custom.Text);
             Status(me.IsSet ? $"Scenes now show {me.Name}." : "No name given: scenes show their sample text.");
         }
         _settings.Save();

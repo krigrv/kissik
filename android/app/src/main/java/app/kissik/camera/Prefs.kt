@@ -30,6 +30,8 @@ object Live {
     val focusTap = MutableSharedFlow<Pair<Float, Float>>(extraBufferCapacity = 1)
     /** Zoom factor the PC asked for (1 = no zoom); clamped to what the lens offers. */
     val zoom = MutableStateFlow(1f)
+    /** Dim this phone's screen while it streams (the PC can turn it off); a tap lights it again. */
+    val dim = MutableStateFlow(true)
     val saver = MutableStateFlow(true)
     /** True while the saver has dropped quality to 480p (hot phone or low battery). */
     val saving = MutableStateFlow(false)

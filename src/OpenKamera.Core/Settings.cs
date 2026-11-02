@@ -65,6 +65,10 @@ public sealed class AppSettings
     public bool RecordVertical { get; set; }
     /// <summary>Show the frame-rate and delay details over the picture.</summary>
     public bool ShowPictureStats { get; set; }
+    /// <summary>Output profiles the user made (name, size, frame rate), listed after the built-in ones.</summary>
+    public List<OutputProfile> CustomProfiles { get; set; } = [];
+    /// <summary>Dim the phone's screen while it streams (a tap on the phone lights it again).</summary>
+    public bool PhoneDim { get; set; } = true;
     /// <summary>Size of the crash log when the user last saw the "KISSIK closed unexpectedly" note.</summary>
     public long CrashLogSeen { get; set; }
     /// <summary>Livestream destinations (keys encrypted for this Windows user).</summary>
