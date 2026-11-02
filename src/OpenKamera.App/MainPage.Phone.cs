@@ -89,8 +89,9 @@ public sealed partial class MainPage
         server.StatusChanged += st => DispatcherQueue.TryEnqueue(() =>
         {
             string battery = st.Battery is { } b ? $" · battery {b:P0}{(st.Charging == true ? " charging" : "")}" : "";
-            HudText.Text = $"Phone {st.Facing} camera {st.Width}×{st.Height}{battery}";
-            if (st.Width > 0) SourceInfo.Text = $"{st.Width}×{st.Height} · phone";
+            bool phoneIsSource = DeviceBox.SelectedItem == PhoneDevice && _session is not null;
+            if (phoneIsSource) HudText.Text = $"Phone {st.Facing} camera {st.Width}×{st.Height}{battery}";
+            if (phoneIsSource && st.Width > 0) SourceInfo.Text = $"{st.Width}×{st.Height} · phone";
             if (st.MaxLongSide is { } max && max != _phoneMaxShown) { _phoneMaxShown = max; BuildProfileMenu(); MatchPhoneQuality(); Status($"Your phone camera can do up to {PhoneMaxLabel(max)}."); }
             UpdatePhoneControls(st);
             UpdatePhonePro(st);

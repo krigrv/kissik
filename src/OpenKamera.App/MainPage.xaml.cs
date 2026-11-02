@@ -344,8 +344,13 @@ public sealed partial class MainPage : Page
             var cams = (await _catalog.GetCamerasAsync()).ToList();
             cams.Add(PhoneDevice);
             DeviceBox.ItemsSource = cams;
-            var last = cams.FirstOrDefault(c => c.Id == _settings.LastDeviceId && c != PhoneDevice) ?? cams.FirstOrDefault();
-            DeviceBox.SelectedItem = last;
+            // Keep what's running; otherwise go back to the last source, including the phone.
+            if (_session is null || DeviceBox.SelectedItem is null)
+            {
+                var last = _settings.LastDeviceId == PhoneDevice.Id ? PhoneDevice
+                    : cams.FirstOrDefault(c => c.Id == _settings.LastDeviceId && c != PhoneDevice) ?? cams.FirstOrDefault();
+                DeviceBox.SelectedItem = last;
+            }
             EmptyText.Visibility = cams.Count <= 1 ? Visibility.Visible : Visibility.Collapsed;
             Status($"Found {cams.Count - 1} camera(s), plus your phone.");
         }
@@ -401,7 +406,7 @@ public sealed partial class MainPage : Page
             else await _session.StartAsync(cam.Id, _profile);
             if (cam != PhoneDevice) WatchCamera(_session, cam);
             _controller = _session.Controls is { } c ? new CameraController(c) : null;
-            if (cam != PhoneDevice) _settings.LastDeviceId = cam.Id;
+            _settings.LastDeviceId = cam.Id; // the phone too, so turning the camera off and on comes back to it
             _settings.Save();
             BuildControls();
             var focus = _controller?.GetProperties().FirstOrDefault(p => p.Name == "Focus");
