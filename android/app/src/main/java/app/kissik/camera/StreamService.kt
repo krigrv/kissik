@@ -213,7 +213,8 @@ class StreamService : LifecycleService() {
         // own YUV straight into the hardware encoder.
         val an = ImageAnalysis.Builder().setResolutionSelector(sizeFor(key.quality))
             .setOutputImageFormat(if (h264) ImageAnalysis.OUTPUT_IMAGE_FORMAT_YUV_420_888 else ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
-            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST).setTargetRotation(deviceRotation).build()
+            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST).setTargetRotation(deviceRotation)
+            .setOutputImageRotationEnabled(!h264).build()
         an.setAnalyzer(analysisExecutor, ::onFrame)
         val previous = analysis
         analysis = an
@@ -300,7 +301,8 @@ class StreamService : LifecycleService() {
     private var frameNo = 0L
     private fun onFrame(image: ImageProxy) {
         image.use {
-            lastRotation = it.imageInfo.rotationDegrees
+            // JPEG frames arrive already upright (rotation 0), but tap-to-focus still needs the sensor's angle.
+            lastRotation = if (useH264) it.imageInfo.rotationDegrees else camera?.cameraInfo?.getSensorRotationDegrees(deviceRotation) ?: 0
             if (useH264) {
                 encodeFrame(it)
                 // The on-phone preview only needs a few frames a second.
@@ -313,18 +315,40 @@ class StreamService : LifecycleService() {
             }
             val socket = ws.takeIf { Pro.codec.value == "jpeg" }
             val wantPreview = frameNo++ % 3 == 0L
-            val canSend = socket != null && socket.queueSize() <= 256 * 1024 // drop frames rather than lag behind
+            // Drop frames rather than lag behind: skip when the link is backed up or every compressor is busy.
+            val canSend = socket != null && socket.queueSize() <= 512 * 1024 && compressors.tryAcquire()
             if (!canSend && !wantPreview) return
-            var bmp = it.toBitmap()
-            val rot = it.imageInfo.rotationDegrees
-            if (rot != 0) bmp = Bitmap.createBitmap(bmp, 0, 0, bmp.width, bmp.height, Matrix().apply { postRotate(rot.toFloat()) }, true)
+            val bmp = it.toBitmap() // already upright: CameraX rotated it
             Live.frameSize.value = bmp.width to bmp.height
             if (wantPreview) Live.preview.value = bmp
             if (canSend) {
-                val out = ByteArrayOutputStream(128 * 1024)
-                bmp.compress(Bitmap.CompressFormat.JPEG, 80, out)
-                socket!!.send(out.toByteArray().toByteString())
+                // Compress on a small pool so several frames are in flight at once, then send them in order.
+                val seq = nextSeq++
+                jpegPool.execute {
+                    val out = ByteArrayOutputStream(256 * 1024)
+                    runCatching { bmp.compress(Bitmap.CompressFormat.JPEG, 85, out) }
+                    compressors.release()
+                    sendInOrder(seq, out.toByteArray())
+                }
             }
+        }
+    }
+
+    // JPEG pipeline: up to 3 frames compressing at once on separate cores, sent in capture order.
+    private val jpegPool = Executors.newFixedThreadPool(3)
+    private val compressors = java.util.concurrent.Semaphore(3)
+    private var nextSeq = 0L
+    private var sentSeq = -1L
+    private val ready = java.util.TreeMap<Long, ByteArray>()
+
+    private fun sendInOrder(seq: Long, jpeg: ByteArray) = synchronized(ready) {
+        ready[seq] = jpeg
+        // Send everything that is next in line; if a frame was dropped earlier, don't wait for it forever.
+        while (ready.isNotEmpty()) {
+            val first = ready.firstKey()
+            if (first != sentSeq + 1 && ready.size < 3) break
+            val data = ready.remove(first)!!
+            if (first > sentSeq) { ws?.send(data.toByteString()); sentSeq = first }
         }
     }
 
@@ -506,7 +530,7 @@ class StreamService : LifecycleService() {
         runCatching { ProcessCameraProvider.getInstance(this).get().unbind(*listOfNotNull(analysis).toTypedArray()) }
         wake?.takeIf { it.isHeld }?.release(); wifiLock?.takeIf { it.isHeld }?.release()
         orientation?.disable()
-        analysisExecutor.shutdown(); encoderExecutor.shutdown()
+        analysisExecutor.shutdown(); encoderExecutor.shutdown(); jpegPool.shutdown()
         encoder?.release(); encoder = null
         super.onDestroy()
     }

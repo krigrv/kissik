@@ -121,7 +121,11 @@ object Pro {
     @OptIn(ExperimentalCamera2Interop::class)
     fun options(c: Caps): CaptureRequestOptions {
         val b = CaptureRequestOptions.Builder()
-        if (fps.value > 0) c.fpsRanges.filter { it.upper == fps.value }.maxByOrNull { it.lower }
+        // Ask the camera for its video tuning (the same processing the built-in camera uses when filming).
+        b.setCaptureRequestOption(CR.CONTROL_CAPTURE_INTENT, CR.CONTROL_CAPTURE_INTENT_VIDEO_RECORD)
+        // A steady frame rate: the chosen one, or a fixed 30 when automatic (so low light doesn't make it stutter).
+        val target = if (fps.value > 0) fps.value else 30
+        c.fpsRanges.filter { it.upper == target }.maxByOrNull { it.lower }
             ?.let { b.setCaptureRequestOption(CR.CONTROL_AE_TARGET_FPS_RANGE, it) }
         if (c.manual && (iso.value != null || shutterNs.value != null)) {
             b.setCaptureRequestOption(CR.CONTROL_AE_MODE, CR.CONTROL_AE_MODE_OFF)
