@@ -10,6 +10,7 @@ var cases = new (string Name, FrameRecipe Recipe)[]
 {
     ("blur", FrameRecipe.Passthrough with { Background = new BackgroundSettings(BackgroundMode.Blur, 0.6) }),
     ("replace", FrameRecipe.Passthrough with { Background = new BackgroundSettings(BackgroundMode.Replace, BackgroundId: BackgroundLibrary.BuiltIn[0].Id) }),
+    ("blur+framing", FrameRecipe.Passthrough with { Background = new BackgroundSettings(BackgroundMode.Blur, 0.6), Transform = new FrameTransform(Mirror: true, Zoom: 1.5) }),
     ("look+lut", FrameRecipe.Passthrough with { Adjustments = new ImageFilters.Adjustments(Contrast: 1.1, Saturation: 1.2, Sharpness: 0.5, Filter: FilterPreset.Cinematic) }),
 };
 foreach (var (w, h) in new[] { (1920, 1080), (3840, 2160) })

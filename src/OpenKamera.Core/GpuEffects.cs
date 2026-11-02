@@ -49,11 +49,19 @@ public sealed class GpuEffects : IDisposable
 
         using var stream = typeof(GpuEffects).Assembly.GetManifestResourceStream("OpenKamera.Core.GpuEffects.hlsl")!;
         string source = new StreamReader(stream).ReadToEnd();
-        foreach (var entry in new[] { "Upsample", "GuideDown", "GuideBoxH", "GuideBoxV", "GuideAB", "GuideApply", "Retouch", "BlurDown", "BoxH", "BoxV", "Effects", "Sharpen", "Scene" })
+        foreach (var entry in new[] { "Transform", "Fit", "Small", "Upsample", "GuideDown", "GuideBoxH", "GuideBoxV", "GuideAB", "GuideApply", "Retouch", "BlurDown", "BoxH", "BoxV", "Effects", "Sharpen", "Scene" })
         {
             var code = Compiler.Compile(source, entry, "GpuEffects.hlsl", "cs_5_0", ShaderFlags.OptimizationLevel3);
             _cs[entry] = _device.CreateComputeShader(code.Span);
         }
+        // Exact match with the CPU's double-precision resize where the GPU has doubles (nearly all do).
+        try
+        {
+            var doubles = _device.CheckFeatureSupport<FeatureDataDoubles>(Feature.Doubles);
+            if (doubles.DoublePrecisionFloatShaderOps)
+                _cs["FitDouble"] = _device.CreateComputeShader(Compiler.Compile(source, "FitDouble", "GpuEffects.hlsl", "cs_5_0", ShaderFlags.OptimizationLevel3).Span);
+        }
+        catch (Exception) { /* float fit only */ }
         _params = _device.CreateBuffer((uint)Marshal.SizeOf<Params>(), BindFlags.ConstantBuffer, ResourceUsage.Dynamic, CpuAccessFlags.Write);
     }
 
@@ -86,20 +94,122 @@ public sealed class GpuEffects : IDisposable
         if (n == 0 || n > 65535 * 256 * 64) return null;
         lock (_gate)
         {
-            try { return Run(px, w, h, r, mask, replacement); }
+            try
+            {
+                Upload("frame", px, 4);
+                return Effects("frame", w, h, r, mask, replacement, SceneCompositor.HasTransparency(px));
+            }
             catch (Exception) { return null; }
         }
     }
 
-    private byte[] Run(byte[] px, int w, int h, FrameRecipe r, PersonMask? mask, byte[]? replacement)
+    /// <summary>
+    /// The whole frame path from the camera's pixels: framing, output fit, the model's input for segmentation, then
+    /// every effect. Only the model's small input comes back to the CPU before the finished frame does.
+    /// Null if the GPU failed (the caller falls back to the CPU path).
+    /// </summary>
+    public (byte[] Pixels, int Width, int Height)? ProcessFrame(byte[] raw, int rw, int rh, FrameRecipe r, BackgroundPipeline? background)
+    {
+        if (rw * rh == 0) return null;
+        lock (_gate)
+        {
+            try
+            {
+                Upload("raw", raw, 4);
+                var (src, w, h) = Frame("raw", rw, rh, r);
+                if (w * h > 65535 * 256 * 64) return null;
+                background?.NewFrame();
+                var s = r.Background;
+                bool wantsMask = background is not null && (s.NeedsMask || r.BehindOverlay is { } bo && bo.Length == w * h * 4);
+                var mask = wantsMask ? background!.ModelMask((iw, ih) => Small(src, w, h, iw, ih), s) : null;
+                byte[]? bg = s.NeedsMask && s.Mode == BackgroundMode.Replace && s.BackgroundId is { } id ? BackgroundLibrary.Render(id, w, h) : null;
+                return (Effects(src, w, h, r, mask, bg, SceneCompositor.HasTransparency(raw)), w, h);
+            }
+            catch (Exception) { return null; }
+        }
+    }
+
+    /// <summary>FrameTransform.Apply then OutputFit.Cover, on the GPU. Returns the buffer holding the result.</summary>
+    private (string Name, int W, int H) Frame(string src, int w, int h, FrameRecipe r)
+    {
+        var t = r.Transform;
+        if (!t.IsIdentity)
+        {
+            int rot = ((t.Rotation % 360) + 360) % 360;
+            if (rot % 90 != 0) throw new ArgumentException("Rotation must be a multiple of 90 degrees.");
+            bool swap = rot is 90 or 270;
+            int ow = swap ? h : w, oh = swap ? w : h;
+            double zoom = Math.Max(1.0, t.Zoom), cropW = w / zoom, cropH = h / zoom;
+            double left = (w - cropW) / 2 * (1 + Math.Clamp(t.PanX, -1, 1)), top = (h - cropH) / 2 * (1 + Math.Clamp(t.PanY, -1, 1));
+            // Same maths as FrameTransform.Apply, per output column and row: [sx(ox), sy(oy), sx(oy), sy(ox) for swapped axes].
+            var map = new uint[(ow + oh) * 2];
+            for (int o = 0; o < ow; o++) { var (sx, sy) = Source((o + 0.5) / ow, 0.5); map[o] = (uint)(swap ? sy : sx); }
+            for (int o = 0; o < oh; o++) { var (sx, sy) = Source(0.5, (o + 0.5) / oh); map[ow + o] = (uint)sy; map[ow + oh + o] = (uint)sx; }
+            (int, int) Source(double nx, double ny)
+            {
+                double u, v;
+                switch (rot)
+                {
+                    case 90: u = ny; v = 1 - nx; break;
+                    case 180: u = 1 - nx; v = 1 - ny; break;
+                    case 270: u = 1 - ny; v = nx; break;
+                    default: u = nx; v = ny; break;
+                }
+                if (t.Mirror) u = 1 - u;
+                return (Math.Clamp((int)(left + u * cropW), 0, w - 1), Math.Clamp((int)(top + v * cropH), 0, h - 1));
+            }
+            Upload("map", map, 4);
+            SetParams(new Params { I0 = new(ow, oh, 0, 0), I1 = new(w, h, swap ? 1 : 0, 0) });
+            Ensure("framed", ow * oh * 4, 4);
+            Run("Transform", ow * oh, srv: [(src, 0), ("map", 8)], uav: [("framed", 0)]);
+            (src, w, h) = ("framed", ow, oh);
+        }
+        if (r.OutputWidth is int fw && r.OutputHeight is int fh && (fw != w || fh != h))
+        {
+            double scale = Math.Max((double)fw / w, (double)fh / h);
+            double left = (w - fw / scale) / 2, top = (h - fh / scale) / 2;
+            // Per column then per row: index, weight as double (two words); then the weights as float for the fallback.
+            var map = new uint[(fw + fh) * 4];
+            void Tap(int o, int n, int at, int fl, double pos, int size)
+            {
+                double f = Math.Clamp(pos, 0, size - 1), d = f - (int)f;
+                ulong bits = BitConverter.DoubleToUInt64Bits(d);
+                map[at + o] = (uint)(int)f; map[at + n + o] = (uint)bits; map[at + 2 * n + o] = (uint)(bits >> 32);
+                map[fl + o] = BitConverter.SingleToUInt32Bits((float)d);
+            }
+            for (int o = 0; o < fw; o++) Tap(o, fw, 0, 3 * (fw + fh), left + (o + 0.5) / scale - 0.5, w);
+            for (int o = 0; o < fh; o++) Tap(o, fh, 3 * fw, 3 * (fw + fh) + fw, top + (o + 0.5) / scale - 0.5, h);
+            Upload("map", map, 4);
+            SetParams(new Params { I0 = new(fw, fh, 0, 0), I1 = new(w, h, 0, 0) });
+            Ensure("fitted", fw * fh * 4, 4);
+            Run(_cs.ContainsKey("FitDouble") ? "FitDouble" : "Fit", fw * fh, srv: [(src, 0), ("map", 8)], uav: [("fitted", 0)]);
+            (src, w, h) = ("fitted", fw, fh);
+        }
+        return (src, w, h);
+    }
+
+    /// <summary>The segmentation model's input: the frame sampled (nearest) at iw x ih, as PersonSegmenter samples it.</summary>
+    private byte[] Small(string src, int w, int h, int iw, int ih)
+    {
+        // Same float maths as PersonSegmenter.Segment, done here because GPU division is not exact.
+        var map = new uint[iw + ih];
+        for (int x = 0; x < iw; x++) map[x] = (uint)Math.Min(w - 1, (int)((x + 0.5f) * w / iw));
+        for (int y = 0; y < ih; y++) map[iw + y] = (uint)Math.Min(h - 1, (int)((y + 0.5f) * h / ih));
+        Upload("map", map, 4);
+        SetParams(new Params { I0 = new(w, h, 0, 0), I1 = new(iw, ih, 0, 0) });
+        Ensure("small", iw * ih * 4, 4);
+        Run("Small", iw * ih, srv: [(src, 0), ("map", 8)], uav: [("small", 0)]);
+        return Download("small", iw * ih * 4);
+    }
+
+    private byte[] Effects(string input, int w, int h, FrameRecipe r, PersonMask? mask, byte[]? replacement, bool transparent)
     {
         int n = w * h;
         var s = r.Background;
         var adj = r.Adjustments;
         var p = new Params { I0 = new(w, h, mask?.Width ?? 0, mask?.Height ?? 0) };
 
-        Upload("frame", px, 4);
-        string cur = "frame";
+        string cur = input;
         string Next() => cur == "a" ? "b" : "a";
 
         bool useMask = mask is not null && (s.NeedsMask || r.BehindOverlay is not null);
@@ -109,7 +219,7 @@ public sealed class GpuEffects : IDisposable
             Ensure("alpha", n * 4, 4);
             SetParams(p);
             Run("Upsample", n, srv: [("maskLow", 6)], uav: [("alpha", 1)]);
-            GuidedRefine(px.Length / 4, w, h, ref p);
+            GuidedRefine(input, w, h, ref p);
         }
         else Ensure("alpha", 4, 4);
 
@@ -126,7 +236,7 @@ public sealed class GpuEffects : IDisposable
         int mode = !useMask || !s.NeedsMask ? 0 : s.Mode switch
         {
             BackgroundMode.Blur => 1,
-            BackgroundMode.Replace when replacement is { } bg && bg.Length == px.Length => 2,
+            BackgroundMode.Replace when replacement is { } bg && bg.Length == n * 4 => 2,
             BackgroundMode.Remove => 3,
             _ => 0,
         };
@@ -154,7 +264,7 @@ public sealed class GpuEffects : IDisposable
 
         Fx flags = 0;
         if (useMask && s.NeedsMask && s.Spotlight > 0) { flags |= Fx.Spot; p.F0.X = (float)s.Spotlight; }
-        bool behind = useMask && r.BehindOverlay is { } bo && bo.Length == px.Length;
+        bool behind = useMask && r.BehindOverlay is { } bo && bo.Length == n * 4;
         if (behind) { flags |= Fx.Behind; Upload("behind", r.BehindOverlay!, 4); }
         if (!adj.IsNeutral && adj.NeedsColour) flags |= ColourParams(adj, ref p);
         p.I2.X = (int)flags;
@@ -181,7 +291,7 @@ public sealed class GpuEffects : IDisposable
         if (r.Scene is { } scene)
         {
             // Only Remove makes the camera see-through (blur and replace leave it opaque).
-            SceneParams(scene, mode == 3 || SceneCompositor.HasTransparency(px), w, h, r.Overlay, ref p);
+            SceneParams(scene, mode == 3 || transparent, w, h, r.Overlay, ref p);
             SetParams(p);
             if (((Sf)p.I4.X & Sf.Overlay) != 0) Upload("aux", r.Overlay!, 4);
             string o = Next(); Ensure(o, n * 4, 4);
@@ -193,20 +303,21 @@ public sealed class GpuEffects : IDisposable
     }
 
     /// <summary>MaskOps.GuidedRefine on the GPU, with the scale BackgroundPipeline uses.</summary>
-    private void GuidedRefine(int n, int w, int h, ref Params p)
+    private void GuidedRefine(string frame, int w, int h, ref Params p)
     {
+        int n = w * h;
         const int radius = 6;
         int scale = Math.Max(2, w / 480), gw = Math.Max(1, w / scale), gh = Math.Max(1, h / scale), q = gw * gh;
         p.I3 = new(gw, gh, scale, radius);
         SetParams(p);
         Ensure("guide0", q * 16, 16); Ensure("guide1", q * 16, 16);
-        Run("GuideDown", q, srv: [("frame", 0), ("alpha", 1)], uav: [("guide0", 2)]);
+        Run("GuideDown", q, srv: [(frame, 0), ("alpha", 1)], uav: [("guide0", 2)]);
         Run("GuideBoxH", q, srv: [("guide0", 7)], uav: [("guide1", 2)]);
         Run("GuideBoxV", q, srv: [("guide1", 7)], uav: [("guide0", 2)]);
         Run("GuideAB", q, srv: [("guide0", 7)], uav: [("guide1", 2)]);
         Run("GuideBoxH", q, srv: [("guide1", 7)], uav: [("guide0", 2)]);
         Run("GuideBoxV", q, srv: [("guide0", 7)], uav: [("guide1", 2)]);
-        Run("GuideApply", n, srv: [("frame", 0), ("guide1", 7)], uav: [("alpha", 1)]);
+        Run("GuideApply", n, srv: [(frame, 0), ("guide1", 7)], uav: [("alpha", 1)]);
         p.I3 = default;
     }
 

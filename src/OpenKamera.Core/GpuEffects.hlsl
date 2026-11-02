@@ -46,6 +46,9 @@ StructuredBuffer<float> Tone : register(t4);
 StructuredBuffer<float> Lut : register(t5);
 StructuredBuffer<float> MaskLow : register(t6);
 StructuredBuffer<float4> Acc : register(t7);
+// Nearest-sample positions worked out on the CPU with the CPU's exact maths (GPU division is approximate,
+// and a one-pixel slip in nearest sampling is a visible difference): I1.x entries for one axis, then the other.
+StructuredBuffer<uint> Map : register(t8);
 
 RWStructuredBuffer<uint> Dst : register(u0);
 RWStructuredBuffer<float> AlphaOut : register(u1);
@@ -59,9 +62,89 @@ float4 Unpack(uint p) { return float4(p & 255, (p >> 8) & 255, (p >> 16) & 255, 
 uint Pack(uint4 c) { return c.x | (c.y << 8) | (c.z << 16) | (c.w << 24); }
 uint Sat(float v) { return (uint)clamp(v, 0, 255); }           // C# (byte)Math.Clamp: truncates
 uint3 Sat3(float3 v) { return uint3(Sat(v.x), Sat(v.y), Sat(v.z)); }
-uint ToByte(float v) { return (uint)clamp(round(v * 255), 0, 255); }
+// C# Math.Round: ties go to the even number (HLSL round() does not promise that).
+float RoundEven(float v) { float f = floor(v), d = v - f; return d > 0.5f ? f + 1 : d < 0.5f ? f : f + fmod(f, 2); }
+float4 RoundEven(float4 v) { return float4(RoundEven(v.x), RoundEven(v.y), RoundEven(v.z), RoundEven(v.w)); }
+uint ToByte(float v) { return (uint)clamp(RoundEven(v * 255), 0, 255); }
 
 uint Index(uint3 id) { return id.x + id.y * 65535u * 256u; }
+
+// FrameTransform.Apply: mirror, 90-degree rotation, zoom and pan (nearest). Src is I1.x wide; I1.z = axes swapped.
+[numthreads(256, 1, 1)]
+void Transform(uint3 id : SV_DispatchThreadID)
+{
+    uint p = Index(id);
+    if (p >= (uint)(W * H)) return;
+    int ox = p % W, oy = p / W, sw = I1.x;
+    // Map holds sx then sy per output column/row; rotated by 90 or 270 they swap axes.
+    uint sx = I1.z ? Map[W + H + oy] : Map[ox], sy = I1.z ? Map[ox] : Map[W + oy];
+    Dst[p] = Src[sy * sw + sx];
+}
+
+// OutputFit.Cover: bilinear resample of the I1.x x I1.y source. Map per column: x0, dx (double as two words);
+// then per row: y0, dy. Positions are worked out on the CPU exactly as OutputFit does.
+void FitTaps(uint p, out int4 at, out double dx, out double dy)
+{
+    int ox = p % W, oy = p / W, sw = I1.x, sh = I1.y;
+    int x0 = Map[ox], y0 = Map[3 * W + oy];
+    at = int4(x0, min(x0 + 1, sw - 1), y0, min(y0 + 1, sh - 1));
+    dx = asdouble(Map[W + ox], Map[2 * W + ox]);
+    dy = asdouble(Map[3 * W + H + oy], Map[3 * W + 2 * H + oy]);
+}
+
+// Interpolates in double like the CPU, so rounding ties land the same way (zoomed frames hit exact .5s often).
+// Only base double ops (add, multiply, compare, convert to/from float) so any GPU with double support runs it.
+uint RoundEvenD(double v)
+{
+    float f = floor((float)v);
+    if ((double)f > v) f -= 1;
+    double d = v - (double)f;
+    return (uint)(d > 0.5 ? f + 1 : d < 0.5 ? f : f + fmod(f, 2));
+}
+
+[numthreads(256, 1, 1)]
+void FitDouble(uint3 id : SV_DispatchThreadID)
+{
+    uint p = Index(id);
+    if (p >= (uint)(W * H)) return;
+    int4 t; double dx, dy;
+    FitTaps(p, t, dx, dy);
+    int sw = I1.x;
+    float4 a = Unpack(Src[t.z * sw + t.x]), b = Unpack(Src[t.z * sw + t.y]), c = Unpack(Src[t.w * sw + t.x]), d = Unpack(Src[t.w * sw + t.y]);
+    uint4 o;
+    [unroll] for (int k = 0; k < 4; k++)
+    {
+        double top = (double)a[k] + ((double)b[k] - (double)a[k]) * dx, bot = (double)c[k] + ((double)d[k] - (double)c[k]) * dx;
+        o[k] = RoundEvenD(top + (bot - top) * dy);
+    }
+    Dst[p] = Pack(o);
+}
+
+// Float fallback for GPUs without doubles: within a level of the CPU.
+[numthreads(256, 1, 1)]
+void Fit(uint3 id : SV_DispatchThreadID)
+{
+    uint p = Index(id);
+    if (p >= (uint)(W * H)) return;
+    int ox = p % W, oy = p / W, sw = I1.x, sh = I1.y;
+    int x0 = Map[ox], y0 = Map[3 * W + oy];
+    int4 t = int4(x0, min(x0 + 1, sw - 1), y0, min(y0 + 1, sh - 1));
+    float dx = asfloat(Map[3 * W + 3 * H + ox]), dy = asfloat(Map[4 * W + 3 * H + oy]);
+    float4 a = Unpack(Src[t.z * sw + t.x]), b = Unpack(Src[t.z * sw + t.y]), c = Unpack(Src[t.w * sw + t.x]), d = Unpack(Src[t.w * sw + t.y]);
+    float4 top = a + (b - a) * dx, bot = c + (d - c) * dx;
+    Dst[p] = Pack((uint4)RoundEven(top + (bot - top) * dy));
+}
+
+// PersonSegmenter's input sampling (nearest) at I1.x x I1.y, so only this small image goes back to the CPU.
+[numthreads(256, 1, 1)]
+void Small(uint3 id : SV_DispatchThreadID)
+{
+    uint q = Index(id);
+    int iw = I1.x, ih = I1.y;
+    if (q >= (uint)(iw * ih)) return;
+    int x = q % iw, y = q / iw;
+    Dst[q] = Src[Map[iw + y] * W + Map[x]];
+}
 
 [numthreads(256, 1, 1)]
 void Upsample(uint3 id : SV_DispatchThreadID)
@@ -448,7 +531,7 @@ void Scene(uint3 id : SV_DispatchThreadID)
                 int x0 = (int)fx, x1 = min(x0 + 1, W - 1); float dx = fx - x0;
                 float4 a = Unpack(Src[y0 * W + x0]), b = Unpack(Src[y0 * W + x1]), c = Unpack(Src[y1 * W + x0]), d = Unpack(Src[y1 * W + x1]);
                 float4 top = a + (b - a) * dx, bot = c + (d - c) * dx;
-                float4 fit = round(top + (bot - top) * dy);
+                float4 fit = RoundEven(top + (bot - top) * dy);
                 float k = cover * F4.y;
                 float al = k * fit.w / 255;
                 o = uint4(Sat3(fit.xyz * k + o.xyz * (1 - al)), 255);

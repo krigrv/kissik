@@ -100,28 +100,34 @@ Still to test by hand before v1 (needs a person at the PC):
   and a first-run choice of "Simple" (5 big buttons) or "Studio" (everything).
 
 ### Performance
-- **Now:** effects run on the GPU (Direct3D 11 compute, `GpuEffects`): mask upsampling, retouch, blur, replace,
-  remove, spotlight, "behind me" layers, colour, looks, LUTs, sharpening and the scene. The frame goes up once and
-  comes back once. The CPU code stays as the fallback (no GPU, green screen, or `KISSIK_CPU_EFFECTS=1`), and tests
-  hold the two paths to within 1 level per channel. The GPU path includes the guided-filter edge refinement and light wrap. About 90 fps at 4K with blur.
-- **Best:** the whole frame path on the GPU, zero copies to the CPU.
-- **Upgrade:** keep frames as GPU textures from capture to output: take camera frames as Direct3D surfaces and
-  hand textures to the virtual camera, recorder (hardware encoder) and preview, so the upload and readback go away.
-  Framing (zoom/rotate) and output fit still run on the CPU before the GPU step.
+- **Now:** the frame path runs on the GPU (Direct3D 11 compute, `GpuEffects`): framing (mirror, rotate, zoom),
+  output fit, the segmentation model's input, mask upsampling with guided-filter edge refinement, retouch, blur,
+  replace (with light wrap), remove, spotlight, "behind me" layers, colour, looks, LUTs, sharpening and the scene.
+  The camera frame goes up once; only the model's small input and the finished frame come back. The CPU code stays
+  as the fallback (no GPU, green screen, or `KISSIK_CPU_EFFECTS=1`). Tests hold each step to within 1 level per
+  channel of the CPU (framing and fit match exactly), and the whole path with real segmentation to a thin band at
+  the person's outline. About 90 fps at 4K with blur.
+- **Best:** frames stay on the GPU from capture to output, zero copies to the CPU.
+- **Upgrade:** take camera frames as Direct3D surfaces and hand textures to the virtual camera, recorder (hardware
+  encoder) and preview, so the upload and readback go away. Measured at 4K with blur, per frame: upload 1.6 ms,
+  segmentation 3.9 ms (DirectML, every other frame), effects and readback 4.7 ms. Overlapping the readback with
+  the next frame would save about 3 ms but add a frame of delay, which isn't worth it at 90 fps.
 
 Frame-path benchmark (`dotnet run -c Release --project tests/OpenKamera.Bench`): a synthetic frame through
 `FrameProcessor` with Fast segmentation on DirectML, RTX 4080 SUPER, frames per second. The effects step only;
-the app adds capture, preview and output on top. "Before" is the CPU path without edge refinement; the machine
-was shared with other builds, so treat the numbers as ±15%.
+the app adds capture, preview and output on top. "Before" is the CPU path (the framing row with today's CPU
+code); the machine was shared with other builds, so treat the numbers as ±15%.
 
 | Frame | Effect | CPU (before) | GPU (after) |
 | --- | --- | --- | --- |
-| 1080p | Blur | 68 | 183 |
-| 1080p | Replace | 206 | 216 |
-| 1080p | Look + sharpen | 139 | 379 |
-| 4K | Blur | 28 | 92 |
-| 4K | Replace | 66 | 90 |
-| 4K | Look + sharpen | 32 | 96 |
+| 1080p | Blur | 68 | 238 |
+| 1080p | Blur + framing (mirror, 1.5x zoom) | 69 | 255 |
+| 1080p | Replace | 206 | 256 |
+| 1080p | Look + sharpen | 139 | 374 |
+| 4K | Blur | 28 | 93 |
+| 4K | Blur + framing (mirror, 1.5x zoom) | 28 | 89 |
+| 4K | Replace | 66 | 91 |
+| 4K | Look + sharpen | 32 | 109 |
 
 ## Order of work
 1. Hand tests above (blocker for v1).

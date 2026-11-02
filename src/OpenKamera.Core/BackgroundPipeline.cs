@@ -41,7 +41,13 @@ public sealed class BackgroundPipeline : IDisposable
     /// GPU path: this frame's cut-out at model resolution (the GPU upsamples it), with the same every-other-frame
     /// reuse as <see cref="Apply"/>. Null on error. Not for green screen, which keys at full size on the CPU.
     /// </summary>
-    public PersonMask? ModelMask(byte[] px, int w, int h, BackgroundSettings s)
+    public PersonMask? ModelMask(byte[] px, int w, int h, BackgroundSettings s) => ModelMask((_, _) => (px, w, h), s);
+
+    /// <param name="sampled">Returns the frame already sampled (nearest) to the requested model input size.</param>
+    public PersonMask? ModelMask(Func<int, int, byte[]> sampled, BackgroundSettings s) =>
+        ModelMask((iw, ih) => (sampled(iw, ih), iw, ih), s);
+
+    private PersonMask? ModelMask(Func<int, int, (byte[] Px, int W, int H)> input, BackgroundSettings s)
     {
         lock (_gate)
         {
@@ -55,6 +61,7 @@ public sealed class BackgroundPipeline : IDisposable
                 {
                     if (!_segmenters.TryGetValue(s.Quality, out var seg))
                         _segmenters[s.Quality] = seg = new PersonSegmenter(s.Quality);
+                    var (px, w, h) = input(seg.InputWidth, seg.InputHeight);
                     mask = _reuseMask = seg.Segment(px, w, h);
                 }
                 LastError = null; _hadError = false;
