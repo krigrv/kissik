@@ -40,6 +40,10 @@ public sealed class AppSettings
     public string Theme { get; set; } = "System";
     /// <summary>The one-time welcome has been shown.</summary>
     public bool SeenWelcome { get; set; }
+    /// <summary>"Simple" (five big buttons) or "Studio" (the full window). Empty until the user picks on first run.</summary>
+    public string UiMode { get; set; } = "";
+    /// <summary>Bigger buttons and text everywhere (View → Large controls).</summary>
+    public bool LargeControls { get; set; }
     /// <summary>Offline caption model language code (e.g. "en-us").</summary>
     public string CaptionLanguage { get; set; } = "en-us";
     /// <summary>Local control API / MCP server (localhost + token). Off until turned on.</summary>

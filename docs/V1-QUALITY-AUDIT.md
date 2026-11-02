@@ -111,3 +111,79 @@ Still to test by hand before v1 (needs a person at the PC):
 4. Accessibility audit and Simple mode.
 5. GPU frame path.
 6. Captions accurate mode, framing rules, phone hardware stream, auto best picture, recording upgrades.
+
+## Part 3: accessibility and universal design checklist
+
+Date: 2026-11-02. Scope: `MainPage.xaml` and its `MainPage.*.cs` partials, `RecordingsWindow`, `PrompterWindow`.
+Method: every control in the XAML and in code-built UI was read for its UI Automation Name, HelpText,
+size and colours; state changes were traced to what Narrator hears. **Checked in code and build only:**
+a live Narrator, 200% text and high-contrast pass on a running app is still open (last section).
+
+### Names and help text
+- [x] Every button, toggle, slider, switch and list in the main window has an `AutomationProperties.Name`
+      (icon-only buttons included: reset, save/delete/link preset, import/clear LUT, add background).
+- [x] Every control with a tooltip now has the same text as `AutomationProperties.HelpText` (78 controls),
+      so Narrator reads the hint, not only the name.
+- [x] Record button no longer reads "bullet Record": its name is "Record", then "■ Stop" while recording.
+- [x] Decorative status dots (source, meeting camera) are hidden from the automation tree.
+- [x] Scene cards, adjustments expander: named (fixed in c60737c).
+- [x] Recordings window: grid named "Recordings and snapshots"; each card reads file name, kind, date, size.
+- [x] Prompter: every toolbar button has Name and HelpText; the script text and editor are named.
+
+### Keyboard
+- [x] All main actions are standard WinUI buttons/menus: reachable with Tab, activated with Enter/Space,
+      menus with arrow keys. Shortcuts: Ctrl+R record, Ctrl+Shift+R pause, Ctrl+Shift+S snapshot,
+      Ctrl+Shift+H hide me (plus global Ctrl+Alt versions).
+- [x] Focus order follows reading order: top bar (centre, then right), left panel tabs and content,
+      right panel, filmstrip, then Simple-mode buttons when shown.
+- [x] Visible focus: the WinUI system focus rectangle is kept on every control (no `UseSystemFocusVisuals="False"` anywhere).
+- [ ] The overlay canvas (dragging scene layers) is mouse/touch only. Layers can be moved from the Layers tab
+      fields instead; a keyboard nudge (arrow keys on the selected layer) is a v1.1 item.
+
+### Narrator announcements for state changes
+- [x] Every status message is now raised as a UIA notification (`RaiseNotificationEvent`, ImportantMostRecent)
+      as well as shown, and the status text has `LiveSetting=Polite`. This covers:
+  - [x] Record: countdown (Assertive live region), started, cancelled, failed, "Finishing recording…" and the result.
+  - [x] Live: started ("Live to N destinations…"), ended, stopped with the reason.
+  - [x] Privacy: "Meeting and recording see a blurred picture", "…be right back…", "You're visible again".
+  - [x] Mic muted in Windows / unmuted again (watchdog).
+  - [x] Captions on / off / unavailable / model download progress; caption text itself is a Polite live region.
+- [x] The REC pill text is a Polite live region.
+
+### Target size (at least 40 × 40 px)
+- [x] Top bar buttons (`CapsuleButton`): min 40 × 40 (was 38 high). Meeting camera, output profile, menu,
+      Support: min 40 high.
+- [x] Icon buttons (`IconButton`): 40 × 40 (was 34 × 32). Well buttons: min 40 high (was 32).
+- [x] Prompter toolbar: 40 × 40 (was 34 × 30).
+- [x] Background tiles 64 high; Simple-mode buttons 148 × 96.
+- [x] View → **Large controls** raises every button, switch, list, slider and text box to at least 48 × 48
+      with 16 px text, and puts each back exactly when turned off. Saved as `LargeControls` in settings.
+
+### Text scaling (200%) and high contrast
+- [x] All text uses WinUI text styles or relative sizes that follow Windows "Text size"; nothing uses
+      fixed-height text containers in the top bar now (`Height` → `MinHeight`), so it grows instead of clipping.
+- [x] Every theme colour is a Windows theme brush (light, dark and high contrast follow automatically).
+- [ ] Some fixed colours remain and should switch to system brushes under high contrast: the soft red
+      warning text (`#FFFF8A80`: busy camera, meeting camera live, shutter label), the caption bar
+      (white on black, readable but ignores the user's HC colours) and the prompter (white on near-black by design).
+- [ ] Left panel is a fixed 316 px wide: at 200% text, long labels wrap (they are set to wrap or trim);
+      not yet checked by eye on a running app.
+
+### Motion
+- [x] Respects Windows "Animation effects" off (Settings → Accessibility → Visual effects): built-in WinUI
+      transitions follow it already; live look previews and scene thumbnails refresh every 10 s instead of 1–2 s.
+- [x] No flashing content; the 3-2-1 countdown changes once a second.
+
+### Simple and Studio
+- [x] First run, after the welcome: "Simple or Studio?" (Simple is the default button).
+- [x] Simple: five big centred buttons — Camera on, Background (off → blur → picture), Record,
+      Meeting camera (opens the same meeting-camera panel), Hide me (be right back + mic muted, press again to come back).
+      Their words and screen-reader names follow the state ("Camera off", "Stop recording", "Show me", "Background: blur").
+- [x] Studio: today's full window.
+- [x] Switch any time: menu → View → Simple / Studio. Saved as `UiMode` in `Settings.cs`.
+
+### Still to verify on a running app (before tagging v1)
+- [ ] Narrator walk-through of Simple and Studio: names, help text and each announcement above.
+- [ ] Windows Text size 200% and display scale 200%: no clipping or overlap in the top bar, panels and dialogs.
+- [ ] High contrast (Aquatic, Desert, Night sky): every control visible, focus rectangle visible.
+- [ ] Accessibility Insights FastPass on both windows.

@@ -17,7 +17,7 @@ public sealed partial class MainPage
     private void StartSceneThumbs()
     {
         _thumbTimer = DispatcherQueue.CreateTimer();
-        _thumbTimer.Interval = TimeSpan.FromSeconds(1);
+        _thumbTimer.Interval = TimeSpan.FromSeconds(ReduceMotion ? 10 : 1);
         _thumbTimer.Tick += async (_, _) =>
         {
             bool live = _session is not null && _lastFrame is not null;
