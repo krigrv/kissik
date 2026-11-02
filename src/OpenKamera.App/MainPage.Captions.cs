@@ -35,7 +35,9 @@ public sealed partial class MainPage
             if (dir is null) dir = await DownloadCaptionModelAsync();
             if (dir is null) { CaptionsToggle.IsChecked = false; return; }
             if (!_audio.IsRunning) { AudioOnToggle.IsOn = true; await Task.Delay(500); } // captions listen to the audio mix
-            _offline = await Task.Run(() => new OfflineCaptions(dir));
+            var started = await Task.Run(() => new OfflineCaptions(dir));
+            if (!CaptionsToggle.IsChecked) { await Task.Run(started.Dispose); return; } // switched off while it was starting
+            _offline = started;
             _offline.Partial += t => DispatcherQueue.TryEnqueue(() => _captions.Partial(t, DateTime.UtcNow));
             _offline.Final += t => DispatcherQueue.TryEnqueue(() => _captions.Final(t, DateTime.UtcNow));
 
@@ -93,6 +95,7 @@ public sealed partial class MainPage
         if (o is not null) await Task.Run(o.Dispose); // never on the UI thread: it waits for the worker
         _captionImage = null; _shownCaption = "";
         CaptionBar.Visibility = Visibility.Collapsed;
+        if (o is not null) Status("Live captions off.");
     }
 
     private async void CaptionTick(Microsoft.UI.Dispatching.DispatcherQueueTimer t, object o)

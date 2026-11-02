@@ -37,7 +37,9 @@ public sealed partial class MainPage
             }
             else if (!quiet) Status($"You have the latest version ({CurrentVersion()}).");
         }
-        catch (Exception ex) { if (!quiet) Status("Couldn't check for updates: " + ex.Message); }
+        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound) { if (!quiet) Status($"You have the latest version ({CurrentVersion()})."); }
+        catch (HttpRequestException) { if (!quiet) Status("Couldn't reach the update server. Check your internet connection and try again."); }
+        catch (Exception) { if (!quiet) Status("Couldn't check for updates right now. Try again later."); }
     }
 
     private async void UpdateItem_Click(object sender, RoutedEventArgs e)

@@ -247,8 +247,8 @@ public sealed partial class MainPage : Page
             bool tooBig = phoneMax is { } m && Math.Max(p.Width, p.Height) > m;
             var item = new RadioMenuFlyoutItem
             {
-                Text = tooBig ? p.Name + " (your phone can't)" : p.Name, GroupName = "profiles", IsChecked = p == current,
-                KeyboardAcceleratorTextOverride = p.Details, Tag = p, IsEnabled = !tooBig || p == current,
+                Text = tooBig ? p.Name + " (above your phone's best)" : p.Name, GroupName = "profiles", IsChecked = p == current,
+                KeyboardAcceleratorTextOverride = p.Details, Tag = p,
             };
             item.Click += async (_, _) => await ChangeProfileAsync(p);
             ProfileMenu.Items.Add(item);

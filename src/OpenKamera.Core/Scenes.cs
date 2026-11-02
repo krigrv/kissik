@@ -59,6 +59,9 @@ public sealed class SceneLayer
 
 public sealed class SceneDocument
 {
+    /// <summary>What screen readers announce for a scene card.</summary>
+    public override string ToString() => string.IsNullOrWhiteSpace(Category) ? Name : $"{Name}, {Category}";
+
     public string Id { get; set; } = "user-" + Guid.NewGuid().ToString("N")[..10];
     public string Name { get; set; } = "Untitled";
     public string Category { get; set; } = "Utility"; // Professional | Social | Streaming | Utility

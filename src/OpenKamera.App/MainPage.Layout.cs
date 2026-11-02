@@ -17,7 +17,8 @@ public sealed partial class MainPage
         SetCapsuleLabels(true);
         CapsuleRow.Measure(new Windows.Foundation.Size(double.PositiveInfinity, double.PositiveInfinity));
         CapsuleRight.Measure(new Windows.Foundation.Size(double.PositiveInfinity, double.PositiveInfinity));
-        double needed = CapsuleRow.DesiredSize.Width + CapsuleRight.DesiredSize.Width + 56, room = ActualWidth;
+        // The actions sit in the centre, so the right-hand group must fit beside half of them on each side.
+        double needed = CapsuleRow.DesiredSize.Width + 2 * CapsuleRight.DesiredSize.Width + 56, room = ActualWidth;
         bool compact = _capsuleCompact ? needed > room - 24 : needed > room;
         _capsuleCompact = compact;
         SetCapsuleLabels(!compact);
