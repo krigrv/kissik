@@ -216,6 +216,9 @@ public sealed partial class MainPage : Page
         ApplyProfile(p);
         _settings.ProfileName = p.Name; _settings.Save();
         MatchPhoneQuality();
+        // The phone is fed from outside: asking it for the new size (above) is all it needs. Restarting the capture
+        // session with the phone's id would stop the phone feed and freeze the picture.
+        if (DeviceBox.SelectedItem == PhoneDevice) { Status($"Profile: {p.Name} ({p.Details}). Asked your phone for the matching size."); return; }
         if (_session is not null && DeviceBox.SelectedItem is CameraDeviceInfo cam)
         {
             Status($"Switching camera to suit {p.Name}…");
@@ -257,7 +260,11 @@ public sealed partial class MainPage : Page
                 Text = tooBig ? p.Name + " (above your phone's best)" : p.Name, GroupName = "profiles", IsChecked = p == current,
                 KeyboardAcceleratorTextOverride = p.Details, Tag = p,
             };
-            item.Click += async (_, _) => await ChangeProfileAsync(p);
+            item.Click += async (_, _) =>
+            {
+                try { await ChangeProfileAsync(p); }
+                catch (Exception ex) { Status("Couldn't switch profile: " + ex.Message); } // never let a menu click close the app
+            };
             ProfileMenu.Items.Add(item);
         }
         ApplyProfile(current);
