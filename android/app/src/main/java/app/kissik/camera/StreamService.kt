@@ -192,6 +192,16 @@ class StreamService : LifecycleService() {
             while (isActive) {
                 delay(1000)
                 txFps = txSent; val dropped = txDropped; txSent = 0; txDropped = 0
+                // Watchdog: connected but nothing sent for 3 s → reset the sender and rebuild the camera stream.
+                if (ws != null && txFps == 0 && lastKey != null) stalled++ else stalled = 0
+                if (stalled >= 3) {
+                    stalled = 0
+                    netLog("watchdog: nothing sent for 3 s (codec ${Pro.codec.value}); resetting the sender and the camera stream")
+                    compressors.drainPermits(); compressors.release(3)
+                    synchronized(ready) { ready.clear(); sentSeq = nextSeq - 1 }
+                    needKey = true
+                    lastKey?.let { k -> lifecycleScope.launch { bindCamera(k) } }
+                }
                 if (ws != null) netLog("tx ${txFps} fps, dropped $dropped, queue ${(ws?.queueSize() ?: 0) / 1024} KB, bitrate ${(encoder?.currentBitrate ?: 0) / 1000} kbps, capture->encoded ${encoder?.captureToEncodedUs?.averageMs()?.let { "%.0f ms".format(it) } ?: "-"} (exposure ${exposureUs.averageMs()?.let { "%.0f".format(it) } ?: "-"}, readout ${readoutUs.averageMs()?.let { "%.0f".format(it) } ?: "-"}, camera done ${cameraDoneUs.averageMs()?.let { "%.0f".format(it) } ?: "-"} ms)")
             }
         }
@@ -202,11 +212,17 @@ class StreamService : LifecycleService() {
 
     private fun sizeFor(shortSide: Int) = ResolutionSelector.Builder()
         .setAllowedResolutionMode(ResolutionSelector.PREFER_HIGHER_RESOLUTION_OVER_CAPTURE_RATE)
+        // Widescreen like KISSIK's canvas: CameraX otherwise prefers the sensor's 4:3, which the PC had to crop oddly.
+        .setAspectRatioStrategy(androidx.camera.core.resolutionselector.AspectRatioStrategy.RATIO_16_9_FALLBACK_AUTO_STRATEGY)
         // No cap: ask for the short side at 16:9 and take the closest size the lens supports, up to its maximum.
         .setResolutionStrategy(ResolutionStrategy(Size(shortSide * 16 / 9, shortSide), ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER_THEN_HIGHER)).build()
 
     @androidx.annotation.OptIn(ExperimentalCamera2Interop::class)
+    @Volatile private var lastKey: BindKey? = null
+    private var stalled = 0
+
     private suspend fun bindCamera(key: BindKey) {
+        lastKey = key
         val provider = withContext(Dispatchers.IO) { ProcessCameraProvider.getInstance(this@StreamService).get() }
         Pro.lenses.value = Pro.listLenses(provider.availableCameraInfos)
         // Manual settings and zoom belong to one lens: reset them only when the camera really changes.
@@ -445,10 +461,13 @@ class StreamService : LifecycleService() {
             // Drop frames rather than lag behind: skip when the link is backed up or every compressor is busy.
             val canSend = socket != null && socket.queueSize() <= 512 * 1024 && compressors.tryAcquire()
             if (!canSend) return
-            val bmp = it.toBitmap()
+            // If a frame can't be converted or queued, hand the compressor slot back: losing all three slots
+            // used to leave the phone connected but sending nothing.
+            val bmp = runCatching { it.toBitmap() }.getOrElse { compressors.release(); return }
             run {
                 // Compress on a small pool so several frames are in flight at once, then send them in order.
                 val seq = nextSeq++
+                if (jpegPool.isShutdown) { compressors.release(); return }
                 jpegPool.execute {
                     val out = ByteArrayOutputStream(256 * 1024)
                     runCatching { bmp.compress(Bitmap.CompressFormat.JPEG, 85, out) }
