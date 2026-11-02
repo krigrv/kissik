@@ -603,6 +603,7 @@ public sealed partial class MainPage : Page
                 var src = new SoftwareBitmapSource();
                 await src.SetBitmapAsync(copy);
                 // Camera-to-screen delay: from the sensor's capture stamp to the picture handed to the screen.
+                if (_h264 is not null) NotePhoneShown();
                 if (_session?.LastCaptureTime is { } cap) _latencyMs = _latencyMs * 0.9 + (CaptureSession.Now - cap).TotalMilliseconds * 0.1;
                 PreviewImage.Source = src;
                 string fx = _bg.NeedsMask

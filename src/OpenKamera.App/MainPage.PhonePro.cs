@@ -244,6 +244,17 @@ public sealed partial class MainPage
 
     private H264Decoder? _h264;
     private int _h264In, _h264Out, _h264InRate, _h264OutRate; private DateTime _h264RateAt;
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<long, long> _arrivals = new();
+    private double _netBase = double.MaxValue, _netExtraMs, _decodeMs, _phoneScreenMs; private DateTime _netBaseAt; private long _lastArrivalTicks;
+
+    /// <summary>Called when a phone frame reaches the screen: time since its packet arrived from the network.</summary>
+    private void NotePhoneShown()
+    {
+        long t0 = Volatile.Read(ref _lastArrivalTicks);
+        if (t0 == 0) return;
+        double ms = (System.Diagnostics.Stopwatch.GetTimestamp() - t0) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+        if (ms < 2000) _phoneScreenMs = _phoneScreenMs * 0.9 + ms * 0.1;
+    }
 
     /// <summary>Packets in and pictures out per second, for the HUD (shows where a slowdown is).</summary>
     private string PhoneRates()
@@ -255,7 +266,7 @@ public sealed partial class MainPage
             double s = (now - _h264RateAt).TotalSeconds; _h264RateAt = now;
             _h264InRate = (int)(Interlocked.Exchange(ref _h264In, 0) / s); _h264OutRate = (int)(Interlocked.Exchange(ref _h264Out, 0) / s);
         }
-        return $" · phone {_h264InRate} in / {_h264OutRate} decoded";
+        return $" · phone {_h264InRate} in / {_h264OutRate} decoded · network +{_netExtraMs:0} ms · decode {_decodeMs:0} ms · to screen {_phoneScreenMs:0} ms";
     }
     private bool _h264Failed;      // gave up for this run: stay on JPEG
     private bool _h264Asked;       // codec:h264 sent on this connection
@@ -278,7 +289,17 @@ public sealed partial class MainPage
             try
             {
                 var dec = H264Decoder.Create();
-                dec.FrameDecoded += f => { Interlocked.Increment(ref _h264Out); _session?.PushBgra(f); };
+                dec.FrameDecoded += f =>
+                {
+                    Interlocked.Increment(ref _h264Out);
+                    if (_arrivals.TryRemove(f.TimestampUs, out long t0))
+                    {
+                        long t1 = System.Diagnostics.Stopwatch.GetTimestamp();
+                        _decodeMs = _decodeMs * 0.9 + (t1 - t0) * 1000.0 / System.Diagnostics.Stopwatch.Frequency * 0.1;
+                        Volatile.Write(ref _lastArrivalTicks, t0);
+                    }
+                    _session?.PushBgra(f);
+                };
                 dec.Error += _ => DispatcherQueue.TryEnqueue(OnH264Error);
                 dec.Rotation = st.Rotation;
                 _h264 = dec;
@@ -310,6 +331,13 @@ public sealed partial class MainPage
     {
         Interlocked.Increment(ref _h264In);
         if (_h264 is not { } d || PhoneVideoPacket.TryParse(data) is not { } p) return;
+        long now = System.Diagnostics.Stopwatch.GetTimestamp();
+        _arrivals[p.TimestampUs] = now;
+        if (_arrivals.Count > 120) _arrivals.Clear();
+        // Network: arrival minus the phone's capture time, relative to the best seen lately = extra queueing delay.
+        double rel = now * 1000.0 / System.Diagnostics.Stopwatch.Frequency - p.TimestampUs / 1000.0;
+        if (rel < _netBase || DateTime.UtcNow - _netBaseAt > TimeSpan.FromSeconds(20)) { _netBase = rel; _netBaseAt = DateTime.UtcNow; }
+        _netExtraMs = _netExtraMs * 0.9 + (rel - _netBase) * 0.1;
         if (!d.Push(p)) SendPhone("key"); // fell behind and dropped: restart from a fresh keyframe
     }
 
