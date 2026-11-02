@@ -30,7 +30,7 @@ public sealed partial class MainPage
         Status(mode switch
         {
             ShutterMode.Blur => "Meeting and recording see a blurred picture. Your preview is unchanged.",
-            ShutterMode.Away => "Meeting and recording show “be right back” and your mic mix is muted. Ctrl+Shift+H to come back.",
+            ShutterMode.Away => "Meeting and recording show “be right back” and your mic mix is muted. Press Ctrl+Alt+H (from any app) to come back.",
             _ => "You're visible again.",
         });
     }

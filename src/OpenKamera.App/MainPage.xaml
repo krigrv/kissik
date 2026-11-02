@@ -214,7 +214,7 @@
                     </DropDownButton.Flyout>
                 </DropDownButton>
                 <DropDownButton x:Name="ShutterBtn" Style="{StaticResource CapsuleButton}" AutomationProperties.Name="Privacy shutter"
-                                ToolTipService.ToolTip="Hide yourself from the meeting and recording (Ctrl+Shift+H)" AutomationProperties.HelpText="Hide yourself from the meeting and recording (Ctrl+Shift+H)">
+                                ToolTipService.ToolTip="Hide yourself from the meeting and recording (Ctrl+Alt+H, from any app)" AutomationProperties.HelpText="Hide yourself from the meeting and recording (Ctrl+Alt+H, from any app)">
                     <StackPanel Orientation="Horizontal" Spacing="7">
                         <FontIcon x:Name="ShutterIcon" Glyph="&#xE7B3;" FontSize="14" /><TextBlock x:Name="ShutterText" Text="Visible" />
                     </StackPanel>
@@ -1336,7 +1336,7 @@
                     <StackPanel Spacing="8"><FontIcon Glyph="&#xE8AA;" FontSize="28" /><TextBlock Text="Meeting camera" FontSize="16" HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center" /></StackPanel>
                 </Button>
                 <Button x:Name="SimpleHideBtn" Click="SimpleHide_Click" MinWidth="148" MinHeight="96" CornerRadius="8"
-                        AutomationProperties.Name="Hide me" AutomationProperties.HelpText="Show a be right back card and mute your mic, or come back" ToolTipService.ToolTip="Hide yourself from the meeting (Ctrl+Shift+H)">
+                        AutomationProperties.Name="Hide me" AutomationProperties.HelpText="Show a be right back card and mute your mic, or come back" ToolTipService.ToolTip="Hide yourself from the meeting (Ctrl+Alt+H, from any app)">
                     <StackPanel Spacing="8"><FontIcon Glyph="&#xE7B3;" FontSize="28" /><TextBlock x:Name="SimpleHideLabel" Text="Hide me" FontSize="16" HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center" /></StackPanel>
                 </Button>
             </StackPanel>
