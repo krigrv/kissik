@@ -702,6 +702,9 @@
                                             <MenuFlyoutItem Text="Image or logo…" Tag="image" Click="AddLayer_Click">
                                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEB9F;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
+                                            <MenuFlyoutItem Text="Second camera (phone or webcam)…" Tag="camera2" Click="AddLayer_Click">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8AA;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
                                             <MenuFlyoutItem Text="Rectangle" Tag="rect" Click="AddLayer_Click">
                                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE7EF;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>

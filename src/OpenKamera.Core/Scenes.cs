@@ -46,7 +46,7 @@ public sealed class SceneLayer
     [JsonIgnore] public string DisplayName => !string.IsNullOrWhiteSpace(Name) ? Name : Kind switch
     {
         "text" => string.IsNullOrWhiteSpace(Text) ? "Text" : Text,
-        "image" => "Image", "camera" => "Video source", _ => Shape == "ellipse" ? "Circle" : "Shape",
+        "image" => "Image", "camera" => "Video source", "camera2" => "Second camera", _ => Shape == "ellipse" ? "Circle" : "Shape",
     };
 
     [JsonIgnore] public string EyeGlyph => Visible ? "" : "";

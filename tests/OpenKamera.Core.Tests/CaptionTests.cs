@@ -66,3 +66,17 @@ public class CrossFadeTests
         Assert.Equal(200, c[0]);
     }
 }
+
+public class SecondCameraTests
+{
+    [Fact]
+    public void PlaceSource_PutsASmallerSourceIntoTheBox()
+    {
+        int w = 100, h = 100;
+        var dst = new byte[w * h * 4];
+        var src = new byte[20 * 10 * 4]; for (int i = 0; i < src.Length; i += 4) { src[i + 2] = 255; src[i + 3] = 255; } // red 20×10
+        SceneCompositor.PlaceSource(dst, w, h, src, 20, 10, new SceneLayer { Kind = "camera2", X = 0.5, Y = 0.5, W = 0.4, H = 0.4 });
+        Assert.Equal(255, dst[((70 * w) + 70) * 4 + 2]); // inside the box: red
+        Assert.Equal(0, dst[((10 * w) + 10) * 4 + 2]);   // outside: untouched
+    }
+}

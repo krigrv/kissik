@@ -105,7 +105,7 @@ everything from the PC, switching between paired phones/PCs.
 - [ ] P2 DSLR/mirrorless/action cameras — via their UVC webcam mode or an HDMI capture card (both appear as normal sources)
 - [ ] P2 HDMI capture-card sources (UVC; same path)
 - ⚠ Apple Continuity Camera — macOS-only API; needs a Mac build
-- [ ] P2 Multiple cameras in one scene (overhead, side, face, PiP)
+- [~] P2 Second camera in a scene (phone or another webcam), picture-in-picture box or circle, in every output (built; needs a second camera to test live)
 - [x] P5 Virtual camera output (C++ media source + Windows 11 `MFCreateVirtualCamera`; installed, harness passes; not yet confirmed inside Zoom/Teams by a user)
 
 ## 2. Camera and image controls

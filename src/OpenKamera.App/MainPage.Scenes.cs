@@ -97,6 +97,7 @@ public sealed partial class MainPage
     private void LoadScene(SceneDocument s)
     {
         BeginSceneFade();
+        _ = EnsureSecondCameraAsync().ContinueWith(_ => { }, TaskScheduler.Default);
         _scene = (SceneLibrary.Load(s.Id) ?? s).Clone();
         _settings.SceneId = _scene.Id; _settings.Save();
         _undo.Clear(); _redo.Clear();
@@ -284,6 +285,7 @@ public sealed partial class MainPage
     private async void AddLayer_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not MenuFlyoutItem { Tag: string kind }) return;
+        if (kind == "camera2") { await AddSecondCameraAsync(); return; }
         SceneLayer layer = kind switch
         {
             "text" => new SceneLayer { Kind = "text", Text = "New text", X = 0.1, Y = 0.1, W = 0.4, H = 0.09, FontSize = 0.06, Bold = true },
@@ -522,7 +524,7 @@ public sealed partial class MainPage
                 PropsPanel.Children.Add(replace);
                 PropsPanel.Children.Add(SliderField("Corner radius", l.CornerRadius * 1000, 0, 200, v => l.CornerRadius = v / 1000));
                 break;
-            case "camera":
+            case "camera" or "camera2":
                 PropsPanel.Children.Add(ChoiceField("Shape", ["rect", "ellipse"], l.Shape, v =>
                 {
                     l.Shape = v;

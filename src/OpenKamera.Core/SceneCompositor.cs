@@ -80,11 +80,14 @@ public static class SceneCompositor
     }
 
     /// <summary>Cover-fits the camera frame into the layer rectangle, masked to its shape with a soft edge.</summary>
-    internal static void PlaceCamera(byte[] dst, byte[] cam, int w, int h, SceneLayer c)
+    internal static void PlaceCamera(byte[] dst, byte[] cam, int w, int h, SceneLayer c) => PlaceSource(dst, w, h, cam, w, h, c);
+
+    /// <summary>Places any source (e.g. a second camera, sw×sh) into the layer's rectangle of a w×h frame, shaped and cover-fitted.</summary>
+    public static void PlaceSource(byte[] dst, int w, int h, byte[] src, int sw, int sh, SceneLayer c)
     {
         int rx = (int)Math.Round(c.X * w), ry = (int)Math.Round(c.Y * h);
         int rw = Math.Max(1, (int)Math.Round(c.W * w)), rh = Math.Max(1, (int)Math.Round(c.H * h));
-        var (fit, _, _) = OutputFit.Cover(cam, w, h, rw, rh);
+        var (fit, _, _) = OutputFit.Cover(src, sw, sh, rw, rh);
         bool ellipse = c.Shape == "ellipse";
         float radius = (float)(c.CornerRadius * h);
         float opacity = (float)Math.Clamp(c.Opacity, 0, 1);

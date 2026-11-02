@@ -116,7 +116,7 @@ public static class SceneRenderer
                         };
                     return host;
                 }
-            case "camera":
+            case "camera" or "camera2":
                 // Only the outline: the video itself is placed by SceneCompositor. Transparent fill keeps it clickable.
                 if (l.Shape == "ellipse")
                     return new Ellipse

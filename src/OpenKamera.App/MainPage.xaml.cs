@@ -485,6 +485,7 @@ public sealed partial class MainPage : Page
             }));
         }
         _fps.Tick();
+        DrawSecondCamera(pixels, w, h);
         _lastFrame = (pixels, w, h);
         // Meeting camera and recordings get the scene layers baked in; the preview shows them as live XAML.
         byte[]? baked = null;

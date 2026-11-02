@@ -54,7 +54,11 @@ public sealed partial class MainPage
         server.Start();
         _phone = server;
         // Frames go to whatever session is current, but only a phone session accepts them.
-        server.FrameReceived += jpeg => { if (_session is { } s) _ = s.PushJpegAsync(jpeg); };
+        server.FrameReceived += jpeg =>
+        {
+            if (_secondSource == PhoneDevice.Id) _ = OnSecondPhoneJpegAsync(jpeg); // phone as the second camera
+            else if (_session is { } s) _ = s.PushJpegAsync(jpeg);
+        };
         server.AudioReceived += samples =>
         {
             // The phone mic joins the mix as its own track (with meter, volume and mute) the first time it sends sound.
