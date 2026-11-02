@@ -30,7 +30,7 @@ public static class SceneRenderer
     /// When <paramref name="withBackground"/> is set (thumbnails) the scene background and a camera
     /// placeholder are drawn too.
     /// </summary>
-    public static void Render(Canvas canvas, SceneDocument scene, double cw, double ch, bool withBackground = false)
+    public static void Render(Canvas canvas, SceneDocument scene, double cw, double ch, bool withBackground = false, ImageSource? camera = null)
     {
         canvas.Children.Clear();
         canvas.Width = cw; canvas.Height = ch;
@@ -45,7 +45,7 @@ public static class SceneRenderer
                     new GradientStop { Color = ToColor(string.IsNullOrEmpty(scene.Background2) ? scene.Background : scene.Background2, Colors.Black), Offset = 1 },
                 },
             };
-            AddCameraPlaceholder(canvas, scene.Camera, cw, ch);
+            AddCameraPlaceholder(canvas, scene.Camera, cw, ch, camera);
         }
         // Transparent, never null: with no background RenderTargetBitmap captures only the layers'
         // bounding box (e.g. 992×144) instead of the whole canvas, and the overlay lands misplaced.
@@ -135,9 +135,20 @@ public static class SceneRenderer
     }
 
     /// <summary>Thumbnail stand-in for the live camera: a soft shape with a person glyph.</summary>
-    private static void AddCameraPlaceholder(Canvas canvas, SceneLayer cam, double cw, double ch)
+    private static void AddCameraPlaceholder(Canvas canvas, SceneLayer cam, double cw, double ch, ImageSource? live = null)
     {
         double w = cam.W * cw, h = cam.H * ch;
+        if (live is not null)
+        {
+            // The real camera picture, shaped like the scene's camera layer.
+            var img = new ImageBrush { ImageSource = live, Stretch = Stretch.UniformToFill };
+            FrameworkElement pic = cam.Shape == "ellipse"
+                ? new Ellipse { Width = w, Height = h, Fill = img }
+                : new Border { Width = w, Height = h, Background = img, CornerRadius = new CornerRadius(cam.CornerRadius * ch) };
+            Canvas.SetLeft(pic, cam.X * cw); Canvas.SetTop(pic, cam.Y * ch);
+            canvas.Children.Add(pic);
+            return;
+        }
         var fill = new LinearGradientBrush
         {
             StartPoint = new(0, 0), EndPoint = new(1, 1),

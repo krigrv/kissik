@@ -80,7 +80,7 @@ public sealed partial class MainPage
     private void SceneList_ContainerContentChanging(ListViewBase sender, ContainerContentChangingEventArgs args)
     {
         if (args.Item is not SceneDocument s || args.ItemContainer.ContentTemplateRoot is not FrameworkElement root) return;
-        if (FindChild<Canvas>(root) is { } canvas) SceneRenderer.Render(canvas, s, 320, 180, withBackground: true);
+        if (FindChild<Canvas>(root) is { } canvas) SceneRenderer.Render(canvas, s, 320, 180, withBackground: true, camera: _session is not null && _lastFrame is not null ? _thumbSource : null);
     }
 
     private static T? FindChild<T>(DependencyObject parent) where T : DependencyObject
@@ -128,6 +128,9 @@ public sealed partial class MainPage
             // Render at the canvas's natural size (its pixel size includes display scaling), then resample
             // to the output. Asking RenderTargetBitmap for the output size directly mixes in the DPI factor
             // and the overlay comes out oversized.
+            // Layers dragged past the edge would otherwise grow the capture beyond the canvas.
+            OverlayCanvas.Clip = new Microsoft.UI.Xaml.Media.RectangleGeometry
+            { Rect = new Windows.Foundation.Rect(0, 0, OverlayCanvas.ActualWidth, OverlayCanvas.ActualHeight) };
             var rtb = new RenderTargetBitmap();
             await rtb.RenderAsync(OverlayCanvas);
             var pixels = (await rtb.GetPixelsAsync()).ToArray();
@@ -319,7 +322,7 @@ public sealed partial class MainPage
     private async void SceneExport_Click(object sender, RoutedEventArgs e)
     {
         var picker = new Windows.Storage.Pickers.FileSavePicker { SuggestedFileName = _scene.Name };
-        picker.FileTypeChoices.Add("OpenKamera scene", [".okscene"]);
+        picker.FileTypeChoices.Add("KISSIK scene", [".okscene"]);
         WinRT.Interop.InitializeWithWindow.Initialize(picker, WinRT.Interop.WindowNative.GetWindowHandle(App.MainWindow));
         var file = await picker.PickSaveFileAsync();
         if (file is null) return;

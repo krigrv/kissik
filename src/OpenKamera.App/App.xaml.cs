@@ -33,6 +33,17 @@ public partial class App : Application
     public App()
     {
         InitializeComponent();
+        // Crash log for bug reports: %LOCALAPPDATA%\OpenKamera\crash.log (virtualised for the packaged app).
+        UnhandledException += (_, e) =>
+        {
+            try
+            {
+                string dir = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "OpenKamera");
+                Directory.CreateDirectory(dir);
+                File.AppendAllText(System.IO.Path.Combine(dir, "crash.log"), $"{DateTime.Now:O} {e.Exception}\n\n");
+            }
+            catch { /* never throw from the crash handler */ }
+        };
     }
 
     /// <summary>

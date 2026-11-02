@@ -19,7 +19,7 @@ public sealed partial class MainPage : Page
     private int _processing, _skipped;
     private readonly FpsCounter _fps = new();
     private OutputProfile _profile = OutputProfile.P720;
-    private CompositeRecorder? _recorder;
+    private SegmentedRecorder? _recorder;
     private DonationInfo _donation = new();
     private readonly System.Diagnostics.Stopwatch _recordClock = new();
     private DateTimeOffset _lastSaved = DateTimeOffset.MinValue;
@@ -36,6 +36,7 @@ public sealed partial class MainPage : Page
         InitializeComponent();
         Current = this;
         Loaded += MainPage_Loaded;
+        SizeChanged += (_, _) => FitCapsule();
         Unloaded += async (_, _) => { if (_session is not null) await _session.DisposeAsync(); _bgPipeline.Dispose(); };
     }
 
@@ -48,8 +49,24 @@ public sealed partial class MainPage : Page
         DonateBtn.Visibility = _donation.IsConfigured ? Visibility.Visible : Visibility.Collapsed;
         RestoreLook();
         BuildLookStrip();
+        try { InitVirtualCamera(); } catch (Exception ex) { Status("Meeting camera unavailable: " + ex.Message); }
+        try { InitFraming(); } catch { }
+        try { InitGuardAndMirror(); } catch { }
+        try { InitTheme(); } catch { }
+        try { InitSystemSound(); } catch { }
+        try { InitAudio(); } catch (Exception ex) { Status("Audio unavailable: " + ex.Message); }
+        try { InitScreenLight(); } catch (Exception ex) { Status("Screen light unavailable: " + ex.Message); LightBtn.IsEnabled = false; }
         await RefreshMicrophonesAsync();
         await RefreshDevicesAsync();
+        // Don't make people press Connect every time: open the last camera straight away.
+        if (_session is null && DeviceBox.SelectedItem is CameraDeviceInfo c && c != PhoneDevice) await ConnectAsync();
+        StartConnectWatch();
+        StartSceneThumbs();
+        StartAudioWatchdog();
+        _ = ShowWelcomeOnceAsync();
+        ResumePairedPhone();
+        Unloaded += async (_, _) => await StopPhoneAsync();
+        _ = RecoverRecordingsAsync();
     }
 
     /// <summary>Ctrl+1…9 switch scenes, Ctrl+R records, Ctrl+Shift+S takes a snapshot.</summary>
@@ -71,6 +88,8 @@ public sealed partial class MainPage : Page
             (Windows.System.VirtualKey.Z, Windows.System.VirtualKeyModifiers.Control, Undo),
             (Windows.System.VirtualKey.Y, Windows.System.VirtualKeyModifiers.Control, Redo),
             (Windows.System.VirtualKey.Delete, Windows.System.VirtualKeyModifiers.None, DeleteSelectedLayer),
+            (Windows.System.VirtualKey.H, Windows.System.VirtualKeyModifiers.Control | Windows.System.VirtualKeyModifiers.Shift,
+                () => SetShutter(_shutter == ShutterMode.Off ? ShutterMode.Away : ShutterMode.Off)),
         })
         {
             var acc = new Microsoft.UI.Xaml.Input.KeyboardAccelerator { Key = key, Modifiers = mods };
@@ -104,7 +123,6 @@ public sealed partial class MainPage : Page
             var names = mics.Where(m => m.IsEnabled).Select(m => m.Name).ToList();
             MicList.ItemsSource = names;
             MicEmpty.Visibility = names.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-            MicName.Text = names.FirstOrDefault() ?? "No microphone";
         }
         catch (Exception ex) { Status("Microphone list failed: " + ex.Message); }
     }
@@ -122,10 +140,19 @@ public sealed partial class MainPage : Page
     private void LeftPaneToggle_Click(object sender, RoutedEventArgs e) => TogglePanes(LeftPane, AudioCard);
     private void RightPaneToggle_Click(object sender, RoutedEventArgs e) => TogglePanes(RightPane, Filmstrip);
 
-    private static void TogglePanes(params FrameworkElement[] panes)
+    private void TogglePanes(params FrameworkElement[] panes)
     {
         bool show = panes[0].Visibility != Visibility.Visible;
         foreach (var p in panes) p.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+        UpdateStageMargin();
+    }
+
+    /// <summary>Keeps the video in the space the panels leave free, so nothing in the picture is ever hidden.</summary>
+    private void UpdateStageMargin()
+    {
+        bool left = LeftPane.Visibility == Visibility.Visible, right = RightPane.Visibility == Visibility.Visible;
+        StageViewbox.Margin = new Thickness(left ? 340 : 12, 60, right ? 260 : 12, right ? 142 : 12);
+        Filmstrip.Margin = new Thickness(left ? 340 : 12, 0, right ? 260 : 12, 12);
     }
 
     private void NewSceneBtn_Click(object sender, RoutedEventArgs e)
@@ -146,7 +173,7 @@ public sealed partial class MainPage : Page
 
     private void SyncBgTiles(BackgroundMode mode)
     {
-        var accent = (Microsoft.UI.Xaml.Media.Brush)Resources["DgAccentBrush"];
+        var accent = Token("DgAccentBrush");
         var none = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent);
         foreach (var (tile, m) in new (ToggleButton, BackgroundMode)[]
             { (TileOff, BackgroundMode.Off), (TileBlur, BackgroundMode.Blur), (TileReplace, BackgroundMode.Replace), (TileRemove, BackgroundMode.Remove) })
@@ -256,12 +283,14 @@ public sealed partial class MainPage : Page
         FilterBox.SelectedIndex = (int)_settings.Filter;
         foreach (var s in EnhanceSliders)
             if (_settings.Enhance.TryGetValue(s.Name, out var v)) s.Value = Math.Clamp(v, s.Minimum, s.Maximum);
+        _luts.Clear();
         if (Directory.Exists(AppSettings.LutFolder))
             foreach (var f in Directory.EnumerateFiles(AppSettings.LutFolder, "*.cube"))
                 try { _luts.Add(Lut3D.Load(f)); } catch (Exception ex) { Status($"Skipped LUT {Path.GetFileName(f)}: {ex.Message}"); }
         RefreshLutBox(_settings.LutName);
         MirrorToggle.IsChecked = _settings.Mirror;
         RestoreBackground();
+        RefreshPresetBox(null);
         _restoring = false;
         UpdateBackground();
         _transform = new FrameTransform(_settings.Mirror, _settings.Rotation);
@@ -285,12 +314,13 @@ public sealed partial class MainPage : Page
     {
         try
         {
-            var cams = await _catalog.GetCamerasAsync();
+            var cams = (await _catalog.GetCamerasAsync()).ToList();
+            cams.Add(PhoneDevice);
             DeviceBox.ItemsSource = cams;
-            var last = cams.FirstOrDefault(c => c.Id == _settings.LastDeviceId) ?? cams.FirstOrDefault();
+            var last = cams.FirstOrDefault(c => c.Id == _settings.LastDeviceId && c != PhoneDevice) ?? cams.FirstOrDefault();
             DeviceBox.SelectedItem = last;
-            EmptyText.Visibility = cams.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-            Status($"Found {cams.Count} camera(s).");
+            EmptyText.Visibility = cams.Count <= 1 ? Visibility.Visible : Visibility.Collapsed;
+            Status($"Found {cams.Count - 1} camera(s), plus your phone.");
         }
         catch (Exception ex) { Status("Camera enumeration failed: " + ex.Message); }
     }
@@ -299,11 +329,17 @@ public sealed partial class MainPage : Page
 
     private void DeviceBox_SelectionChanged(object sender, SelectionChangedEventArgs e) { }
 
-    private async void ConnectBtn_Click(object sender, RoutedEventArgs e)
+    private async void ConnectBtn_Click(object sender, RoutedEventArgs e) => await ConnectAsync(toggle: true);
+
+    private async void EmptyConnect_Click(object sender, RoutedEventArgs e) => await ConnectAsync();
+
+    private async Task ConnectAsync(bool toggle = false)
     {
+        if (!toggle && _session is not null) return;
         if (_session is not null)
         {
             if (_recorder is not null) await StopRecordingAsync();
+            // The phone server keeps running so a paired phone can come back by itself.
             await _session.DisposeAsync();
             _session = null; _controller = null;
             ConnectBtn.Content = "Connect";
@@ -329,9 +365,10 @@ public sealed partial class MainPage : Page
             ConnectBtn.IsEnabled = false;
             _session = new CaptureSession();
             _session.FrameAvailable += OnFrame;
-            await _session.StartAsync(cam.Id, _profile);
+            if (cam == PhoneDevice) { await _session.StartExternalAsync(); await StartPhoneAsync(); }
+            else await _session.StartAsync(cam.Id, _profile);
             _controller = _session.Controls is { } c ? new CameraController(c) : null;
-            _settings.LastDeviceId = cam.Id;
+            if (cam != PhoneDevice) _settings.LastDeviceId = cam.Id;
             _settings.Save();
             BuildControls();
             var focus = _controller?.GetProperties().FirstOrDefault(p => p.Name == "Focus");
@@ -342,18 +379,22 @@ public sealed partial class MainPage : Page
             SourceDot.Fill = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 91, 255, 143));
             SnapshotBtn.IsEnabled = RecordBtn.IsEnabled = true;
             EmptyText.Visibility = Visibility.Collapsed;
+            EmptyBusy.Text = "";
             HudText.Text = cam.Name;
-            Status($"Connected: {cam.Name} — camera mode {_session.Mode?.ToString() ?? "default"} for {_profile.Name} ({_profile.Details})");
+            Status($"Connected: {cam.Name} — camera mode {_session.Mode?.ToString() ?? "default"} for {_profile.Name} ({_profile.Details})" + LimitNote(_session.Mode));
         }
         catch (UnauthorizedAccessException)
         {
             // Windows camera privacy denied (or never answered) for this app.
-            Status("Camera access is off for OpenKamera. Turn it on in Settings → Privacy & security → Camera, then Connect again.");
+            Status("Camera access is off for KISSIK. Turn it on in Settings → Privacy & security → Camera, then Connect again.");
             _ = Windows.System.Launcher.LaunchUriAsync(new Uri("ms-settings:privacy-webcam"));
             if (_session is not null) { await _session.DisposeAsync(); _session = null; }
         }
         catch (Exception ex)
         {
+            var busy = DeviceUsage.InUseBy(PrivacyDevice.Camera).Distinct().ToList();
+            EmptyBusy.Text = busy.Count > 0 ? $"Your camera is open in {string.Join(", ", busy)}. Close it there, then press Connect." : "";
+            EmptyText.Visibility = Visibility.Visible;
             Status("Connect failed: " + ex.Message);
             if (_session is not null) { await _session.DisposeAsync(); _session = null; }
         }
@@ -365,31 +406,63 @@ public sealed partial class MainPage : Page
     {
         var p = _profile;
         var overlay = _overlay;
-        return new FrameRecipe(_adj, _transform, _bg, p.Width, p.Height, _sceneSnapshot,
-            withOverlay && overlay is { Width: var ow, Height: var oh } && ow == p.Width && oh == p.Height ? overlay.Pixels : null);
+        int level = _smooth.Level;
+        var bg = level >= 1 && _bg.Quality == SegmentationQuality.High ? _bg with { Quality = SegmentationQuality.Fast } : _bg;
+        bool steady = _stabilise && level < 2;
+        // Level 3 halves the processing size, but never mid-recording and never below 720p.
+        bool half = level >= 3 && _recorder is null && p.Height >= 1440;
+        int ow = half ? (p.Width / 2) & ~1 : p.Width, oh = half ? (p.Height / 2) & ~1 : p.Height;
+        return new FrameRecipe(_adj, steady ? _stabilizer.Apply(_transform) : _transform, bg, ow, oh, _sceneSnapshot,
+            withOverlay && overlay is { Width: var vw, Height: var vh } && vw == ow && vh == oh ? overlay.Pixels : null);
     }
 
     /// <summary>
     /// Frame-reader thread: process every frame once (at profile size), feed the recorder, then hand the
     /// result to the preview if the UI is free. Frames that arrive while one is processing are skipped.
     /// </summary>
+    private double _procMs;
+    private readonly SmoothGovernor _smooth = new();
+
     private void OnFrame(SoftwareBitmap bmp)
     {
+        if (_smooth.Level < 2) { TrackFace(bmp); StabiliseMeasure(bmp); }
         if (Interlocked.Exchange(ref _processing, 1) == 1) { Interlocked.Increment(ref _skipped); return; }
         byte[] pixels; int w, h;
+        long t0 = System.Diagnostics.Stopwatch.GetTimestamp();
         try { (pixels, w, h) = FrameProcessor.ProcessPixels(bmp, CurrentRecipe(), _bgPipeline); }
         catch { Volatile.Write(ref _processing, 0); return; }
+        // Smoothed effects time per frame: the delay OpenKamera adds on top of the camera itself.
+        double ms = System.Diagnostics.Stopwatch.GetElapsedTime(t0).TotalMilliseconds;
+        _procMs = _procMs <= 0 ? ms : _procMs * 0.9 + ms * 0.1;
+        if (_smooth.Update(_procMs, _profile.Fps, DateTime.UtcNow))
+        {
+            int lv = _smooth.Level;
+            DispatcherQueue.TryEnqueue(() => Status(lv switch
+            {
+                0 => "Smooth-first: effects back to full quality.",
+                1 => "Smooth-first: lighter background edges to keep the video smooth.",
+                2 => "Smooth-first: also pausing Steady picture and face tracking to keep the video smooth.",
+                _ => "Smooth-first: processing at half size until there's headroom again (not while recording).",
+            }));
+        }
         _fps.Tick();
+        _lastFrame = (pixels, w, h);
+        // Meeting camera and recordings get the scene layers baked in; the preview shows them as live XAML.
+        byte[]? baked = null;
+        byte[] Baked()
+        {
+            if (baked is not null) return baked;
+            baked = pixels;
+            if (_overlay is { } o && o.Width == w && o.Height == h) { baked = (byte[])pixels.Clone(); SceneCompositor.BlendOver(baked, o.Pixels); }
+            baked = BurnCaptions(baked, w, h);
+            baked = PrivacyShutter.Apply(baked, w, h, _shutter != ShutterMode.Off ? _shutter : _guardHiding ? ShutterMode.Blur : ShutterMode.Off);
+            return baked;
+        }
+        if (_vcam.HasClients) FeedVirtualCamera(Baked(), w, h);
         if (_recorder is { } rec)
         {
             // Recording gets the scene layers baked in; the preview shows them as live XAML instead.
-            var framePx = pixels;
-            if (_overlay is { } ov && ov.Width == w && ov.Height == h)
-            {
-                framePx = (byte[])pixels.Clone();
-                SceneCompositor.BlendOver(framePx, ov.Pixels);
-            }
-            rec.Push(framePx, w, h, _recordClock.Elapsed);
+            rec.Push(Baked(), w, h, _recordClock.Elapsed);
         }
         Volatile.Write(ref _processing, 0);
 
@@ -413,7 +486,7 @@ public sealed partial class MainPage : Page
                     RecordLabel.Text = $"{_recordClock.Elapsed:mm\\:ss}";
                     RecPillText.Text = $"● REC {_recordClock.Elapsed:mm\\:ss}";
                 }
-                HudText.Text = $"{copy.PixelHeight}p {_fps.Fps:0} fps{fx}";
+                HudText.Text = $"{copy.PixelHeight}p {_fps.Fps:0} fps · {_procMs:0} ms{(_smooth.Level > 0 ? " · smooth-first" : "")}{fx}";
                 if (_session?.Mode is { } m) SourceInfo.Text = $"{m.Width}×{m.Height} @ {m.Fps:0}";
             }
             catch (Exception ex) when (_session is not null) { Status("Preview error: " + ex.Message); }
@@ -589,6 +662,9 @@ public sealed partial class MainPage : Page
         if (b.Spotlight > 0) SpotlightAmount.Value = b.Spotlight * 100;
         RetouchToggle.IsOn = b.Retouch > 0;
         if (b.Retouch > 0) RetouchAmount.Value = b.Retouch * 100;
+        GreenScreenToggle.IsOn = b.GreenScreen;
+        KeyColorBar.SelectedItem = b.KeyColor == BlueKey ? KeyBlue : KeyGreen;
+        KeySimilarity.Value = b.Similarity * 100; KeySmoothness.Value = b.Smoothness * 100; KeySpill.Value = b.Spill * 100;
         RefreshBackgroundPicker(b.BackgroundId);
     }
 
@@ -600,9 +676,11 @@ public sealed partial class MainPage : Page
         BgPicker.SelectedItem = all.FirstOrDefault(b => b.Id == select) ?? all.FirstOrDefault();
     }
 
+    private const string GreenKey = "#00B140", BlueKey = "#0047BB";
+
     private void UpdateBackground()
     {
-        if (_restoring || RetouchAmount is null || BgPicker is null) return; // fires during InitializeComponent
+        if (_restoring || RetouchAmount is null || BgPicker is null || KeySpill is null) return; // fires during InitializeComponent
         var item = BgMode.SelectedItem;
         var mode = item == BgBlur ? BackgroundMode.Blur : item == BgReplace ? BackgroundMode.Replace
                  : item == BgRemove ? BackgroundMode.Remove : BackgroundMode.Off;
@@ -610,6 +688,8 @@ public sealed partial class MainPage : Page
         BgPickerRow.Visibility = mode == BackgroundMode.Replace ? Visibility.Visible : Visibility.Collapsed;
         SyncBgTiles(mode);
         SpotlightAmount.IsEnabled = SpotlightToggle.IsOn;
+        GreenScreenPanel.Visibility = GreenScreenToggle.IsOn ? Visibility.Visible : Visibility.Collapsed;
+        BgQuality.Visibility = GreenScreenToggle.IsOn ? Visibility.Collapsed : Visibility.Visible;
         RetouchAmount.IsEnabled = RetouchToggle.IsOn;
         SpotlightValue.Text = SpotlightToggle.IsOn ? $"{SpotlightAmount.Value:0} %" : "";
         _bg = new BackgroundSettings(
@@ -618,7 +698,10 @@ public sealed partial class MainPage : Page
             Spotlight: SpotlightToggle.IsOn ? SpotlightAmount.Value / 100.0 : 0,
             Retouch: RetouchToggle.IsOn ? RetouchAmount.Value / 100.0 : 0,
             BackgroundId: (BgPicker.SelectedItem as BackgroundInfo)?.Id,
-            Quality: BgQuality.SelectedItem == BgQualityHigh ? SegmentationQuality.High : SegmentationQuality.Fast);
+            Quality: BgQuality.SelectedItem == BgQualityHigh ? SegmentationQuality.High : SegmentationQuality.Fast,
+            GreenScreen: GreenScreenToggle.IsOn,
+            KeyColor: KeyColorBar.SelectedItem == KeyBlue ? BlueKey : GreenKey,
+            Similarity: KeySimilarity.Value / 100.0, Smoothness: KeySmoothness.Value / 100.0, Spill: KeySpill.Value / 100.0);
         _settings.Background = _bg;
         _settings.Save();
     }
@@ -700,12 +783,10 @@ public sealed partial class MainPage : Page
         try
         {
             if (_recorder is not null) { await StopRecordingAsync(); return; }
-            string folder = string.IsNullOrWhiteSpace(_settings.RecordingFolder)
-                ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyVideos), "OpenKamera")
-                : _settings.RecordingFolder;
+            string folder = RecordingFolder();
             Directory.CreateDirectory(folder);
             string path = Path.Combine(folder, $"OpenKamera-{DateTime.Now:yyyyMMdd-HHmmss}.mp4");
-            var rec = new CompositeRecorder(_profile.Width, _profile.Height, _profile.Fps);
+            var rec = new SegmentedRecorder(_profile.Width, _profile.Height, _profile.Fps, withAudio: _audio.IsRunning);
             await rec.StartAsync(path);
             _recordClock.Restart();
             _recorder = rec;
@@ -792,12 +873,46 @@ public sealed partial class MainPage : Page
 
         var dialog = new ContentDialog
         {
-            Title = "Support OpenKamera",
+            Title = "Support KISSIK",
             Content = new ScrollViewer { Content = body },
             CloseButtonText = "Close",
             XamlRoot = XamlRoot,
         };
         await dialog.ShowAsync();
+    }
+
+    /// <summary>Says plainly when the camera can't reach the chosen quality, instead of capping it silently.</summary>
+    private string LimitNote(CaptureMode? mode)
+    {
+        if (mode is not { } m) return "";
+        var notes = new List<string>();
+        if (m.Height < _profile.Height) notes.Add($"this camera supports up to {m.Height}p, so the picture is scaled up to {_profile.Height}p");
+        if (m.Fps > 0 && m.Fps + 0.5 < _profile.Fps) notes.Add($"it runs at {m.Fps:0} fps, not {_profile.Fps}");
+        return notes.Count == 0 ? "" : ". Note: " + string.Join("; ", notes) + ". Every quality is free; this is the camera's own limit.";
+    }
+
+    /// <summary>Every third saved recording, a quiet thank-you line pointing at Support. Never a pop-up.</summary>
+    private string SupportNudge()
+    {
+        _settings.RecordingsSaved++; _settings.Save();
+        return _donation.IsConfigured && _settings.RecordingsSaved % 3 == 0
+            ? " · Enjoying KISSIK? It's free and built by one person. Support it with the 🙏 button."
+            : "";
+    }
+
+    private string RecordingFolder() => string.IsNullOrWhiteSpace(_settings.RecordingFolder)
+        ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyVideos), "OpenKamera")
+        : _settings.RecordingFolder;
+
+    /// <summary>Joins pieces left by a recording that was cut off by a crash or power loss.</summary>
+    private async Task RecoverRecordingsAsync()
+    {
+        try
+        {
+            var saved = await SegmentedRecorder.RecoverAsync(RecordingFolder());
+            if (saved.Count > 0) Status($"Recovered {saved.Count} interrupted recording(s): {string.Join(", ", saved.Select(Path.GetFileName))}");
+        }
+        catch { /* recovery is best effort */ }
     }
 
     private async Task StopRecordingAsync()
@@ -811,12 +926,12 @@ public sealed partial class MainPage : Page
         RecordBtn.ClearValue(Control.ForegroundProperty);
         RecPill.Visibility = Visibility.Collapsed;
         AutomationProperties.SetName(RecordBtn, "● Record");
-        Status("Finishing recording…");
+        Status("Finishing recording… joining the pieces");
         try
         {
             await rec.StopAsync();
             Status($"Recording saved: {rec.Path} — {rec.FramesWritten} frames, {_recordClock.Elapsed:mm\\:ss}" +
-                   (rec.FramesDropped > 0 ? $", {rec.FramesDropped} dropped (encoder busy)" : ""));
+                   (rec.FramesDropped > 0 ? $", {rec.FramesDropped} dropped (encoder busy)" : "") + SupportNudge());
         }
         catch (Exception ex) { Status("Recording failed while saving: " + ex.Message); }
         finally { await rec.DisposeAsync(); }

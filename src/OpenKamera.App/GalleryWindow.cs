@@ -29,7 +29,7 @@ public sealed class GalleryWindow : Window
     public GalleryWindow(MainPage main)
     {
         _main = main;
-        Title = "OpenKamera Gallery";
+        Title = "KISSIK Gallery";
         SystemBackdrop = new MicaBackdrop();
         AppWindow.Resize(new Windows.Graphics.SizeInt32(1180, 760));
 
@@ -201,7 +201,7 @@ public sealed class GalleryWindow : Window
             menu.Items.Add(Item("Export…", "", async () =>
             {
                 var picker = new Windows.Storage.Pickers.FileSavePicker { SuggestedFileName = s.Name };
-                picker.FileTypeChoices.Add("OpenKamera scene", [".okscene"]);
+                picker.FileTypeChoices.Add("KISSIK scene", [".okscene"]);
                 WinRT.Interop.InitializeWithWindow.Initialize(picker, WinRT.Interop.WindowNative.GetWindowHandle(this));
                 if (await picker.PickSaveFileAsync() is { } f) SceneLibrary.Export(s, f.Path);
             }));

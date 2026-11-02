@@ -116,11 +116,11 @@ public sealed partial class MainPage
     {
         if (_lookTiles.Count == 0) return;
         var current = (FilterPreset)Math.Max(0, FilterBox.SelectedIndex);
-        var accent = (Brush)Resources["DgAccentBrush"];
+        var accent = Token("DgAccentBrush");
         foreach (var (f, frame, _, label) in _lookTiles)
         {
             frame.BorderBrush = f == current ? accent : new SolidColorBrush(Microsoft.UI.Colors.Transparent);
-            label.Foreground = f == current ? (Brush)Resources["DgText"] : (Brush)Resources["DgDim"];
+            label.Foreground = f == current ? Token("DgText") : Token("DgDim");
         }
         string look = LookName(current);
         if (LutBox.SelectedItem is string lut) look = current == FilterPreset.None ? lut : $"{look} + {lut}";
