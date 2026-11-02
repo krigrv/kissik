@@ -236,6 +236,7 @@ internal static class VoiceNative
     {
         Architecture.X64 => "x64",
         Architecture.X86 => "x86",
+        Architecture.Arm64 => "arm64",
         var a => throw new PlatformNotSupportedException($"Noise removal isn't built for {a} yet."),
     });
 

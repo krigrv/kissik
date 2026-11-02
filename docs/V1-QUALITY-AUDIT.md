@@ -60,7 +60,8 @@ Still to test by hand before v1 (needs a person at the PC):
   card shows how many dB are being removed. Measured on the dev PC (16 threads), per mic: Light ≈ 1 % of one
   core and no extra delay; Studio voice ≈ 6 % of one core and 10 ms (plus the graph's 10 ms quantum). On spoken
   test audio, noise in pauses drops 21 dB (Light) / 22 dB (Studio voice) with the voice level kept within 1 dB.
-  Studio voice errors pass audio through instead of closing the app. x64 and x86; ARM64 needs the ARM64 build tools.
+  Studio voice errors pass audio through instead of closing the app. Built for x64, x86 and ARM64 (ARM64 not yet run on
+  real ARM hardware).
 - **Before:** none (mixer, gain, mute, watchdog only).
 - **Best known (open):** DeepFilterNet (MIT/Apache) beats RNNoise (BSD) clearly; RNNoise uses
   far less CPU.

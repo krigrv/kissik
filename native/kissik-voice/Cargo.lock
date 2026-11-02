@@ -392,6 +392,7 @@ version = "1.0.0"
 dependencies = [
  "deep_filter",
  "ndarray",
+ "tract-linalg",
 ]
 
 [[package]]
@@ -1134,8 +1135,6 @@ dependencies = [
 [[package]]
 name = "tract-linalg"
 version = "0.19.16"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "49fb02b3ee7b77054a3d1fecfe4bc2f7523f587a8f1814b32089f93e2a573244"
 dependencies = [
  "cc",
  "derive-new",

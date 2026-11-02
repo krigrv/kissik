@@ -25,8 +25,16 @@ Copy `target\release\kissik_voice.dll` to `src\OpenKamera.Core\Native\x64\` and
 The model, `DeepFilterNet3_ll_onnx.tar.gz`, comes from the DeepFilterNet repository's `models` folder
 (tag v0.5.6) and lives in `src\OpenKamera.Core\Models\`.
 
-ARM64 builds need the "MSVC ARM64 build tools" Visual Studio component, then
-`cargo build --release --target aarch64-pc-windows-msvc` (same for RNNoise with the ARM64 `cl`).
+ARM64 needs the "MSVC ARM64 build tools" and "C++ Clang tools" Visual Studio components. tract-linalg's ARM64
+assembly is GNU syntax, so it is built with clang (the vendored copy in `vendor/tract-linalg` stops its build script
+from sending it to the x86-only Microsoft assembler):
+
+```bash
+L="C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/Llvm/x64/bin"
+export CC_aarch64_pc_windows_msvc="$L/clang.exe" AR_aarch64_pc_windows_msvc="$L/llvm-lib.exe"
+export CFLAGS_aarch64_pc_windows_msvc="--target=aarch64-pc-windows-msvc -c"
+cargo build --release --target aarch64-pc-windows-msvc   # copy to Native\arm64\
+```
 
 ## RNNoise
 
@@ -38,4 +46,13 @@ cl /O2 /fp:fast /LD /DWIN32 /D__SSE2__ /D__SSE__ /DDLL_EXPORT /DRNNOISE_BUILD /D
    src\parse_lpcnet_weights.c src\rnnoise_data.c src\rnnoise_tables.c /Fe:rnnoise.dll
 ```
 
-(x86 adds `/arch:SSE2`.)
+(x86 adds `/arch:SSE2`.) ARM64 uses `clang-cl --target=aarch64-pc-windows-msvc /D__ARM_NEON` from a
+`vcvarsall x64_arm64` prompt, plus an include folder with this `os_support.h`, which the 0.2 tarball leaves out:
+
+```c
+#include <string.h>
+#define OPUS_INLINE __inline
+#define OPUS_COPY(dst, src, n) (memcpy((dst), (src), (n)*sizeof(*(dst))))
+#define OPUS_MOVE(dst, src, n) (memmove((dst), (src), (n)*sizeof(*(dst))))
+#define OPUS_CLEAR(dst, n) (memset((dst), 0, (n)*sizeof(*(dst))))
+```
