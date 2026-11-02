@@ -15,6 +15,7 @@ public sealed partial class MainPage
         _audioWatch.Tick += async (_, _) =>
         {
             CheckPhoneMic();
+            CheckSystemMicMute();
             if (_audioRestarting || !_settings.AudioOn || !_audio.NeedsRestart(DateTime.UtcNow, TimeSpan.FromSeconds(3))) return;
             _audioRestarting = true;
             try

@@ -67,6 +67,7 @@ public sealed partial class MainPage : Page
         ResumePairedPhone();
         try { InitVertical(); } catch { }
         try { InitTray(); } catch (Exception ex) { Status("Tray icon unavailable: " + ex.Message); }
+        _ = CheckForUpdateAsync(quiet: true);
         try { InitControl(); } catch (Exception ex) { Status("Remote control unavailable: " + ex.Message); }
         Unloaded += async (_, _) => { if (_control is { } c) await c.DisposeAsync(); };
         try { InitGlobalHotkeys(); } catch (Exception ex) { Status("Global shortcuts unavailable: " + ex.Message); }
@@ -207,6 +208,7 @@ public sealed partial class MainPage : Page
         }
         ApplyProfile(p);
         _settings.ProfileName = p.Name; _settings.Save();
+        MatchPhoneQuality();
         if (_session is not null && DeviceBox.SelectedItem is CameraDeviceInfo cam)
         {
             Status($"Switching camera to suit {p.Name}…");
@@ -239,12 +241,14 @@ public sealed partial class MainPage : Page
     {
         var current = OutputProfile.All.FirstOrDefault(p => p.Name == _settings.ProfileName) ?? OutputProfile.P720;
         ProfileMenu.Items.Clear();
+        int? phoneMax = DeviceBox.SelectedItem == PhoneDevice ? _phone?.LastStatus?.MaxLongSide : null;
         foreach (var p in OutputProfile.All)
         {
+            bool tooBig = phoneMax is { } m && Math.Max(p.Width, p.Height) > m;
             var item = new RadioMenuFlyoutItem
             {
-                Text = p.Name, GroupName = "profiles", IsChecked = p == current,
-                KeyboardAcceleratorTextOverride = p.Details, Tag = p,
+                Text = tooBig ? p.Name + " (your phone can't)" : p.Name, GroupName = "profiles", IsChecked = p == current,
+                KeyboardAcceleratorTextOverride = p.Details, Tag = p, IsEnabled = !tooBig || p == current,
             };
             item.Click += async (_, _) => await ChangeProfileAsync(p);
             ProfileMenu.Items.Add(item);

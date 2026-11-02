@@ -275,6 +275,9 @@
                                 <ToggleMenuFlyoutItem.Icon><FontIcon Glyph="&#xED1E;" /></ToggleMenuFlyoutItem.Icon>
                             </ToggleMenuFlyoutItem>
                             <MenuFlyoutSeparator />
+                            <MenuFlyoutItem x:Name="UpdateItem" Text="Check for updates" Click="UpdateItem_Click">
+                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE895;" /></MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
                             <MenuFlyoutSubItem Text="View">
                                 <MenuFlyoutSubItem.Icon><FontIcon Glyph="&#xE890;" /></MenuFlyoutSubItem.Icon>
                                 <MenuFlyoutItem x:Name="LeftPaneToggle" Text="Show or hide the control panel" Click="LeftPaneToggle_Click">
@@ -733,6 +736,12 @@
                                             <MenuFlyoutItem Text="Text" Tag="text" Click="AddLayer_Click">
                                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8D2;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
+                                            <MenuFlyoutItem Text="Background from the gallery…" Tag="gallery" Click="AddLayer_Click">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem Text="Your own background picture…" Tag="bg" Click="AddLayer_Click">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE91B;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
                                             <MenuFlyoutItem Text="Image or logo…" Tag="image" Click="AddLayer_Click">
                                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEB9F;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
@@ -796,6 +805,8 @@
                     <TextBlock Text="Audio" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" ToolTipService.ToolTip="Live microphone levels" />
                     <TextBlock x:Name="MicName" Text="No microphone" FontSize="12" FontWeight="SemiBold" HorizontalAlignment="Right"
                                TextTrimming="CharacterEllipsis" MaxWidth="200" />
+                    <TextBlock x:Name="MicMutedBadge" Visibility="Collapsed" FontSize="12" FontWeight="SemiBold" HorizontalAlignment="Right"
+                               Foreground="{ThemeResource SystemFillColorCriticalBrush}" AutomationProperties.LiveSetting="Assertive" />
                 </Grid>
                 <Grid ColumnSpacing="10">
                     <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition /></Grid.ColumnDefinitions>
@@ -875,10 +886,28 @@
                         <ComboBoxItem Content="All scenes" Tag="" />
                         <ComboBoxItem Content="Favourites" Tag="*fav" />
                         <ComboBoxItem Content="Professional" Tag="Professional" />
-                        <ComboBoxItem Content="Social" Tag="Social" />
+                        <ComboBoxItem Content="Business" Tag="Business" />
+                        <ComboBoxItem Content="Education" Tag="Education" />
+                        <ComboBoxItem Content="Podcast" Tag="Podcast" />
                         <ComboBoxItem Content="Streaming" Tag="Streaming" />
+                        <ComboBoxItem Content="Gaming" Tag="Gaming" />
+                        <ComboBoxItem Content="Social" Tag="Social" />
+                        <ComboBoxItem Content="Creative" Tag="Creative" />
+                        <ComboBoxItem Content="Events" Tag="Events" />
+                        <ComboBoxItem Content="Wellness" Tag="Wellness" />
                         <ComboBoxItem Content="Utility" Tag="Utility" />
                     </ComboBox>
+                    <Button x:Name="SceneSearchBtn" Style="{StaticResource IconButton}" Width="44"
+                            Background="{ThemeResource ControlFillColorDefaultBrush}"
+                            ToolTipService.ToolTip="Find a scene by name" AutomationProperties.Name="Find a scene">
+                        <FontIcon Glyph="&#xE721;" FontSize="14" />
+                        <Button.Flyout>
+                            <Flyout Placement="Top">
+                                <TextBox x:Name="SceneSearch" Width="240" PlaceholderText="Find a scene: podcast, birthday…"
+                                         TextChanged="SceneSearch_TextChanged" AutomationProperties.Name="Find a scene" />
+                            </Flyout>
+                        </Button.Flyout>
+                    </Button>
                     <Button x:Name="GalleryBtn" Style="{StaticResource IconButton}" Width="44" Click="GalleryBtn_Click"
                             Background="{ThemeResource ControlFillColorDefaultBrush}"
                             ToolTipService.ToolTip="Open the gallery (scenes, backgrounds, filters)" AutomationProperties.Name="Open gallery">
