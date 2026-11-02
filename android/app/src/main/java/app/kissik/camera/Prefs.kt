@@ -17,6 +17,9 @@ object Live {
     val mic = MutableStateFlow(false)
     val torch = MutableStateFlow(false)
     val quality = MutableStateFlow(720)
+    /** Largest capture size and frame rate the current lens offers (0 until the camera opens). */
+    val maxSize = MutableStateFlow(0 to 0)
+    val maxFps = MutableStateFlow(0)
     /** Zoom factor the PC asked for (1 = no zoom); clamped to what the lens offers. */
     val zoom = MutableStateFlow(1f)
     val saver = MutableStateFlow(true)

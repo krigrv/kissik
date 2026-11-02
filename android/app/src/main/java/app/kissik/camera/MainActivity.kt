@@ -151,7 +151,7 @@ private fun Intro(done: () -> Unit) {
         listOf(
             IntroPage(K.accent, "KISSIK CAMERA", "Your phone is the better webcam",
                 "Use its camera and microphone in KISSIK on your Windows PC.",
-                listOf(Icons.Outlined.HighQuality to "Up to 1080p, front or back lens", Icons.Outlined.ScreenLockPortrait to "Keeps streaming with the screen off")),
+                listOf(Icons.Outlined.HighQuality to "Up to your camera's full resolution, front or back", Icons.Outlined.ScreenLockPortrait to "Keeps streaming with the screen off")),
             IntroPage(Color(0xFFB98CFF), "SETUP · UNDER 2 MINUTES", "Scan once. Then forget about it",
                 "Open KISSIK on your PC, choose Phone, and scan the code. After that it reconnects by itself.",
                 listOf(Icons.Outlined.Wifi to "Same Wi-Fi as your PC", Icons.Outlined.Usb to "Or a USB cable — no Wi-Fi needed")),
@@ -229,6 +229,7 @@ private fun Home(pairing: Pairing?, onSettings: () -> Unit, onPair: () -> Unit) 
     val torch by Live.torch.collectAsState()
     val mic by Live.mic.collectAsState()
     val quality by Live.quality.collectAsState()
+    val maxSize by Live.maxSize.collectAsState()
     val saving by Live.saving.collectAsState()
     val micLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok -> if (ok) { Live.mic.value = true; Live.save(ctx) } }
     val camLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok -> if (ok) StreamService.start(ctx) }
@@ -283,7 +284,12 @@ private fun Home(pairing: Pairing?, onSettings: () -> Unit, onPair: () -> Unit) 
                             else if (ContextCompat.checkSelfPermission(ctx, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) { Live.mic.value = true; Live.save(ctx) }
                             else micLauncher.launch(Manifest.permission.RECORD_AUDIO)
                         }
-                        DockButton(Icons.Outlined.HighQuality, "${quality}p") { Live.quality.value = when (quality) { 480 -> 720; 720 -> 1080; else -> 480 }; Live.save(ctx) }
+                        DockButton(Icons.Outlined.HighQuality, "${quality}p") {
+                            // Cycle through the common sizes this lens can actually do, up to its maximum.
+                            val top = maxSize.second.takeIf { it > 0 } ?: 1080
+                            val steps = (listOf(480, 720, 1080, 1440, 2160, 2880, 4320).filter { it <= top } + top).distinct().sorted()
+                            Live.quality.value = steps.firstOrNull { it > quality } ?: steps.first(); Live.save(ctx)
+                        }
                     }
                     Spacer(Modifier.height(10.dp))
                     val stopColor = if (running) Color(0xFFFF5A5F) else K.accent

@@ -21,6 +21,10 @@ import android.os.BatteryManager
 import android.os.Build
 import android.os.PowerManager
 import android.util.Size
+import android.graphics.ImageFormat
+import android.hardware.camera2.CameraCharacteristics
+import androidx.camera.camera2.interop.Camera2CameraInfo
+import androidx.camera.camera2.interop.ExperimentalCamera2Interop
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
@@ -142,10 +146,12 @@ class StreamService : LifecycleService() {
         if (boundFront != null && boundFront != front) Live.zoom.value = 1f
         boundFront = front
         val provider = withContext(Dispatchers.IO) { ProcessCameraProvider.getInstance(this@StreamService).get() }
-        val long = when (quality) { 1080 -> 1920; 480 -> 640; else -> 1280 }
+        // No cap: ask for the requested short side at 16:9 and take the closest size the lens supports, up to its maximum.
+        val long = quality * 16 / 9
         val analysis = ImageAnalysis.Builder()
-            .setResolutionSelector(ResolutionSelector.Builder().setResolutionStrategy(
-                ResolutionStrategy(Size(long, quality), ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER_THEN_HIGHER)).build())
+            .setResolutionSelector(ResolutionSelector.Builder()
+                .setAllowedResolutionMode(ResolutionSelector.PREFER_HIGHER_RESOLUTION_OVER_CAPTURE_RATE)
+                .setResolutionStrategy(ResolutionStrategy(Size(long, quality), ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER_THEN_HIGHER)).build())
             .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
             .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST).build()
         analysis.setAnalyzer(analysisExecutor, ::onFrame)
@@ -155,9 +161,22 @@ class StreamService : LifecycleService() {
         camera = runCatching { provider.bindToLifecycle(this, wanted, analysis) }
             .recoverCatching { provider.bindToLifecycle(this, other, analysis) }.getOrNull()
         if (camera == null) Live.message.value = "Couldn't open the camera. Is another app using it?"
+        readCapabilities()
         camera?.cameraControl?.enableTorch(Live.torch.value)
         camera?.cameraControl?.setZoomRatio(Live.zoom.value)
         sendStatus()
+    }
+
+    /** Largest YUV size and highest frame rate this lens offers, reported to the PC as maxW/maxH/maxFps. */
+    @androidx.annotation.OptIn(ExperimentalCamera2Interop::class)
+    private fun readCapabilities() {
+        val info = camera?.cameraInfo ?: return
+        runCatching {
+            val c2 = Camera2CameraInfo.from(info)
+            val sizes = c2.getCameraCharacteristic(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)?.getOutputSizes(ImageFormat.YUV_420_888)
+            sizes?.maxByOrNull { it.width.toLong() * it.height }?.let { Live.maxSize.value = maxOf(it.width, it.height) to minOf(it.width, it.height) }
+            c2.getCameraCharacteristic(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES)?.maxOfOrNull { it.upper }?.let { Live.maxFps.value = it }
+        }
     }
 
     private var frameNo = 0L
@@ -229,7 +248,7 @@ class StreamService : LifecycleService() {
         when {
             text == "front" -> Live.front.value = true
             text == "back" -> Live.front.value = false
-            text.startsWith("q:") -> text.drop(2).toIntOrNull()?.takeIf { it in setOf(480, 720, 1080) }?.let { Live.quality.value = it }
+            text.startsWith("q:") -> text.drop(2).toIntOrNull()?.takeIf { it in 144..8640 }?.let { Live.quality.value = it }
             text == "torch:on" || text == "torch:off" -> { Live.torch.value = text == "torch:on"; return }
             text.startsWith("zoom:") -> {
                 val info = camera?.cameraInfo?.zoomState?.value
@@ -269,6 +288,9 @@ class StreamService : LifecycleService() {
         val info = camera?.cameraInfo
         json.put("torch", if (info?.hasFlashUnit() == true) Live.torch.value else JSONObject.NULL)
         val zs = info?.zoomState?.value
+        val (mw, mh) = Live.maxSize.value
+        if (mw > 0) json.put("maxW", mw).put("maxH", mh)
+        if (Live.maxFps.value > 0) json.put("maxFps", Live.maxFps.value)
         json.put("zoomMax", zs?.maxZoomRatio?.toDouble() ?: JSONObject.NULL).put("zoom", Live.zoom.value.toDouble())
         socket.send(json.toString())
     }
