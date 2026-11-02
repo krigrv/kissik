@@ -113,7 +113,9 @@ public sealed class SceneDocument
         bool bold = false, string color = "#FFFFFF", string align = "left", string fill = "", string name = "") =>
         new() { Kind = "text", Text = text, X = x, Y = y, W = w, H = h, FontSize = size, Bold = bold, Color = color, Align = align, Fill = fill, Name = name };
 
-    public static IReadOnlyList<SceneDocument> Templates { get; } =
+    public static IReadOnlyList<SceneDocument> Templates { get; } = BuiltIn().Concat(LoadPack()).ToList();
+
+    private static List<SceneDocument> BuiltIn() =>
     [
         new() { Id = "blank", Name = "Blank", Category = "Utility", Layers = [] },
         new()
@@ -191,6 +193,19 @@ public sealed class SceneDocument
             ],
         },
     ];
+
+    /// <summary>KISSIK's scene pack (100 designs across ten categories), shipped inside the app.</summary>
+    private static IEnumerable<SceneDocument> LoadPack()
+    {
+        try
+        {
+            using var stream = typeof(SceneDocument).Assembly.GetManifestResourceStream("OpenKamera.Core.ScenePack.json");
+            if (stream is null) return [];
+            return JsonSerializer.Deserialize<List<SceneDocument>>(stream, Json) ?? [];
+        }
+        catch { return []; }
+    }
+
 }
 
 /// <summary>Scene storage: built-in templates (editable; edits are saved as an override) plus user scenes.</summary>

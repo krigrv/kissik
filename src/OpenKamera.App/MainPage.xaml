@@ -875,8 +875,15 @@
                         <ComboBoxItem Content="All scenes" Tag="" />
                         <ComboBoxItem Content="Favourites" Tag="*fav" />
                         <ComboBoxItem Content="Professional" Tag="Professional" />
-                        <ComboBoxItem Content="Social" Tag="Social" />
+                        <ComboBoxItem Content="Business" Tag="Business" />
+                        <ComboBoxItem Content="Education" Tag="Education" />
+                        <ComboBoxItem Content="Podcast" Tag="Podcast" />
                         <ComboBoxItem Content="Streaming" Tag="Streaming" />
+                        <ComboBoxItem Content="Gaming" Tag="Gaming" />
+                        <ComboBoxItem Content="Social" Tag="Social" />
+                        <ComboBoxItem Content="Creative" Tag="Creative" />
+                        <ComboBoxItem Content="Events" Tag="Events" />
+                        <ComboBoxItem Content="Wellness" Tag="Wellness" />
                         <ComboBoxItem Content="Utility" Tag="Utility" />
                     </ComboBox>
                     <Button x:Name="GalleryBtn" Style="{StaticResource IconButton}" Width="44" Click="GalleryBtn_Click"

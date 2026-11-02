@@ -26,4 +26,7 @@
     <None Include="Models\*.onnx" CopyToOutputDirectory="PreserveNewest" Link="Models\%(Filename)%(Extension)" />
   </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="ScenePack.json" LogicalName="OpenKamera.Core.ScenePack.json" />
+  </ItemGroup>
 </Project>
