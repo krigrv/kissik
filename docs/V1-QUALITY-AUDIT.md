@@ -184,7 +184,24 @@ a live Narrator, 200% text and high-contrast pass on a running app is still open
 - [x] Studio: today's full window.
 - [x] Switch any time: menu → View → Simple / Studio. Saved as `UiMode` in `Settings.cs`.
 
+### Checked on the running app (2026-11-02, this branch's Release build, 125% display scale)
+A UI Automation script listed every visible interactive control and pressed the safe ones.
+- [x] First run with `UiMode` empty shows "Simple or Studio?"; choosing Simple saves `"UiMode": "Simple"`.
+- [x] Simple: five buttons, each named and with help text, 148 x 96 DIP. Record is disabled until a camera is on.
+      Background cycles off, blur, picture, off, and its name follows ("Background: blur"). Hide me becomes "Show me" and back.
+- [x] Studio: 47 controls on screen, none without a name, all keyboard-focusable when enabled.
+- [x] Recordings window: every command button named and 48 DIP tall; each file card named with type, date and size.
+- [x] Found and fixed on the way:
+  - The status text had the automation name "Status", so screen readers heard "Status" and not the message.
+    The name was removed; the live region now reads the message itself.
+  - Under 40 DIP: Connect (34), Mirror (30), Open gallery (26, squeezed by the scene strip), toggle switches (30),
+    lists (32). Now: an implicit 40 DIP minimum for buttons, toggle buttons, lists and switches, and the scene strip's
+    category, find and gallery controls sit in a 2 x 2 grid so each keeps 40 DIP. Rescan: no control under 40 DIP except
+    items partly scrolled out of view. Sliders stay at the WinUI 32 DIP track height (WCAG 2.5.8 needs 24).
+
 ### Still to verify on a running app (before tagging v1)
+- [ ] Large controls on the running app: the rescan was cut short because another session re-registered the shared
+      KISSIK package (all worktrees share one package identity; see the shared notes).
 - [ ] Narrator walk-through of Simple and Studio: names, help text and each announcement above.
 - [ ] Windows Text size 200% and display scale 200%: no clipping or overlap in the top bar, panels and dialogs.
 - [ ] High contrast (Aquatic, Desert, Night sky): every control visible, focus rectangle visible.
