@@ -32,6 +32,11 @@ public sealed unsafe class H264Decoder : IDisposable
     private bool _providesSamples;
     private int _outputBufferSize;
     private bool _waitKey = true;
+    private int _skipped;
+    /// <summary>Decoded pictures not shown because a newer one was already waiting (catch-up after a slow moment).</summary>
+    public int Skipped => Volatile.Read(ref _skipped);
+    /// <summary>Live mode: show only the newest picture when packets back up (off for file playback and tests).</summary>
+    public bool DropStaleFrames { get; set; }
     private readonly BlockingCollection<PhoneVideoPacket> _queue = new(new ConcurrentQueue<PhoneVideoPacket>(), 120);
     private Thread? _thread;
     private volatile bool _disposed;
@@ -212,7 +217,13 @@ public sealed unsafe class H264Decoder : IDisposable
                 if (hr == MF_E_TRANSFORM_NEED_MORE_INPUT) return;
                 if (hr == MF_E_TRANSFORM_STREAM_CHANGE) { PickOutputType(); continue; }
                 Check(hr, "ProcessOutput");
-                if (data.pSample != 0) Deliver(data.pSample, fallbackPts);
+                // Live video must never queue: when newer packets are already waiting, this picture is stale. It was
+                // decoded (later frames depend on it) but skip converting and showing it, so delay stays at a frame or two.
+                if (data.pSample != 0)
+                {
+                    if (!DropStaleFrames || _queue.Count == 0) Deliver(data.pSample, fallbackPts);
+                    else Interlocked.Increment(ref _skipped);
+                }
             }
             finally
             {

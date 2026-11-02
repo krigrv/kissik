@@ -289,6 +289,7 @@ public sealed partial class MainPage
             try
             {
                 var dec = H264Decoder.Create();
+                dec.DropStaleFrames = true; // live: never let pictures queue up behind the phone
                 dec.FrameDecoded += f =>
                 {
                     Interlocked.Increment(ref _h264Out);
