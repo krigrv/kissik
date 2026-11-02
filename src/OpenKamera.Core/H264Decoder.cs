@@ -33,6 +33,7 @@ public sealed unsafe class H264Decoder : IDisposable
     private int _outputBufferSize;
     private bool _waitKey = true;
     private int _skipped;
+    private long _lastDeliver;
     /// <summary>Decoded pictures not shown because a newer one was already waiting (catch-up after a slow moment).</summary>
     public int Skipped => Volatile.Read(ref _skipped);
     /// <summary>Live mode: show only the newest picture when packets back up (off for file playback and tests).</summary>
@@ -221,7 +222,10 @@ public sealed unsafe class H264Decoder : IDisposable
                 // decoded (later frames depend on it) but skip converting and showing it, so delay stays at a frame or two.
                 if (data.pSample != 0)
                 {
-                    if (!DropStaleFrames || _queue.Count == 0) Deliver(data.pSample, fallbackPts);
+                    // Skip only on a real backlog (2+ newer packets) and never go more than 50 ms without a picture.
+                    long now = System.Diagnostics.Stopwatch.GetTimestamp();
+                    bool overdue = (now - _lastDeliver) * 1000 / System.Diagnostics.Stopwatch.Frequency >= 50;
+                    if (!DropStaleFrames || _queue.Count < 2 || overdue) { Deliver(data.pSample, fallbackPts); _lastDeliver = now; }
                     else Interlocked.Increment(ref _skipped);
                 }
             }
