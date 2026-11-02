@@ -13,11 +13,13 @@ public sealed partial class MainPage
     private object? _lastRaw;
     private Microsoft.UI.Dispatching.DispatcherQueueTimer? _thumbTimer;
     private bool _thumbsLive, _thumbBusy;
+    private int _thumbTick;
 
     private void StartSceneThumbs()
     {
         _thumbTimer = DispatcherQueue.CreateTimer();
-        _thumbTimer.Interval = TimeSpan.FromSeconds(1);
+        // The framing minimap refreshes ~6× a second so it keeps pace with the preview; scene cards once a second.
+        _thumbTimer.Interval = TimeSpan.FromMilliseconds(160);
         _thumbTimer.Tick += async (_, _) =>
         {
             bool live = _session is not null && _lastFrame is not null;
@@ -26,11 +28,14 @@ public sealed partial class MainPage
             _thumbBusy = true;
             try
             {
-                var (small, _, _) = await Task.Run(() => OutputFit.Stretch(f.Px, f.W, f.H, 320, 180));
-                using (var stream = System.Runtime.InteropServices.WindowsRuntime.WindowsRuntimeBufferExtensions.AsStream(_thumbSource.PixelBuffer))
-                    await stream.WriteAsync(small.AsMemory(0, Math.Min(small.Length, (int)_thumbSource.PixelBuffer.Capacity)));
-                _thumbSource.Invalidate();
-                await UpdateMinimapPictureAsync();
+                if (++_thumbTick % 6 == 0)
+                {
+                    var (small, _, _) = await Task.Run(() => OutputFit.Stretch(f.Px, f.W, f.H, 320, 180));
+                    using (var stream = System.Runtime.InteropServices.WindowsRuntime.WindowsRuntimeBufferExtensions.AsStream(_thumbSource.PixelBuffer))
+                        await stream.WriteAsync(small.AsMemory(0, Math.Min(small.Length, (int)_thumbSource.PixelBuffer.Capacity)));
+                    _thumbSource.Invalidate();
+                }
+                if (Minimap.ActualWidth > 0 && Minimap.XamlRoot is not null) await UpdateMinimapPictureAsync();
             }
             catch { /* skip a refresh */ }
             finally { _thumbBusy = false; }

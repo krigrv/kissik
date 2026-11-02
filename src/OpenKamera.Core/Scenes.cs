@@ -159,11 +159,12 @@ public sealed class SceneDocument
         },
         new()
         {
-            Id = "framed", Name = "Framed", Category = "Social",
+            // Your picture inset on a deep gradient with rounded corners: a gallery-print look that reads at a glance.
+            Id = "framed", Name = "Framed", Category = "Social", Background = "#FF23262D", Background2 = "#FF0C0D10",
             Layers =
             [
-                new() { Kind = "shape", Name = "Frame", X = 0.02, Y = 0.035, W = 0.96, H = 0.93, Color = "#00000000",
-                        Stroke = "#FFE8A33D", StrokeWidth = 0.008, CornerRadius = 0.03 },
+                new() { Kind = "camera", Name = "Video source", X = 0.045, Y = 0.07, W = 0.91, H = 0.86, CornerRadius = 0.03,
+                        Stroke = "#59FFFFFF", StrokeWidth = 0.004 },
             ],
         },
         new()
@@ -194,7 +195,7 @@ public sealed class SceneDocument
             Id = "corner-logo", Name = "Corner Logo", Category = "Utility",
             Layers =
             [
-                T("YOUR LOGO", 0.78, 0.04, 0.19, 0.06, 0.032, bold: true, align: "center", fill: "#99000000", name: "Logo"),
+                T("YOUR LOGO", 0.73, 0.045, 0.235, 0.085, 0.042, bold: true, align: "center", fill: "#CC000000", name: "Logo"),
             ],
         },
     ];
