@@ -259,44 +259,54 @@
                     <FontIcon Glyph="&#xE713;" FontSize="15" />
                     <DropDownButton.Flyout>
                         <MenuFlyout Placement="BottomEdgeAlignedRight">
-                            <MenuFlyoutItem x:Name="LeftPaneToggle" Text="Show or hide the control panel" Click="LeftPaneToggle_Click">
-                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE89F;" /></MenuFlyoutItem.Icon>
-                            </MenuFlyoutItem>
-                            <MenuFlyoutItem x:Name="RightPaneToggle" Text="Show or hide framing and scenes" Click="RightPaneToggle_Click">
-                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8A9;" /></MenuFlyoutItem.Icon>
-                            </MenuFlyoutItem>
-                            <ToggleMenuFlyoutItem x:Name="SmartMirrorToggle" Text="Mirror my preview only (meetings see the true view)" Click="SmartMirror_Click">
-                                <ToggleMenuFlyoutItem.Icon><FontIcon Glyph="&#xE8AB;" /></ToggleMenuFlyoutItem.Icon>
-                            </ToggleMenuFlyoutItem>
-                            <ToggleMenuFlyoutItem x:Name="CaptionsToggle" Text="Live captions" Click="CaptionsToggle_Click">
-                                <ToggleMenuFlyoutItem.Icon><FontIcon Glyph="&#xED1E;" /></ToggleMenuFlyoutItem.Icon>
-                            </ToggleMenuFlyoutItem>
-                            <ToggleMenuFlyoutItem x:Name="ControlToggle" Text="Let AI assistants and Stream Deck control KISSIK" Click="ControlToggle_Click">
-                                <ToggleMenuFlyoutItem.Icon><FontIcon Glyph="&#xE99A;" /></ToggleMenuFlyoutItem.Icon>
-                            </ToggleMenuFlyoutItem>
-                            <MenuFlyoutItem Text="Prompter under the webcam" Click="PrompterBtn_Click">
-                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8D2;" /></MenuFlyoutItem.Icon>
-                            </MenuFlyoutItem>
-                            <MenuFlyoutSubItem Text="Theme">
-                                <MenuFlyoutSubItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutSubItem.Icon>
-                                <RadioMenuFlyoutItem x:Name="ThemeSystem" Text="Same as Windows" GroupName="Theme" Tag="System" Click="Theme_Click" />
-                                <RadioMenuFlyoutItem x:Name="ThemeLight" Text="Light" GroupName="Theme" Tag="Light" Click="Theme_Click" />
-                                <RadioMenuFlyoutItem x:Name="ThemeDark" Text="Dark" GroupName="Theme" Tag="Dark" Click="Theme_Click" />
-                            </MenuFlyoutSubItem>
-                            <MenuFlyoutItem Text="Support KISSIK" Click="DonateBtn_Click">
-                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEB51;" /></MenuFlyoutItem.Icon>
-                            </MenuFlyoutItem>
-                            <MenuFlyoutItem Text="Copy diagnostics" Click="CopyDiagnostics_Click">
-                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8C8;" /></MenuFlyoutItem.Icon>
-                            </MenuFlyoutItem>
-                            <MenuFlyoutItem x:Name="SaveWindowPicture" Text="Save a picture of this window" Click="SaveWindowPicture_Click">
-                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE722;" /></MenuFlyoutItem.Icon>
-                            </MenuFlyoutItem>
                             <MenuFlyoutItem Text="Recordings and snapshots" Click="RecordingsBtn_Click">
                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B2;" /></MenuFlyoutItem.Icon>
                             </MenuFlyoutItem>
                             <MenuFlyoutItem Text="Open the gallery" Click="GalleryBtn_Click">
                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xF0E2;" /></MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
+                            <MenuFlyoutItem Text="Prompter under the webcam" Click="PrompterBtn_Click">
+                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8D2;" /></MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
+                            <ToggleMenuFlyoutItem x:Name="CaptionsToggle" Text="Live captions" Click="CaptionsToggle_Click">
+                                <ToggleMenuFlyoutItem.Icon><FontIcon Glyph="&#xED1E;" /></ToggleMenuFlyoutItem.Icon>
+                            </ToggleMenuFlyoutItem>
+                            <MenuFlyoutSeparator />
+                            <MenuFlyoutSubItem Text="View">
+                                <MenuFlyoutSubItem.Icon><FontIcon Glyph="&#xE890;" /></MenuFlyoutSubItem.Icon>
+                                <MenuFlyoutItem x:Name="LeftPaneToggle" Text="Show or hide the control panel" Click="LeftPaneToggle_Click">
+                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE89F;" /></MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+                                <MenuFlyoutItem x:Name="RightPaneToggle" Text="Show or hide framing and scenes" Click="RightPaneToggle_Click">
+                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8A9;" /></MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+                                <ToggleMenuFlyoutItem x:Name="ExposureToggle" Text="Show exposure (red = too bright, blue = too dark)" Click="ExposureToggle_Click">
+                                    <ToggleMenuFlyoutItem.Icon><FontIcon Glyph="&#xE706;" /></ToggleMenuFlyoutItem.Icon>
+                                </ToggleMenuFlyoutItem>
+                                <ToggleMenuFlyoutItem x:Name="SmartMirrorToggle" Text="Mirror my preview only (meetings see the true view)" Click="SmartMirror_Click">
+                                    <ToggleMenuFlyoutItem.Icon><FontIcon Glyph="&#xE8AB;" /></ToggleMenuFlyoutItem.Icon>
+                                </ToggleMenuFlyoutItem>
+                                <MenuFlyoutSubItem Text="Theme">
+                                    <MenuFlyoutSubItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutSubItem.Icon>
+                                    <RadioMenuFlyoutItem x:Name="ThemeSystem" Text="Same as Windows" GroupName="Theme" Tag="System" Click="Theme_Click" />
+                                    <RadioMenuFlyoutItem x:Name="ThemeLight" Text="Light" GroupName="Theme" Tag="Light" Click="Theme_Click" />
+                                    <RadioMenuFlyoutItem x:Name="ThemeDark" Text="Dark" GroupName="Theme" Tag="Dark" Click="Theme_Click" />
+                                </MenuFlyoutSubItem>
+                            </MenuFlyoutSubItem>
+                            <MenuFlyoutSubItem Text="Settings and help">
+                                <MenuFlyoutSubItem.Icon><FontIcon Glyph="&#xE713;" /></MenuFlyoutSubItem.Icon>
+                                <ToggleMenuFlyoutItem x:Name="ControlToggle" Text="Let AI assistants and Stream Deck control KISSIK" Click="ControlToggle_Click">
+                                    <ToggleMenuFlyoutItem.Icon><FontIcon Glyph="&#xE99A;" /></ToggleMenuFlyoutItem.Icon>
+                                </ToggleMenuFlyoutItem>
+                                <MenuFlyoutItem Text="Copy diagnostics" Click="CopyDiagnostics_Click">
+                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8C8;" /></MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+                                <MenuFlyoutItem Text="Support KISSIK" Click="DonateBtn_Click">
+                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEB51;" /></MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+                            </MenuFlyoutSubItem>
+                            <MenuFlyoutItem x:Name="SaveWindowPicture" Text="Save a picture of this window" Click="SaveWindowPicture_Click">
+                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE722;" /></MenuFlyoutItem.Icon>
                             </MenuFlyoutItem>
                         </MenuFlyout>
                     </DropDownButton.Flyout>

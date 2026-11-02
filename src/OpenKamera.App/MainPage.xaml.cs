@@ -458,6 +458,14 @@ public sealed partial class MainPage : Page
     /// result to the preview if the UI is free. Frames that arrive while one is processing are skipped.
     /// </summary>
     private double _procMs;
+    private volatile bool _exposureCheck;
+    private volatile string _exposureNote = "";
+
+    private void ExposureToggle_Click(object sender, RoutedEventArgs e)
+    {
+        _exposureCheck = ExposureToggle.IsChecked;
+        Status(_exposureCheck ? "Exposure check on (only you see it): red stripes = too bright, blue = too dark." : "Exposure check off.");
+    }
     private volatile byte[]? _lastBaked, _fadeFrom;
     private DateTime _fadeStart;
 
@@ -521,7 +529,16 @@ public sealed partial class MainPage : Page
         if (_updatingPreview) return;
         _updatingPreview = true;
         SoftwareBitmap copy;
-        try { copy = FrameProcessor.ToBitmap(pixels, w, h); }
+        var shown = pixels;
+        if (_exposureCheck)
+        {
+            // Preview only: the outputs above already have their own copy of the frame.
+            shown = (byte[])pixels.Clone();
+            var (clip, crush) = ExposureCheck.Apply(shown, w, h, (int)(Environment.TickCount64 / 120 % 12));
+            _exposureNote = clip > 0.08 ? "Too bright in places: lower Light or move away from the window."
+                          : crush > 0.25 ? "Large dark areas: add light in front of you." : "Exposure looks good.";
+        }
+        try { copy = FrameProcessor.ToBitmap(shown, w, h); }
         catch { _updatingPreview = false; return; }
         bool queued = DispatcherQueue.TryEnqueue(async () =>
         {
@@ -538,7 +555,7 @@ public sealed partial class MainPage : Page
                     RecordLabel.Text = $"{_recordClock.Elapsed:mm\\:ss}";
                     RecPillText.Text = _recPaused ? $"❚❚ PAUSED {_recordClock.Elapsed:mm\\:ss}" : $"● REC {_recordClock.Elapsed:mm\\:ss}";
                 }
-                HudText.Text = $"{copy.PixelHeight}p {_fps.Fps:0} fps · {_procMs:0} ms{(_smooth.Level > 0 ? " · smooth-first" : "")}{fx}";
+                HudText.Text = $"{copy.PixelHeight}p {_fps.Fps:0} fps · {_procMs:0} ms{(_smooth.Level > 0 ? " · smooth-first" : "")}{fx}{(_exposureCheck ? " · " + _exposureNote : "")}";
                 if (_session?.Mode is { } m) SourceInfo.Text = $"{m.Width}×{m.Height} @ {m.Fps:0}";
             }
             catch (Exception ex) when (_session is not null) { Status("Preview error: " + ex.Message); }

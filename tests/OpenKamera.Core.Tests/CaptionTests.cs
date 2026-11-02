@@ -80,3 +80,17 @@ public class SecondCameraTests
         Assert.Equal(0, dst[((10 * w) + 10) * 4 + 2]);   // outside: untouched
     }
 }
+
+public class ExposureCheckTests
+{
+    [Fact]
+    public void MarksClippedAndCrushedAreas()
+    {
+        int w = 24, h = 2; var px = new byte[w * h * 4];
+        for (int x = 0; x < w; x++) for (int y = 0; y < h; y++) { int i = (y * w + x) * 4; byte v = x < 12 ? (byte)255 : (byte)0; px[i] = px[i + 1] = px[i + 2] = v; px[i + 3] = 255; }
+        var (clip, crush) = ExposureCheck.Apply(px, w, h);
+        Assert.Equal(0.5, clip, 2); Assert.Equal(0.5, crush, 2);
+        Assert.Equal(230, px[2]);         // first stripe on the bright half is red
+        Assert.Equal(230, px[12 * 4]);    // first stripe on the dark half is blue
+    }
+}
