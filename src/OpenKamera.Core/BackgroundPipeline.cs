@@ -32,6 +32,21 @@ public sealed class BackgroundPipeline : IDisposable
 
     private static float[] Refined(float[] alpha, byte[] px, int w, int h) { MaskOps.GuidedRefine(alpha, px, w, h, scale: Math.Max(2, w / 480)); return alpha; }
 
+    private VideoBackground? _video;
+
+    /// <summary>The newest frame of a looping video background (started on first use, restarted if the size changes).</summary>
+    private byte[]? VideoFrame(string id, int w, int h)
+    {
+        string? path = BackgroundLibrary.FilePathOf(id);
+        if (path is null) return null;
+        if (_video is not { } v || v.Path != path || v.Latest is { } l && l.Length != w * h * 4)
+        {
+            _video?.Dispose();
+            _video = new VideoBackground(path, w, h);
+        }
+        return _video.Latest;
+    }
+
     /// <summary>Call once per frame before processing, so <see cref="PersonMask"/> never reuses an old frame's cut-out.</summary>
     public void NewFrame() { lock (_gate) { _lastAlpha = null; _lastMask = null; } }
 
@@ -86,7 +101,9 @@ public sealed class BackgroundPipeline : IDisposable
                     (_reuse, _reuseW, _reuseH) = (alpha, w, h);
                 }
                 (_lastAlpha, _lastW, _lastH) = (alpha, w, h);
-                byte[]? bg = s.Mode == BackgroundMode.Replace && s.BackgroundId is { } id ? BackgroundLibrary.Render(id, w, h) : null;
+                byte[]? bg = s.Mode == BackgroundMode.Replace && s.BackgroundId is { } id
+                    ? BackgroundLibrary.IsVideo(id) ? VideoFrame(id, w, h) : BackgroundLibrary.Render(id, w, h)
+                    : null;
                 BackgroundEffects.Apply(px, w, h, alpha, s, bg);
                 LastError = null; _hadError = false;
             }
@@ -97,6 +114,7 @@ public sealed class BackgroundPipeline : IDisposable
 
     public void Dispose()
     {
+        _video?.Dispose(); _video = null;
         lock (_gate)
         {
             foreach (var s in _segmenters.Values) s.Dispose();

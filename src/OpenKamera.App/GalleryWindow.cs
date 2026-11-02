@@ -127,7 +127,7 @@ public sealed class GalleryWindow : Window
                 _actions.Children.Add(ActionButton("", "Add a background", async () =>
                 {
                     var picker = new Windows.Storage.Pickers.FileOpenPicker();
-                    foreach (var ext in new[] { ".png", ".jpg", ".jpeg" }) picker.FileTypeFilter.Add(ext);
+                    foreach (var ext in BackgroundLibrary.ImageExtensions.Concat(BackgroundLibrary.VideoExtensions)) picker.FileTypeFilter.Add(ext); // pictures and looping videos
                     WinRT.Interop.InitializeWithWindow.Initialize(picker, WinRT.Interop.WindowNative.GetWindowHandle(this));
                     if (await picker.PickSingleFileAsync() is not { } f) return;
                     BackgroundLibrary.Import(f.Path);

@@ -832,7 +832,7 @@ public sealed partial class MainPage : Page
     private async void BgImportBtn_Click(object sender, RoutedEventArgs e)
     {
         var picker = new Windows.Storage.Pickers.FileOpenPicker();
-        foreach (var ext in new[] { ".png", ".jpg", ".jpeg" }) picker.FileTypeFilter.Add(ext);
+        foreach (var ext in BackgroundLibrary.ImageExtensions.Concat(BackgroundLibrary.VideoExtensions)) picker.FileTypeFilter.Add(ext); // pictures and looping videos
         WinRT.Interop.InitializeWithWindow.Initialize(picker, WinRT.Interop.WindowNative.GetWindowHandle(App.MainWindow));
         var file = await picker.PickSingleFileAsync();
         if (file is null) return;
