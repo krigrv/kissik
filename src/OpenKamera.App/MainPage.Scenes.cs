@@ -533,7 +533,7 @@ public sealed partial class MainPage
         header.Children.Add(tools);
         PropsPanel.Children.Add(header);
 
-        PropsPanel.Children.Add(TextField("Layer name", l.Name, v => l.Name = v));
+        if (l.Kind != "text") PropsPanel.Children.Add(TextField("Layer name", l.Name, v => l.Name = v));
 
         switch (l.Kind)
         {

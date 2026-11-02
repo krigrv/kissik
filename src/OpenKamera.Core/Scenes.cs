@@ -43,7 +43,9 @@ public sealed class SceneLayer
     {
         "text" => "", "image" => "", "camera" => "", _ => Shape == "ellipse" ? "" : "",
     };
-    [JsonIgnore] public string DisplayName => !string.IsNullOrWhiteSpace(Name) ? Name : Kind switch
+    // Text layers are listed by what they say, so editing the words renames the layer too.
+    [JsonIgnore] public string DisplayName => Kind == "text" && !string.IsNullOrWhiteSpace(Text) ? Text.Split((char)10)[0].Trim()
+        : !string.IsNullOrWhiteSpace(Name) ? Name : Kind switch
     {
         "text" => string.IsNullOrWhiteSpace(Text) ? "Text" : Text,
         "image" => "Image", "camera" => "Video source", "camera2" => "Second camera", _ => Shape == "ellipse" ? "Circle" : "Shape",
