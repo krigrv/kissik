@@ -64,7 +64,7 @@ Build order:
 What users expect, in order: it connects every time; setup in under 2 minutes (QR + same Wi-Fi); honest pricing
 (every resolution free, no watermark, no ads). Most 1-star reviews are "worked, then broke after an update".
 1. [~] Auto-reconnect: done for Wi-Fi (same link + certificate across restarts, phone page retries from 250 ms, PC switches to the phone when it returns). Still to do: USB ↔ Wi-Fi fallback
-2. [ ] USB setup wizard that finds the real cause (cable, port, USB debugging, brand quirks such as Samsung) and explains it per brand
+2. [~] USB: one button; explains no adb / no phone (charge-only cable, USB debugging steps) / "Allow USB debugging" prompt / offline. Per-brand tips and iPhone USB still to do
 3. [x] "It's not connecting" explains why from what actually reached the PC (never arrived → firewall / Wi-Fi / client isolation / hotspot; old link; certificate refused; camera blocked); other networks' links shown
 4. [x] Promise: every resolution free, no watermark, no ads, every computer — README + welcome; plain "Just my name" scene
 5. [ ] Never take over the system default mic; virtual mic stays opt-in; the hardware mute key always works
@@ -100,7 +100,7 @@ everything from the PC, switching between paired phones/PCs.
 - [x] P1 Select between connected devices (picker + hot-plug watcher)
 - [ ] P1 Recently connected device list
 - [x] P5 Phone as webcam — browser page over HTTPS/WebSocket (QR pairing, verified on a real phone); native Android app later
-- [~] P5 Phone over Wi-Fi done; USB (adb port-forward) still to do
+- [x] P5 Phone over Wi-Fi and USB (Android: adb reverse to a localhost-only listener, page opens on the phone, no certificate warning)
 - [ ] P5 Control phone camera settings from desktop (lens, focus, exposure, flash, stabilisation)
 - [ ] P2 DSLR/mirrorless/action cameras — via their UVC webcam mode or an HDMI capture card (both appear as normal sources)
 - [ ] P2 HDMI capture-card sources (UVC; same path)

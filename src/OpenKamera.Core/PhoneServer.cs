@@ -80,8 +80,24 @@ public sealed class PhoneServer : IAsyncDisposable
         catch (SocketException) when (port != 0) { _listener = new TcpListener(IPAddress.Any, 0); _listener.Start(); } // port busy
         Port = ((IPEndPoint)_listener.LocalEndpoint).Port;
         _cts = new CancellationTokenSource();
-        _ = AcceptLoop(_cts.Token);
+        _ = AcceptLoop(_listener, tls: true, _cts.Token);
+        // Plain HTTP on this PC only, for a phone plugged in by USB (adb reverse makes the phone's "localhost" reach it).
+        // Phone browsers allow the camera on http://localhost, so there's no certificate warning over USB.
+        try
+        {
+            _loopback = new TcpListener(IPAddress.Loopback, Port + 1);
+            _loopback.Start();
+            UsbPort = Port + 1;
+            _ = AcceptLoop(_loopback, tls: false, _cts.Token);
+        }
+        catch (SocketException) { _loopback = null; UsbPort = 0; }
     }
+
+    private TcpListener? _loopback;
+    /// <summary>Port of the USB (localhost-only) listener; 0 if it couldn't start.</summary>
+    public int UsbPort { get; private set; }
+    /// <summary>The link a USB-connected phone opens (after adb reverse of <see cref="UsbPort"/>).</summary>
+    public string UsbLink => $"http://localhost:{UsbPort}/?t={Token}";
 
     /// <summary>Pairing links for every local network address (the QR uses the first).</summary>
     public IReadOnlyList<string> Links => LocalAddresses().Select(a => $"https://{a}:{Port}/?t={Token}").ToList();
@@ -102,18 +118,18 @@ public sealed class PhoneServer : IAsyncDisposable
         return list.Distinct().ToList();
     }
 
-    private async Task AcceptLoop(CancellationToken ct)
+    private async Task AcceptLoop(TcpListener listener, bool tls, CancellationToken ct)
     {
         while (!ct.IsCancellationRequested)
         {
             TcpClient client;
-            try { client = await _listener!.AcceptTcpClientAsync(ct); }
+            try { client = await listener.AcceptTcpClientAsync(ct); }
             catch { return; }
-            _ = Task.Run(() => Serve(client, ct), ct);
+            _ = Task.Run(() => Serve(client, tls, ct), ct);
         }
     }
 
-    private async Task Serve(TcpClient client, CancellationToken ct)
+    private async Task Serve(TcpClient client, bool tls, CancellationToken ct)
     {
         using var _ = client;
         client.NoDelay = true;
@@ -121,9 +137,14 @@ public sealed class PhoneServer : IAsyncDisposable
         LastVisitFrom = (client.Client.RemoteEndPoint as IPEndPoint)?.Address.ToString();
         try
         {
-            var ssl = new SslStream(client.GetStream(), false);
-            try { await ssl.AuthenticateAsServerAsync(new SslServerAuthenticationOptions { ServerCertificate = _cert }, ct); }
-            catch { TlsFailures++; throw; } // usually the browser refusing our certificate (user tapped Back)
+            Stream ssl = client.GetStream();
+            if (tls)
+            {
+                var secure = new SslStream(ssl, false);
+                try { await secure.AuthenticateAsServerAsync(new SslServerAuthenticationOptions { ServerCertificate = _cert }, ct); }
+                catch { TlsFailures++; throw; } // usually the browser refusing our certificate (user tapped Back)
+                ssl = secure;
+            }
             var (method, target, headers) = await ReadRequest(ssl, ct);
             var (path, query) = SplitTarget(target);
             bool authorised = query.TryGetValue("t", out var t) && CryptographicOperations.FixedTimeEquals(Encoding.ASCII.GetBytes(t), Encoding.ASCII.GetBytes(Token));
@@ -306,6 +327,7 @@ public sealed class PhoneServer : IAsyncDisposable
     {
         _cts?.Cancel();
         try { _listener?.Stop(); } catch { }
+        try { _loopback?.Stop(); } catch { }
         if (_active is { } ws) { try { ws.Abort(); } catch { } }
         _cert?.Dispose();
         await Task.CompletedTask;

@@ -150,6 +150,24 @@ public sealed partial class MainPage
             body.Children.Add(others);
         }
 
+        // Android over USB: no Wi-Fi, no certificate warning.
+        if (server.UsbPort > 0)
+        {
+            var usbNote = new TextBlock { FontSize = 13, TextWrapping = TextWrapping.Wrap, Visibility = Visibility.Collapsed };
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetLiveSetting(usbNote, Microsoft.UI.Xaml.Automation.Peers.AutomationLiveSetting.Polite);
+            var usb = new Button { Content = "Use a USB cable instead (Android)", HorizontalAlignment = HorizontalAlignment.Stretch };
+            usb.Click += async (_, _) =>
+            {
+                usb.IsEnabled = false;
+                usbNote.Text = "Looking for your phone on USB…"; usbNote.Visibility = Visibility.Visible;
+                var r = await PhoneUsb.ConnectAsync(server.UsbPort, server.UsbLink);
+                usbNote.Text = r.Message;
+                usb.IsEnabled = true;
+            };
+            body.Children.Add(usb);
+            body.Children.Add(usbNote);
+        }
+
         // "It's not connecting": plain-language reasons, based on what actually reached this PC.
         var tips = new TextBlock { FontSize = 13, TextWrapping = TextWrapping.Wrap, Visibility = Visibility.Collapsed };
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetLiveSetting(tips, Microsoft.UI.Xaml.Automation.Peers.AutomationLiveSetting.Polite);

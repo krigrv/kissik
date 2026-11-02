@@ -52,7 +52,7 @@ async function openCamera() {
 }
 
 function connect() {
-  ws = new WebSocket(`wss://${location.host}/ws?t=${encodeURIComponent(token)}`);
+  ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws?t=${encodeURIComponent(token)}`);
   ws.binaryType = 'arraybuffer';
   ws.onopen = () => { retries = 0; say('Live in KISSIK', 'live'); sendStatus(); };
   ws.onclose = () => {
