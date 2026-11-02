@@ -30,7 +30,7 @@ public sealed partial class MainPage
         MeetCamDot.Fill = Token(installed ? (_vcam.HasClients ? "SystemFillColorCriticalBrush" : "SystemFillColorSuccessBrush") : "ControlStrongStrokeColorDefaultBrush");
         AutomationProperties.SetName(MeetCamBtn, !installed ? "Meeting camera, not installed" : _vcam.HasClients ? "Meeting camera, in use by a meeting" : "Meeting camera, ready");
         if (!supported) MeetCamStatus.Text = "The meeting camera needs Windows 11.";
-        else if (!installed) MeetCamStatus.Text = "Install once (asks for admin permission). Then pick \"OpenKamera\" as the camera in Zoom, Teams, Meet, Discord or OBS.";
+        else if (!installed) MeetCamStatus.Text = $"Install once (asks for admin permission). Then pick \"{VirtualCamera.FriendlyName}\" as the camera in Zoom, Teams, Meet, Discord or OBS.";
         var cam = DeviceUsage.InUseBy(PrivacyDevice.Camera).Distinct().ToList();
         var mic = DeviceUsage.InUseBy(PrivacyDevice.Microphone).Distinct().ToList();
         var lines = new List<string>();

@@ -10,7 +10,7 @@ public sealed partial class MainPage
 {
     private IReadOnlyList<SponsorPick> _sponsorFeed = [];
     private SponsorPick? _sponsorShown;
-    private static string SponsorCache => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "OpenKamera", "sponsors.json");
+    private static string SponsorCache => Path.Combine(AppPaths.Data, "sponsors.json");
 
     private async Task InitSponsorsAsync()
     {

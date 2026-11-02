@@ -13,7 +13,7 @@ public sealed record BackgroundInfo(string Id, string Name, string Category, str
 public static class BackgroundLibrary
 {
     public static string UserFolder => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "OpenKamera", "Backgrounds");
+        AppPaths.Data, "Backgrounds");
 
     public static IReadOnlyList<BackgroundInfo> BuiltIn { get; } =
     [

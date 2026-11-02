@@ -914,7 +914,7 @@ public sealed partial class MainPage : Page
         try
         {
             string folder = string.IsNullOrWhiteSpace(_settings.ImageFolder)
-                ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "OpenKamera")
+                ? AppPaths.Pictures
                 : _settings.ImageFolder;
             Directory.CreateDirectory(folder);
             string path = Path.Combine(folder, $"OpenKamera-{DateTime.Now:yyyyMMdd-HHmmss}.png");
@@ -1053,7 +1053,7 @@ public sealed partial class MainPage : Page
     }
 
     private string RecordingFolder() => string.IsNullOrWhiteSpace(_settings.RecordingFolder)
-        ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyVideos), "OpenKamera")
+        ? AppPaths.Videos
         : _settings.RecordingFolder;
 
     /// <summary>Joins pieces left by a recording that was cut off by a crash or power loss.</summary>

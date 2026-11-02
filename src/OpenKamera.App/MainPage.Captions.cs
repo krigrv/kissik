@@ -18,7 +18,7 @@ public sealed partial class MainPage
 
     private sealed record CaptionImage(byte[] Pixels, int Width, int Height);
 
-    private static string SpeechRoot => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "OpenKamera", "Speech");
+    private static string SpeechRoot => Path.Combine(AppPaths.Data, "Speech");
 
     private async void CaptionsToggle_Click(object sender, RoutedEventArgs e)
     {

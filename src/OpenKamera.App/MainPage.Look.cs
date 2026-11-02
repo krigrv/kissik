@@ -98,7 +98,7 @@ public sealed partial class MainPage
             var rtb = new RenderTargetBitmap();
             await rtb.RenderAsync(Root);
             var px = (await rtb.GetPixelsAsync()).ToArray();
-            string folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "OpenKamera");
+            string folder = AppPaths.Pictures;
             Directory.CreateDirectory(folder);
             string path = Path.Combine(folder, $"OpenKamera-window-{DateTime.Now:yyyyMMdd-HHmmss}.png");
             var file = await (await Windows.Storage.StorageFolder.GetFolderFromPathAsync(folder)).CreateFileAsync(Path.GetFileName(path));

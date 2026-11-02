@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 namespace OpenKamera_App;
 
 /// <summary>
-/// Installs and registers the "OpenKamera" camera that meeting apps can choose (Windows 11 virtual camera).
+/// Installs and registers the "KISSIK" camera that meeting apps can choose (Windows 11 virtual camera).
 /// Install copies the media source DLL to ProgramData and registers it machine-wide (one UAC prompt); after
 /// that, <see cref="EnsureRegistered"/> asks Windows to list the camera. It stays listed even when OpenKamera
 /// is closed and then shows a friendly slate.

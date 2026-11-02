@@ -4,7 +4,7 @@ using Microsoft.UI.Xaml.Controls;
 namespace OpenKamera_App;
 
 // Connection watch: if a meeting app starts using the OpenKamera camera while no real camera is connected,
-// ask once to connect instead of leaving the meeting on the "OpenKamera" card.
+// ask once to connect instead of leaving the meeting on the "KISSIK" card.
 public sealed partial class MainPage
 {
     private DispatcherTimer? _connectWatch;

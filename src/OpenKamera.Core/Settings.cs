@@ -72,11 +72,10 @@ public sealed class AppSettings
 
     /// <summary>Imported <c>.cube</c> files are copied here.</summary>
     public static string LutFolder => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "OpenKamera", "LUTs");
+        AppPaths.Data, "LUTs");
 
     public static string DefaultPath => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "OpenKamera", "settings.json");
+        AppPaths.Data, "settings.json");
 
     public static AppSettings Load(string? path = null)
     {
@@ -84,7 +83,11 @@ public sealed class AppSettings
         try
         {
             if (File.Exists(path))
-                return JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(path)) ?? new();
+            {
+                var s = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(path)) ?? new();
+                s.ImageFolder = AppPaths.Remap(s.ImageFolder); // a folder picked inside the old OpenKamera folder
+                return s;
+            }
         }
         catch (JsonException) { /* fall through to defaults */ }
         catch (IOException) { /* fall through to defaults */ }
