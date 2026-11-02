@@ -286,6 +286,8 @@ class StreamService : LifecycleService() {
         }
     }
 
+    private val REJECTED = "rejected"
+
     /** Connects (USB first when adb reverse is set up, else Wi-Fi) and reconnects quickly whenever the link drops. */
     private suspend fun connectLoop() {
         var backoff = 500L
@@ -317,14 +319,24 @@ class StreamService : LifecycleService() {
                 override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
                     val certProblem = generateSequence(t) { it.cause }.any { it.message?.contains("certificate", true) == true }
                     done.complete(when {
-                        response?.code == 403 -> "KISSIK made a new pairing. Scan the code again."
-                        certProblem -> "Your PC's certificate changed. Scan the code in KISSIK again."
+                        response?.code == 403 -> REJECTED
+                        certProblem -> REJECTED
                         else -> "Can't reach your PC. Is KISSIK open, on the same Wi-Fi?"
                     })
                 }
             })
             val why = done.await()
             ws = null
+            if (why == REJECTED) {
+                // Retrying a refused pairing is pointless, and KISSIK blocks devices that keep sending wrong links.
+                // Wait quietly for the user to scan the new code.
+                Live.link.value = Link.Rejected
+                Live.message.value = "Scan the QR code in KISSIK again."
+                updateNotification("Scan the QR code in KISSIK again")
+                while (lifecycleScope.isActive && Pairing.load(this) == pairing) delay(1000)
+                backoff = 500L
+                continue
+            }
             Live.link.value = Link.Connecting
             Live.message.value = "$why Retrying…"
             updateNotification("Reconnecting…")

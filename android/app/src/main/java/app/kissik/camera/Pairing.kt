@@ -18,12 +18,12 @@ data class Pairing(val host: String, val port: Int, val token: String, val pin: 
     val usbUrl get() = "ws://localhost:${port + 1}/ws?t=$token"
 
     companion object {
-        /** Accepts the QR link (or anything with host, port and a 16-hex-digit token). Null if it isn't a KISSIK link. */
+        /** Accepts the QR link (host, port and a 32-hex-digit token; older KISSIK used 16). Null if it isn't a KISSIK link. */
         fun parse(link: String): Pairing? = runCatching {
             val u = Uri.parse(link.trim())
             val t = u.getQueryParameter("t") ?: return null
             val host = u.host ?: return null
-            if (u.scheme != "https" || !t.matches(Regex("[0-9a-fA-F]{16}"))) return null
+            if (u.scheme != "https" || !t.matches(Regex("[0-9a-fA-F]{16}([0-9a-fA-F]{16})?"))) return null
             Pairing(host, if (u.port > 0) u.port else 47820, t.lowercase(), null)
         }.getOrNull()
 

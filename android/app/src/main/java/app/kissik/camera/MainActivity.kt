@@ -99,9 +99,8 @@ private fun App(incoming: MutableState<String?>) {
 
     fun pairWith(link: String) {
         val p = Pairing.parse(link) ?: run { error = "That isn't a KISSIK pairing code. Open Phone in KISSIK on your PC and scan the code it shows."; return }
-        val old = Pairing.load(ctx)
-        // A new token or PC is a new pairing: drop the old certificate pin so the first connect pins the new one.
-        p.copy(pin = if (old?.host == p.host && old.token == p.token) old.pin else null).save(ctx)
+        // A scan means "trust this PC now": its certificate is pinned afresh on the next connect.
+        p.copy(pin = null).save(ctx)
         pairing = Pairing.load(ctx)
         prefs.edit().putBoolean("onboarded", true).apply()
         StreamService.reconnect(ctx)
@@ -260,6 +259,7 @@ private fun Home(pairing: Pairing?, onSettings: () -> Unit, onPair: () -> Unit) 
                 when {
                     link == Link.Wifi -> Chip("Live · Wi-Fi", K.live)
                     link == Link.Usb -> Chip("Live · USB", K.live)
+                    link == Link.Rejected -> Chip("Scan again", K.warn)
                     running -> Chip("Connecting", K.warn)
                     else -> Chip("Idle", K.muted)
                 }
@@ -285,6 +285,8 @@ private fun Home(pairing: Pairing?, onSettings: () -> Unit, onPair: () -> Unit) 
             } else {
                 if (!live && message.isNotEmpty()) Text(message, color = K.text, fontSize = 14.sp, textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp))
+                if (link == Link.Rejected) Button(onPair, Modifier.fillMaxWidth().padding(bottom = 12.dp).height(54.dp), shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = K.accent, contentColor = Color.White)) { Text("Scan the code", fontSize = 16.sp) }
                 if (preview == null && !running) Text("Paired with ${pairing.host}", color = K.muted, fontSize = 15.sp,
                     textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp))
                 Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(K.card.copy(alpha = 0.92f)).padding(12.dp)) {

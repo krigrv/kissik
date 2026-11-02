@@ -8,7 +8,8 @@ object Prefs {
     fun of(ctx: Context) = ctx.getSharedPreferences("kissik", Context.MODE_PRIVATE)
 }
 
-enum class Link { Off, Connecting, Wifi, Usb }
+/** Rejected: the PC refused this pairing (new code, or its certificate changed). Waits for a new scan. */
+enum class Link { Off, Connecting, Wifi, Usb, Rejected }
 
 /** Shared between the screen and the streaming service. Choices persist, so a reconnect keeps lens and mic. */
 object Live {
