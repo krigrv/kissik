@@ -282,6 +282,9 @@
                             <MenuFlyoutItem x:Name="SaveWindowPicture" Text="Save a picture of this window" Click="SaveWindowPicture_Click">
                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE722;" /></MenuFlyoutItem.Icon>
                             </MenuFlyoutItem>
+                            <MenuFlyoutItem Text="Recordings and snapshots" Click="RecordingsBtn_Click">
+                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B2;" /></MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
                             <MenuFlyoutItem Text="Open the gallery" Click="GalleryBtn_Click">
                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xF0E2;" /></MenuFlyoutItem.Icon>
                             </MenuFlyoutItem>

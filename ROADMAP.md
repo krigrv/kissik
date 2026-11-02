@@ -167,7 +167,7 @@ everything from the PC, switching between paired phones/PCs.
 - [x] P1 FPS counter in the HUD (processed frames per second) + camera mode + REC timer
 - [ ] P1 Choose save location; use output profiles
 - [x] P3 3-2-1 countdown (press Record again to cancel), pause/resume with no gap (Ctrl+Shift+R)
-- [ ] P3 Recording gallery: browse, trim, share
+- [x] P3 Recordings window: browse with thumbnails, play, trim (keeps original), share sheet, show in folder, delete to Recycle Bin
 - [ ] P3 Dual-format (landscape + portrait) recording with separate canvases
 - [ ] P3 Isolated per-source recordings
 
