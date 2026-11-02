@@ -1020,7 +1020,7 @@
         </Border>
 
         <!-- ═══ Bottom centre: scene filmstrip ═══ -->
-        <Border x:Name="Filmstrip" Style="{StaticResource Glass}" Height="118" Margin="340,0,260,12" Padding="10"
+        <Border x:Name="Filmstrip" Style="{StaticResource Glass}" Height="118" Margin="340,0,260,12" Padding="10,8"
                 HorizontalAlignment="Center" VerticalAlignment="Bottom">
             <Grid ColumnSpacing="10">
                 <Grid.ColumnDefinitions>
@@ -1077,14 +1077,16 @@
                             <Setter Property="Padding" Value="0" />
                             <Setter Property="Margin" Value="0,0,10,0" />
                             <Setter Property="MinWidth" Value="0" />
+                            <Setter Property="MinHeight" Value="0" />
+                            <Setter Property="VerticalContentAlignment" Value="Top" />
                             <Setter Property="Width" Value="156" />
                             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
                         </Style>
                     </ListView.ItemContainerStyle>
                     <ListView.ItemTemplate>
                         <DataTemplate x:DataType="core:SceneDocument">
-                            <Grid Width="148" Height="96" RowSpacing="4">
-                                <Grid.RowDefinitions><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                            <Grid Width="148" Height="94" RowSpacing="3">
+                                <Grid.RowDefinitions><RowDefinition Height="74" /><RowDefinition Height="17" /></Grid.RowDefinitions>
                                 <Grid CornerRadius="10" Background="#44000000">
                                     <Viewbox Stretch="UniformToFill">
                                         <Canvas Width="320" Height="180" />
