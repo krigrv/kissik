@@ -69,7 +69,7 @@ What users expect, in order: it connects every time; setup in under 2 minutes (Q
 4. [x] Promise: every resolution free, no watermark, no ads, every computer — README + welcome; plain "Just my name" scene
 5. [ ] Never take over the system default mic; virtual mic stays opt-in; the hardware mute key always works
 6. [ ] Quit really quits (no hidden background process); clear on/off state
-7. [ ] Phone battery/heat governor: lower bitrate when hot, dark phone screen while streaming
+7. [~] Phone battery saver: below 20% and not charging → 480p once, with a message. Heat (browsers can't read temperature) and dark screen still to do
 8. [x] Latency meter + smooth-first mode
 9. [x] One short first-run welcome (3 steps + free promise, once); command bar buttons have words
 10. [x] Phone troubleshooter + "Copy diagnostics" (View options; no personal data)
@@ -80,7 +80,7 @@ More from reviews of the desktop + iPhone apps (2026-11-02; see docs/research/co
 14. [ ] Compatibility test matrix per release (meeting apps, Chromium/Firefox/Safari, streaming apps), results published
 15. [ ] Opt-in crash reporting
 16. [ ] Main app needs no admin rights; admin only for optional virtual devices; short IT/deployment guide
-17. [~] Audio-drop watchdog: engine stall or Windows audio error → restart within ~3 s and warn, recording keeps going (done). Still to do: per-mic and phone-audio silence detection
+17. [~] Audio-drop watchdog: engine stall or Windows audio error → restart within ~3 s and warn, recording keeps going (done). Phone mic: dropped with a reason when it stops sending (done). Device mics rely on the engine watchdog
 18. [x] Explain resolution limits: camera ("supports up to 1080p, scaled up") and phone ("sending 720p; pick 1080p on the phone")
 19. [ ] Public status / known-issues page linked from the troubleshooter
 From desktop studio reviews (Windows + Mac):

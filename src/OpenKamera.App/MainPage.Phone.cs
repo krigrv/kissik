@@ -15,6 +15,18 @@ public sealed partial class MainPage
     private const string PhoneMicId = "openkamera:phone-mic";
     private AudioTrack? _phoneMicTrack;
     private int _phoneLimitShown;
+    private DateTime _phoneAudioAt;
+    private bool _phoneSaver;
+
+    /// <summary>Watchdog: the phone mic stopped sending (page in background, mic switched off) — drop its track and say why.</summary>
+    private void CheckPhoneMic()
+    {
+        if (_phoneMicTrack is null || DateTime.UtcNow - _phoneAudioAt < TimeSpan.FromSeconds(4)) return;
+        _audio.RemovePushTrack(PhoneMicId); _phoneMicTrack = null; BuildMicTracks();
+        Status(_phone?.PhoneConnected == true
+            ? "The phone's microphone stopped. Keep the KISSIK page open on the phone (screen on), or tap Mic on again."
+            : "The phone's microphone stopped because the phone disconnected.");
+    }
     private ContentDialog? _phoneDialog;
 
     /// <summary>Phone picked as the source: make sure the server runs, and show the QR code unless the phone is already here.</summary>
@@ -58,6 +70,7 @@ public sealed partial class MainPage
                 });
                 return;
             }
+            _phoneAudioAt = DateTime.UtcNow;
             _audio.PushAudio(PhoneMicId, samples);
         };
         server.ConnectionChanged += connected => DispatcherQueue.TryEnqueue(() =>
@@ -76,7 +89,15 @@ public sealed partial class MainPage
                 _phoneLimitShown = st.Height;
                 Status($"Your phone is sending {st.Height}p. Pick 1080p on the phone page for a sharper picture; if it stays at {st.Height}p, that's the most this phone's browser offers.");
             }
-            if (st.Battery is < 0.15 && st.Charging != true) Status("Your phone's battery is low. Plug it in to keep streaming.");
+            // Battery saver: below 20% and not charging, drop the phone to 480p once (less work = less heat and drain).
+            if (st.Battery is < 0.20 && st.Charging != true && !_phoneSaver && st.Height > 480 && _phone is { } ph)
+            {
+                _phoneSaver = true;
+                _ = ph.SendAsync("q:480");
+                Status($"Your phone is at {st.Battery:P0}. Switched it to 480p to save battery. Plug it in and pick a higher quality on the phone page.");
+            }
+            else if (st.Battery is < 0.15 && st.Charging != true) Status("Your phone's battery is low. Plug it in to keep streaming.");
+            if (st.Charging == true) _phoneSaver = false;
         });
         return server;
     }
