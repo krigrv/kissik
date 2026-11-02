@@ -25,6 +25,10 @@ class H264Encoder(val width: Int, val height: Int, fps: Int, surfaceInput: Boole
     private val hdr = kind == "hevc-hdr"
     private val mime = if (hevc) MediaFormat.MIMETYPE_VIDEO_HEVC else MediaFormat.MIMETYPE_VIDEO_AVC
     private val codec = MediaCodec.createEncoderByType(mime)
+    /** Whether this encoder supports gradual intra refresh. */
+    val intraRefresh = runCatching {
+        codec.codecInfo.getCapabilitiesForType(mime).isFeatureSupported(MediaCodecInfo.CodecCapabilities.FEATURE_IntraRefresh)
+    }.getOrDefault(false)
     private var config: ByteArray? = null
     /**
      * Added to the encoder's timestamps to put them on SystemClock.elapsedRealtime: camera timestamps are either
@@ -46,7 +50,13 @@ class H264Encoder(val width: Int, val height: Int, fps: Int, surfaceInput: Boole
             if (surfaceInput) setLong(MediaFormat.KEY_REPEAT_PREVIOUS_FRAME_AFTER, 100_000) // a still scene keeps sending frames
             setInteger(MediaFormat.KEY_BIT_RATE, bitrate)
             setInteger(MediaFormat.KEY_FRAME_RATE, fps)
-            setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 2)
+            // Smooth keyframes: where the encoder can, refresh the picture a slice at a time over one second
+            // (intra refresh) instead of a big full keyframe every 2 s, which caused decode spikes on the PC.
+            // Full keyframes still come on connect and on request; a safety one every 10 s.
+            if (intraRefresh) {
+                setInteger(MediaFormat.KEY_INTRA_REFRESH_PERIOD, fps)
+                setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 10)
+            } else setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 2)
             setInteger(MediaFormat.KEY_PRIORITY, 0) // real-time
             setInteger(MediaFormat.KEY_OPERATING_RATE, fps)
             // Low latency: no B-frames (they make the encoder hold frames back) and output each frame as it's ready.
@@ -69,7 +79,8 @@ class H264Encoder(val width: Int, val height: Int, fps: Int, surfaceInput: Boole
         runCatching { codec.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE) }.onFailure {
             // Some encoders refuse the low-latency profile settings: retry with the encoder's own defaults.
             // (Keep the 10-bit profile for HDR: without it the picture would be wrong, so let that fail instead.)
-            listOfNotNull(MediaFormat.KEY_PROFILE.takeIf { !hdr }, MediaFormat.KEY_LEVEL, MediaFormat.KEY_LATENCY, MediaFormat.KEY_MAX_B_FRAMES)
+            listOfNotNull(MediaFormat.KEY_PROFILE.takeIf { !hdr }, MediaFormat.KEY_LEVEL, MediaFormat.KEY_LATENCY, MediaFormat.KEY_MAX_B_FRAMES,
+                MediaFormat.KEY_INTRA_REFRESH_PERIOD)
                 .forEach { format.removeKey(it) }
             codec.reset()
             codec.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)

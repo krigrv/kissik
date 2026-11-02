@@ -258,7 +258,7 @@ class StreamService : LifecycleService() {
                 (android.os.SystemClock.elapsedRealtimeNanos() - System.nanoTime()) / 1000 else 0L
             netLog("video timebase $timebase, offset ${enc.clockOffsetUs} us")
             encoder?.release(); encoder = enc; needKey = true
-            netLog("zero-copy ${key.codec} encoder ${size.width}x${size.height} @ $videoFps fps")
+            netLog("zero-copy ${key.codec} encoder ${size.width}x${size.height} @ $videoFps fps (asked ${key.quality}p; lens can do ${videoSizes.joinToString { "${it.width}x${it.height}" }}), intra refresh ${enc.intraRefresh}")
             request.provideSurface(enc.surface, encoderExecutor) { if (encoder === enc) encoder = null; enc.release() }
             lifecycleScope.launch { sendStatus() }
         }).setTargetFrameRate(android.util.Range(videoFps, videoFps))
@@ -285,6 +285,7 @@ class StreamService : LifecycleService() {
             .recoverCatching { provider.bindToLifecycle(this, other, *useCases.toTypedArray()) }.getOrNull()
         if (camera == null) Live.message.value = "Couldn't open the camera. Is another app using it?"
         readCapabilities()
+        readVideoSizes()
         Pro.caps.value = camera?.cameraInfo?.let(Pro::readCaps)
         Live.hasTorch.value = camera?.cameraInfo?.hasFlashUnit()
         if (Live.hasTorch.value != true) Live.torch.value = false
@@ -370,6 +371,19 @@ class StreamService : LifecycleService() {
             lifecycleScope.launch { sendStatus() }
         }
         if (ws != null) enc.encode(image)
+    }
+
+    /** Video sizes this lens can stream as hardware video (CameraX's own table), largest first: "videoSizes" in status. */
+    @Volatile private var videoSizes: List<android.util.Size> = emptyList()
+    private fun readVideoSizes() {
+        val info = camera?.cameraInfo ?: return
+        videoSizes = runCatching {
+            val caps = androidx.camera.video.Recorder.getVideoCapabilities(info)
+            caps.getSupportedQualities(androidx.camera.core.DynamicRange.SDR).mapNotNull {
+                androidx.camera.video.QualitySelector.getResolution(info, it)
+            }.sortedByDescending { it.width * it.height }
+        }.getOrDefault(emptyList())
+        netLog("video sizes for this lens: ${videoSizes.joinToString { "${it.width}x${it.height}" }}")
     }
 
     /** Largest YUV size and highest frame rate this lens offers, reported to the PC as maxW/maxH/maxFps. */
@@ -575,6 +589,10 @@ class StreamService : LifecycleService() {
         val rot = if (enc != null) sensorRotation() else 0 // H.264 frames come as the sensor sees them
         if (enc != null) json.put("w", if (rot % 180 == 0) enc.width else enc.height).put("h", if (rot % 180 == 0) enc.height else enc.width)
         json.put("rot", rot)
+        // What hardware video this lens can actually do (the PC's size menu can follow this), largest first.
+        json.put("videoSizes", org.json.JSONArray(videoSizes.map { "${maxOf(it.width, it.height)}x${minOf(it.width, it.height)}" }))
+        videoSizes.firstOrNull()?.let { json.put("videoMaxW", maxOf(it.width, it.height)).put("videoMaxH", minOf(it.width, it.height)) }
+        encoder?.let { json.put("intraRefresh", it.intraRefresh) }
         json.put("txFps", txFps).put("txQueueKB", (socket?.queueSize() ?: 0) / 1024)
         // Where the phone's share of the delay goes: sensor capture → encoded, then waiting in the send queue.
         encoder?.let { e ->
