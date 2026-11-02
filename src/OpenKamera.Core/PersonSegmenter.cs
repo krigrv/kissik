@@ -22,6 +22,9 @@ public sealed class PersonSegmenter : IDisposable
     private float[]? _previous;             // temporal smoothing state
 
     public SegmentationQuality Quality { get; }
+    /// <summary>The model's input size; frames are sampled (nearest) to this before inference.</summary>
+    public int InputWidth => _inW;
+    public int InputHeight => _inH;
     public bool UsesGpu { get; }
 
     /// <summary>0 = no smoothing; higher keeps more of the previous mask (reduces edge flicker).</summary>

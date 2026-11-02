@@ -69,6 +69,73 @@ public class GpuEffectsTests(ITestOutputHelper log)
         finally { FrameProcessor.UseGpu = was; }
     }
 
+    [Theory]
+    [InlineData(false, 0, 1.0)] [InlineData(true, 90, 1.5)] [InlineData(false, 180, 2.0)] [InlineData(true, 270, 1.0)]
+    public void WholeFramePathMatches(bool mirror, int rotation, double zoom) =>
+        CompareWhole(Recipe(bg: new(BackgroundMode.Blur, 0.5), adj: new(Contrast: 1.1, Sharpness: 0.4))
+            with { Transform = new(mirror, rotation, zoom, 0.3, -0.2), OutputWidth = 288, OutputHeight = 162 });
+
+    [Theory]
+    [InlineData(false, 0, 1.0)] [InlineData(true, 90, 1.5)] [InlineData(false, 180, 2.0)] [InlineData(true, 270, 1.0)]
+    public void FramingAndFitMatch(bool mirror, int rotation, double zoom) =>
+        CompareWhole(Recipe(adj: new(Saturation: 1.2)) with { Transform = new(mirror, rotation, zoom, 0.3, -0.2), OutputWidth = 288, OutputHeight = 162 });
+
+    [Fact]
+    public void WholeFramePathReplaceAndScene()
+    {
+        var scene = new SceneDocument { Background = "#203040" };
+        scene.Layers.Add(new SceneLayer { Kind = "camera", X = 0.5, Y = 0.1, W = 0.45, H = 0.6, Shape = "ellipse" });
+        CompareWhole(Recipe(bg: new(BackgroundMode.Replace, BackgroundId: BackgroundLibrary.BuiltIn[0].Id))
+            with { Scene = scene, OutputWidth = W, OutputHeight = H });
+    }
+
+    /// <summary>FrameProcessor end to end, real segmentation included: GPU path against the CPU path.</summary>
+    private void CompareWhole(FrameRecipe r)
+    {
+        if (GpuEffects.Shared is null) { log.WriteLine("No Direct3D 11 GPU: skipped."); return; }
+        if (!File.Exists(PersonSegmenter.ModelPath(SegmentationQuality.Fast))) { log.WriteLine("No model: skipped."); return; }
+        var raw = Frame();
+        using var bmp = Windows.Graphics.Imaging.SoftwareBitmap.CreateCopyFromBuffer(
+            System.Runtime.InteropServices.WindowsRuntime.WindowsRuntimeBufferExtensions.AsBuffer(raw),
+            Windows.Graphics.Imaging.BitmapPixelFormat.Bgra8, W, H, Windows.Graphics.Imaging.BitmapAlphaMode.Premultiplied);
+        bool was = FrameProcessor.UseGpu;
+        try
+        {
+            FrameProcessor.UseGpu = true;
+            using var gb = new BackgroundPipeline();
+            var g = FrameProcessor.ProcessPixels(bmp, r, gb);
+            FrameProcessor.UseGpu = false;
+            using var cb = new BackgroundPipeline();
+            var c = FrameProcessor.ProcessPixels(bmp, r, cb);
+            Assert.Null(gb.LastError);
+            Assert.Equal((c.Width, c.Height), (g.Width, g.Height));
+            if (!r.Background.NeedsMask) { Diff(c.Pixels, g.Pixels); return; }
+            // Two runs of the model (two DirectML sessions) can differ in the last bits, and the edge ramp turns that
+            // into visible steps on a few outline pixels, so only a thin band there may differ.
+            int off = 0; long sum = 0;
+            for (int i = 0; i < c.Pixels.Length; i++) { int d = Math.Abs(c.Pixels[i] - g.Pixels[i]); sum += d; if (d > 1) off++; }
+            log.WriteLine($"mean diff {(double)sum / c.Pixels.Length:F3}, {off} of {c.Pixels.Length} channels differ by more than 1");
+            Assert.True(off <= c.Pixels.Length / 200, $"{off} channels differ by more than 1");
+            Assert.True(sum < c.Pixels.Length / 20, "mean difference above 0.05 of a level");
+        }
+        finally { FrameProcessor.UseGpu = was; }
+    }
+
+    private void Diff(byte[] c, byte[] g)
+    {
+        Assert.Equal(c.Length, g.Length);
+        int max = 0, off = 0;
+        for (int i = 0; i < c.Length; i++)
+        {
+            int d = Math.Abs(c[i] - g[i]);
+            max = Math.Max(max, d);
+            if (d > 1) off++;
+        }
+        log.WriteLine($"max diff {max}, {off} of {c.Length} channels differ by more than 1");
+        Assert.True(max <= 2, $"max channel difference {max}");
+        Assert.True(off <= c.Length / 1000, $"{off} channels differ by more than 1");
+    }
+
     private static FrameRecipe Recipe(BackgroundSettings? bg = null, ImageFilters.Adjustments? adj = null) =>
         FrameRecipe.Passthrough with { Background = bg ?? BackgroundSettings.Off, Adjustments = adj ?? ImageFilters.Adjustments.Neutral };
 

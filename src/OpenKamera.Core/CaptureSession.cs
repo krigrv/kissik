@@ -16,6 +16,12 @@ public sealed class CaptureSession : IAsyncDisposable
 
     public VideoDeviceController? Controls { get; private set; }
 
+    /// <summary>
+    /// Deliver frames in the camera's own NV12 / YUY2 instead of converting them to BGRA on the CPU; the GPU frame
+    /// path converts them on upload (<see cref="GpuEffects.ProcessCamera"/>). Other formats still arrive as BGRA.
+    /// </summary>
+    public bool KeepYuv { get; init; }
+
     /// <summary>The most recent raw frame (do not dispose; it is replaced as frames arrive).</summary>
     public SoftwareBitmap? Latest => _latest;
     public event Action<SoftwareBitmap>? FrameAvailable;
@@ -54,7 +60,10 @@ public sealed class CaptureSession : IAsyncDisposable
             catch (Exception) { /* device refused; keep its current format */ }
         }
         Mode = source.CurrentFormat?.VideoFormat is not null ? ToMode(source.CurrentFormat) : null;
-        _reader = await _capture.CreateFrameReaderAsync(source, MediaEncodingSubtypes.Bgra8);
+        string subtype = KeepYuv && source.CurrentFormat?.Subtype is { } st
+            && (st.Equals(MediaEncodingSubtypes.Nv12, StringComparison.OrdinalIgnoreCase) || st.Equals(MediaEncodingSubtypes.Yuy2, StringComparison.OrdinalIgnoreCase))
+            ? st : MediaEncodingSubtypes.Bgra8;
+        _reader = await _capture.CreateFrameReaderAsync(source, subtype);
         _reader.FrameArrived += OnFrameArrived;
         await _reader.StartAsync();
     }
@@ -117,12 +126,11 @@ public sealed class CaptureSession : IAsyncDisposable
         SoftwareBitmap? copy = null;
         try
         {
-            if (vmf.SoftwareBitmap is { } bmp)
-                copy = SoftwareBitmap.Convert(bmp, BitmapPixelFormat.Bgra8, BitmapAlphaMode.Premultiplied);
+            if (vmf.SoftwareBitmap is { } bmp) copy = Own(bmp);
             else if (vmf.Direct3DSurface is { } surface)
             {
                 using var raw = await SoftwareBitmap.CreateCopyFromSurfaceAsync(surface);
-                copy = SoftwareBitmap.Convert(raw, BitmapPixelFormat.Bgra8, BitmapAlphaMode.Premultiplied);
+                copy = Own(raw);
             }
         }
         catch { /* frame raced with stop */ }
@@ -131,6 +139,10 @@ public sealed class CaptureSession : IAsyncDisposable
         old?.Dispose();
         FrameAvailable?.Invoke(copy);
     }
+
+    private SoftwareBitmap Own(SoftwareBitmap b) => KeepYuv && YuvConvert.IsYuv(b)
+        ? SoftwareBitmap.Copy(b)
+        : SoftwareBitmap.Convert(b, BitmapPixelFormat.Bgra8, BitmapAlphaMode.Premultiplied);
 
     public async Task SaveSnapshotAsync(string path, FrameRecipe recipe, BackgroundPipeline? background = null)
     {

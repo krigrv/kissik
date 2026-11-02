@@ -1,3 +1,4 @@
+using Windows.Graphics.Imaging;
 using Microsoft.UI.Xaml.Media.Imaging;
 using OpenKamera.Core;
 
@@ -54,7 +55,10 @@ public sealed partial class MainPage
             try
             {
                 if (_rawBuf?.Length != w * h * 4) _rawBuf = new byte[w * h * 4];
-                raw.CopyToBuffer(System.Runtime.InteropServices.WindowsRuntime.WindowsRuntimeBufferExtensions.AsBuffer(_rawBuf));
+                // The camera may deliver NV12 / YUY2 for the GPU path.
+                using var bgra = raw.BitmapPixelFormat == BitmapPixelFormat.Bgra8 ? null
+                    : SoftwareBitmap.Convert(raw, BitmapPixelFormat.Bgra8, BitmapAlphaMode.Premultiplied);
+                (bgra ?? raw).CopyToBuffer(System.Runtime.InteropServices.WindowsRuntime.WindowsRuntimeBufferExtensions.AsBuffer(_rawBuf));
             }
             catch { return; } // the frame was replaced while copying
             buf = _rawBuf;
