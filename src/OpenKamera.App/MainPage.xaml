@@ -143,7 +143,7 @@
             <TextBlock Foreground="{ThemeResource TextFillColorPrimaryBrush}" FontSize="22" HorizontalAlignment="Center" Text="No camera connected" />
             <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="14" HorizontalAlignment="Center"
                        Text="Pick a device in the Camera panel and press Connect." />
-            <TextBlock x:Name="EmptyBusy" Foreground="#FFFF8A80" FontSize="13" HorizontalAlignment="Center" TextWrapping="Wrap" MaxWidth="420" />
+            <TextBlock x:Name="EmptyBusy" Foreground="{ThemeResource SystemFillColorCriticalBrush}" FontSize="13" HorizontalAlignment="Center" TextWrapping="Wrap" MaxWidth="420" />
             <Button x:Name="EmptyConnectBtn" Content="Connect camera" Click="EmptyConnect_Click" HorizontalAlignment="Center"
                     Style="{StaticResource AccentButtonStyle}" CornerRadius="12" Padding="22,9" FontSize="15"
                     AutomationProperties.Name="Connect camera" />
@@ -194,7 +194,7 @@
                             <StackPanel Width="320" Spacing="10">
                                 <TextBlock Text="Meeting camera" FontSize="16" FontWeight="SemiBold" />
                                 <TextBlock x:Name="MeetCamStatus" TextWrapping="Wrap" FontSize="13" />
-                                <TextBlock x:Name="MeetCamLive" TextWrapping="Wrap" FontSize="12" Foreground="#FFFF8A80" />
+                                <TextBlock x:Name="MeetCamLive" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource SystemFillColorCriticalBrush}" />
                                 <Button Content="Check my setup" Click="MeetingCheck_Click" HorizontalAlignment="Stretch"
                                         ToolTipService.ToolTip="Tests camera, framing, light, microphone and the meeting camera" AutomationProperties.HelpText="Tests camera, framing, light, microphone and the meeting camera" />
                                 <Button x:Name="MeetCamInstallBtn" Content="Install the KISSIK camera" Click="MeetCamInstall_Click"

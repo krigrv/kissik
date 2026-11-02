@@ -137,8 +137,8 @@ a live Narrator, 200% text and high-contrast pass on a running app is still open
 - [x] Focus order follows reading order: top bar (centre, then right), left panel tabs and content,
       right panel, filmstrip, then Simple-mode buttons when shown.
 - [x] Visible focus: the WinUI system focus rectangle is kept on every control (no `UseSystemFocusVisuals="False"` anywhere).
-- [ ] The overlay canvas (dragging scene layers) is mouse/touch only. Layers can be moved from the Layers tab
-      fields instead; a keyboard nudge (arrow keys on the selected layer) is a v1.1 item.
+- [x] Scene layers can be moved without a mouse: Ctrl+arrow moves the selected layer 1% of the picture,
+      Ctrl+Shift+arrow 5%. Each move is one undo step and Narrator says the new position.
 
 ### Narrator announcements for state changes
 - [x] Every status message is now raised as a UIA notification (`RaiseNotificationEvent`, ImportantMostRecent)
@@ -163,9 +163,10 @@ a live Narrator, 200% text and high-contrast pass on a running app is still open
 - [x] All text uses WinUI text styles or relative sizes that follow Windows "Text size"; nothing uses
       fixed-height text containers in the top bar now (`Height` → `MinHeight`), so it grows instead of clipping.
 - [x] Every theme colour is a Windows theme brush (light, dark and high contrast follow automatically).
-- [ ] Some fixed colours remain and should switch to system brushes under high contrast: the soft red
-      warning text (`#FFFF8A80`: busy camera, meeting camera live, shutter label), the caption bar
-      (white on black, readable but ignores the user's HC colours) and the prompter (white on near-black by design).
+- [x] No fixed colours under a contrast theme: warning text (busy camera, meeting camera live, shutter label)
+      uses the Windows critical colour; code-built UI picks from the HighContrast theme dictionary; the caption bar,
+      the meeting check icons and the prompter switch to the user's own window and text colours. Switching the
+      contrast theme while KISSIK is open re-applies them.
 - [ ] Left panel is a fixed 316 px wide: at 200% text, long labels wrap (they are set to wrap or trim);
       not yet checked by eye on a running app.
 

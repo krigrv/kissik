@@ -26,7 +26,7 @@ public sealed partial class MainPage
             _ => ("", "Visible"),
         };
         ShutterText.Foreground = mode == ShutterMode.Off ? Token("DgText")
-            : new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 0xFF, 0x8A, 0x80));
+            : Token("SystemFillColorCriticalBrush");
         Status(mode switch
         {
             ShutterMode.Blur => "Meeting and recording see a blurred picture. Your preview is unchanged.",

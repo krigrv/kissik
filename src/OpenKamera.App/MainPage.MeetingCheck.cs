@@ -52,7 +52,7 @@ public sealed partial class MainPage
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             row.ColumnDefinitions.Add(new ColumnDefinition());
             row.Children.Add(new FontIcon { Glyph = glyph, FontSize = 16, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 2, 0, 0),
-                Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(color) });
+                Foreground = IsHighContrast ? Token("DgText") : new Microsoft.UI.Xaml.Media.SolidColorBrush(color) });
             var text = new StackPanel();
             text.Children.Add(new TextBlock { Text = r.Item, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold });
             text.Children.Add(new TextBlock { Text = r.Message, TextWrapping = TextWrapping.Wrap, Opacity = 0.8, FontSize = 13 });
