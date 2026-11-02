@@ -123,6 +123,7 @@ public sealed class CaptureSession : IAsyncDisposable
     {
         using var frame = sender.TryAcquireLatestFrame();
         if (frame?.VideoMediaFrame is not { } vmf) return;
+        if (frame.SystemRelativeTime is { } captured) LastCaptureTime = captured;
         SoftwareBitmap? copy = null;
         try
         {
@@ -139,6 +140,11 @@ public sealed class CaptureSession : IAsyncDisposable
         old?.Dispose();
         FrameAvailable?.Invoke(copy);
     }
+
+    /// <summary>When the newest camera frame was captured, on the system clock (QPC); compare with <see cref="Now"/>.</summary>
+    public TimeSpan? LastCaptureTime { get; private set; }
+    /// <summary>The system clock the camera stamps its frames with.</summary>
+    public static TimeSpan Now => TimeSpan.FromSeconds(System.Diagnostics.Stopwatch.GetTimestamp() / (double)System.Diagnostics.Stopwatch.Frequency);
 
     private SoftwareBitmap Own(SoftwareBitmap b) => KeepYuv && YuvConvert.IsYuv(b)
         ? SoftwareBitmap.Copy(b)

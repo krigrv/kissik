@@ -24,6 +24,7 @@ public sealed partial class MainPage : Page
     private readonly System.Diagnostics.Stopwatch _recordClock = new();
     private DateTimeOffset _lastSaved = DateTimeOffset.MinValue;
     // Immutable snapshots, swapped on the UI thread and read on the frame thread.
+    private double _latencyMs;
     private volatile ImageFilters.Adjustments _adj = ImageFilters.Adjustments.Neutral;
     private volatile FrameTransform _transform = FrameTransform.Identity;
     private readonly List<Lut3D> _luts = [];
@@ -600,6 +601,8 @@ public sealed partial class MainPage : Page
             {
                 var src = new SoftwareBitmapSource();
                 await src.SetBitmapAsync(copy);
+                // Camera-to-screen delay: from the sensor's capture stamp to the picture handed to the screen.
+                if (_session?.LastCaptureTime is { } cap) _latencyMs = _latencyMs * 0.9 + (CaptureSession.Now - cap).TotalMilliseconds * 0.1;
                 PreviewImage.Source = src;
                 string fx = _bg.NeedsMask
                     ? (_bgPipeline.LastError is { } err ? $" · effects error: {err}" : $" · effects {_bgPipeline.LastMs:0} ms{(_bgPipeline.UsesGpu ? " GPU" : " CPU")}")
@@ -609,7 +612,7 @@ public sealed partial class MainPage : Page
                     RecordLabel.Text = $"{_recordClock.Elapsed:mm\\:ss}";
                     RecPillText.Text = _recPaused ? $"❚❚ PAUSED {_recordClock.Elapsed:mm\\:ss}" : $"● REC {_recordClock.Elapsed:mm\\:ss}";
                 }
-                HudText.Text = $"{copy.PixelHeight}p {_fps.Fps:0} fps · {_procMs:0} ms{(_smooth.Level > 0 ? " · smooth-first" : "")}{fx}{(_exposureCheck ? " · " + _exposureNote : "")}";
+                HudText.Text = $"{copy.PixelHeight}p {_fps.Fps:0} fps · {_procMs:0} ms{(_latencyMs > 0 && DeviceBox.SelectedItem != PhoneDevice ? $" · delay {_latencyMs:0} ms" : "")}{PhoneRates()}{(_smooth.Level > 0 ? " · smooth-first" : "")}{fx}{(_exposureCheck ? " · " + _exposureNote : "")}";
                 if (_session?.Mode is { } m) { SourceInfo.Text = $"{m.Width}×{m.Height} @ {m.Fps:0}"; RefreshSponsor(); }
             }
             catch (Exception ex) when (_session is not null) { Status("Preview error: " + ex.Message); }

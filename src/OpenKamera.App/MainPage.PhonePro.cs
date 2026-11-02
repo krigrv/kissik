@@ -243,6 +243,20 @@ public sealed partial class MainPage
     // ───── H.264 ─────
 
     private H264Decoder? _h264;
+    private int _h264In, _h264Out, _h264InRate, _h264OutRate; private DateTime _h264RateAt;
+
+    /// <summary>Packets in and pictures out per second, for the HUD (shows where a slowdown is).</summary>
+    private string PhoneRates()
+    {
+        if (_h264 is null) return "";
+        var now = DateTime.UtcNow;
+        if (now - _h264RateAt >= TimeSpan.FromSeconds(1))
+        {
+            double s = (now - _h264RateAt).TotalSeconds; _h264RateAt = now;
+            _h264InRate = (int)(Interlocked.Exchange(ref _h264In, 0) / s); _h264OutRate = (int)(Interlocked.Exchange(ref _h264Out, 0) / s);
+        }
+        return $" · phone {_h264InRate} in / {_h264OutRate} decoded";
+    }
     private bool _h264Failed;      // gave up for this run: stay on JPEG
     private bool _h264Asked;       // codec:h264 sent on this connection
     private readonly Queue<DateTime> _h264Errors = new();
@@ -264,7 +278,7 @@ public sealed partial class MainPage
             try
             {
                 var dec = H264Decoder.Create();
-                dec.FrameDecoded += f => _session?.PushBgra(f);
+                dec.FrameDecoded += f => { Interlocked.Increment(ref _h264Out); _session?.PushBgra(f); };
                 dec.Error += _ => DispatcherQueue.TryEnqueue(OnH264Error);
                 dec.Rotation = st.Rotation;
                 _h264 = dec;
@@ -294,6 +308,7 @@ public sealed partial class MainPage
 
     private void OnPhoneVideo(byte[] data)
     {
+        Interlocked.Increment(ref _h264In);
         if (_h264 is not { } d || PhoneVideoPacket.TryParse(data) is not { } p) return;
         if (!d.Push(p)) SendPhone("key"); // fell behind and dropped: restart from a fresh keyframe
     }
