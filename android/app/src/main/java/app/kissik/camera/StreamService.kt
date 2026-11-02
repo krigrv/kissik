@@ -185,7 +185,14 @@ class StreamService : LifecycleService() {
             override fun onAudioDevicesRemoved(removed: Array<out android.media.AudioDeviceInfo>) { Mic.refresh(this@StreamService); sendStatus() }
         }, null)
         lifecycleScope.launch(Dispatchers.IO) { connectLoop() }
-        lifecycleScope.launch { while (isActive) { checkSaver(); sendStatus(); delay(15_000) } }
+        lifecycleScope.launch { while (isActive) { checkSaver(); sendStatus(); delay(5_000) } }
+        lifecycleScope.launch {
+            while (isActive) {
+                delay(1000)
+                txFps = txSent; val dropped = txDropped; txSent = 0; txDropped = 0
+                if (ws != null) netLog("tx ${txFps} fps, dropped $dropped, queue ${(ws?.queueSize() ?: 0) / 1024} KB, bitrate ${(encoder?.currentBitrate ?: 0) / 1000} kbps")
+            }
+        }
     }
 
     private data class BindKey(val front: Boolean, val lensId: String?, val quality: Int, val codec: String, val effect: String)
@@ -305,16 +312,33 @@ class StreamService : LifecycleService() {
         val socket = ws ?: return
         val enc = encoder
         val queued = socket.queueSize()
-        // Smart bitrate: back off when the link can't keep up, creep back up when it's clear.
-        if (enc != null) {
-            if (queued > 1024 * 1024) enc.setBitrate(enc.currentBitrate * 3 / 4)
-            else if (queued < 64 * 1024 && key) enc.setBitrate(enc.currentBitrate * 9 / 8)
+        val now = System.nanoTime()
+        // Smart bitrate, at most twice a second: back off when the link can't keep up, creep back up when clear.
+        if (enc != null && now - lastRateChange > 500_000_000L) {
+            if (queued > 512 * 1024) { enc.setBitrate(enc.currentBitrate * 3 / 4); lastRateChange = now }
+            else if (queued < 64 * 1024 && enc.currentBitrate < enc.maxBitrate) { enc.setBitrate(enc.currentBitrate * 9 / 8); lastRateChange = now }
         }
-        if (needKey && !key) return
-        if (queued > 4 * 1024 * 1024) { needKey = true; enc?.requestKeyframe(); return }
+        if (queued > 2 * 1024 * 1024) {
+            // Too far behind: drop this frame, then resume from a keyframe. Ask for that keyframe only once a second;
+            // asking on every packet turns every frame into a large keyframe and keeps the link clogged.
+            needKey = true
+            if (now - lastKeyRequest > 1_000_000_000L) { enc?.requestKeyframe(); lastKeyRequest = now }
+            txDropped++
+            return
+        }
+        if (needKey && !key) { txDropped++; return }
+        if (needKey && now - lastKeyRequest > 1_000_000_000L) { enc?.requestKeyframe(); lastKeyRequest = now }
         needKey = false
         socket.send(packet.toByteString())
+        txSent++
     }
+
+    // What actually leaves the phone, reported to the PC as txFps (and logged in debug builds).
+    @Volatile private var txSent = 0
+    @Volatile private var txDropped = 0
+    @Volatile private var txFps = 0
+    private var lastRateChange = 0L
+    private var lastKeyRequest = 0L
 
     @Volatile private var useH264 = false
     /** H.264 with the camera drawing straight into the encoder (no per-frame copying). */
@@ -382,7 +406,7 @@ class StreamService : LifecycleService() {
             val first = ready.firstKey()
             if (first != sentSeq + 1 && ready.size < 3) break
             val data = ready.remove(first)!!
-            if (first > sentSeq) { ws?.send(data.toByteString()); sentSeq = first }
+            if (first > sentSeq) { ws?.send(data.toByteString()); sentSeq = first; txSent++ }
         }
     }
 
@@ -524,6 +548,8 @@ class StreamService : LifecycleService() {
         val rot = if (enc != null) sensorRotation() else 0 // H.264 frames come as the sensor sees them
         if (enc != null) json.put("w", if (rot % 180 == 0) enc.width else enc.height).put("h", if (rot % 180 == 0) enc.height else enc.width)
         json.put("rot", rot)
+        json.put("txFps", txFps).put("txQueueKB", (socket?.queueSize() ?: 0) / 1024)
+        encoder?.let { json.put("bitrate", it.currentBitrate) }
         Pro.putStatus(json)
         Mic.putStatus(json)
         json.put("mic", Live.mic.value)

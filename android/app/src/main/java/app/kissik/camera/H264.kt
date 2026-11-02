@@ -37,8 +37,19 @@ class H264Encoder(val width: Int, val height: Int, fps: Int, surfaceInput: Boole
             setInteger(MediaFormat.KEY_FRAME_RATE, fps)
             setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 2)
             setInteger(MediaFormat.KEY_PRIORITY, 0) // real-time
+            setInteger(MediaFormat.KEY_OPERATING_RATE, fps)
+            // Low latency: no B-frames (they make the encoder hold frames back) and output each frame as it's ready.
+            if (android.os.Build.VERSION.SDK_INT >= 29) setInteger(MediaFormat.KEY_MAX_B_FRAMES, 0)
+            if (android.os.Build.VERSION.SDK_INT >= 30) setInteger(MediaFormat.KEY_LATENCY, 1)
+            setInteger(MediaFormat.KEY_PROFILE, MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline)
+            setInteger(MediaFormat.KEY_LEVEL, MediaCodecInfo.CodecProfileLevel.AVCLevel52)
         }
-        codec.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
+        runCatching { codec.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE) }.onFailure {
+            // Some encoders refuse the low-latency profile settings: retry with the encoder's own defaults.
+            listOf(MediaFormat.KEY_PROFILE, MediaFormat.KEY_LEVEL, MediaFormat.KEY_LATENCY, MediaFormat.KEY_MAX_B_FRAMES).forEach { format.removeKey(it) }
+            codec.reset()
+            codec.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
+        }
         surface = if (surfaceInput) codec.createInputSurface() else null
         codec.start()
         thread(name = "kissik-h264-out", isDaemon = true) { drain() }
