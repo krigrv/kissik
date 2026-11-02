@@ -73,6 +73,8 @@ public sealed class PhoneServer : IAsyncDisposable
     /// <summary>Phone microphone audio, already 48 kHz stereo.</summary>
     public event Action<float[]>? AudioReceived;
     public event Action<PhoneStatus>? StatusChanged;
+    /// <summary>Raw H.264 packets: 'V' | flags (bit0 keyframe) | uint64 LE pts µs | Annex-B NAL units.</summary>
+    public event Action<byte[]>? VideoPacketReceived;
 
     /// <summary>The fixed port phones connect to, so one firewall rule keeps working.</summary>
     public const int DefaultPort = 47820;
@@ -187,7 +189,12 @@ public sealed class PhoneServer : IAsyncDisposable
                 if (!r.EndOfMessage) continue;
                 var data = frame.ToArray(); frame.SetLength(0);
                 if (r.MessageType == WebSocketMessageType.Binary && PhoneAudio.IsAudio(data)) AudioReceived?.Invoke(PhoneAudio.ToStereo48k(data));
-                else if (r.MessageType == WebSocketMessageType.Binary) { FramesReceived++; FrameReceived?.Invoke(data); }
+                else if (r.MessageType == WebSocketMessageType.Binary)
+                {
+                    // 'V' = H.264 packet from the native app (only sent after codec:h264); everything else is a JPEG frame.
+                    if (data.Length > 10 && data[0] == (byte)'V') VideoPacketReceived?.Invoke(data);
+                    else { FramesReceived++; FrameReceived?.Invoke(data); }
+                }
                 else if (TryParseStatus(data) is { } s) { LastStatus = s; StatusChanged?.Invoke(s); }
             }
         }
