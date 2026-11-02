@@ -1,6 +1,6 @@
 # Trademarks and affiliation
 
-**OpenKamera is an independent, community-built open-source project.** It is not
+**KISSIK is an independent, community-built open-source project.** It is not
 affiliated with, sponsored by, endorsed by or otherwise connected to any other
 camera, webcam, video-conferencing or streaming software company.
 
@@ -10,7 +10,7 @@ camera makers mentioned when describing compatibility) are the property of
 their respective owners and are used only to identify those products. Their
 use does not imply any endorsement.
 
-OpenKamera does not contain, and must never contain, code, assets, scene files,
+KISSIK does not contain, and must never contain, code, assets, scene files,
 artwork or branding from other companies' products — see the clean-room rules
 in [CONTRIBUTING.md](CONTRIBUTING.md).
 

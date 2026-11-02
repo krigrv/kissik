@@ -1,4 +1,4 @@
-# Contributing to OpenKamera
+# Contributing to KISSIK
 
 Thanks for helping! This guide covers how to contribute and the rules every
 contribution must follow.
@@ -21,7 +21,7 @@ Small, focused pull requests are reviewed fastest.
 
 ## Clean-room rules (required)
 
-OpenKamera is an independent project. To keep it free of legal problems, every
+KISSIK is an independent project. To keep it free of legal problems, every
 contribution must be **your own original work**, or code under a licence
 compatible with GPL-3.0 that you credit in [THIRD_PARTY.md](THIRD_PARTY.md).
 
@@ -32,7 +32,7 @@ You must **not** contribute:
   decompilation or copying of their code, even "just for reference".
 - **Their assets**: logos, icons, images, scene files, backgrounds, filter/LUT
   files, sounds, fonts or UI text.
-- **Their names or branding** in the product: do not name OpenKamera features,
+- **Their names or branding** in the product: do not name KISSIK features,
   presets, scenes or files after another company's products, and do not use
   other product names in the app's name, icon, store listing or UI.
 - **Material you don't have the right to share**, such as photos of other
