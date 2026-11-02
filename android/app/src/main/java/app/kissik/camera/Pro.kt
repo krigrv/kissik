@@ -53,6 +53,14 @@ object Pro {
     val hdr = MutableStateFlow(false)
     /** "jpeg" (works with every KISSIK) or "h264" (hardware encoder; only when the PC asks for it). */
     val codec = MutableStateFlow("jpeg")
+    /** Phone-maker camera effect: "none", or one of [effects] (what this phone offers for the current camera). */
+    val effect = MutableStateFlow("none")
+    val effects = MutableStateFlow<List<String>>(emptyList())
+    val EFFECTS = listOf(
+        "bokeh" to androidx.camera.extensions.ExtensionMode.BOKEH, "night" to androidx.camera.extensions.ExtensionMode.NIGHT,
+        "hdr" to androidx.camera.extensions.ExtensionMode.HDR, "face" to androidx.camera.extensions.ExtensionMode.FACE_RETOUCH,
+        "auto" to androidx.camera.extensions.ExtensionMode.AUTO,
+    )
 
     /** Manual values don't carry across lenses: each has its own ranges. */
     fun resetManual() { ev.value = 0; iso.value = null; shutterNs.value = null; focus.value = null }
@@ -152,6 +160,7 @@ object Pro {
             "stab" -> stab.value = value == "on"
             "hdr" -> hdr.value = value == "on"
             "codec" -> if (value == "jpeg" || value == "h264") codec.value = value
+            "effect" -> if (value == "none" || value in effects.value) effect.value = value
             else -> return false
         }
         return true
@@ -163,6 +172,7 @@ object Pro {
         json.put("lenses", JSONArray(lenses.value.map { JSONObject().put("id", it.id).put("facing", it.facing).put("label", it.label) }))
         json.put("lens", lensId.value ?: n)
         json.put("codecs", JSONArray(listOf("jpeg", "h264"))).put("codec", codec.value)
+        json.put("effects", JSONArray(effects.value)).put("effect", effect.value)
         val c = caps.value ?: return
         json.put("evMin", c.evMin).put("evMax", c.evMax).put("evStep", c.evStep.toDouble()).put("ev", ev.value)
         json.put("manual", c.manual)

@@ -76,6 +76,12 @@ fun ProSheet(onClose: () -> Unit) {
     val hdr by Pro.hdr.collectAsState()
     val codec by Pro.codec.collectAsState()
     val zoom by Live.zoom.collectAsState()
+    val effects by Pro.effects.collectAsState()
+    val effect by Pro.effect.collectAsState()
+    val mics by Mic.devices.collectAsState()
+    val micDev by Mic.deviceId.collectAsState()
+    val micMode by Mic.mode.collectAsState()
+    val ns by Mic.ns.collectAsState()
 
     ModalBottomSheet(onDismissRequest = onClose, containerColor = K.card, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 32.dp).verticalScroll(rememberScrollState())) {
@@ -134,13 +140,30 @@ fun ProSheet(onClose: () -> Unit) {
             if (c.hdr) Section("HDR") {
                 Pills(listOf("on" to "On", "off" to "Off"), if (hdr) "on" else "off") { Pro.hdr.value = it == "on" }
             }
+            if (effects.isNotEmpty()) Section("Effects", "From your phone's camera") {
+                val names = mapOf("none" to "None", "bokeh" to "Background blur", "night" to "Night", "hdr" to "HDR", "face" to "Face retouch", "auto" to "Auto")
+                Pills((listOf("none") + effects).map { it to (names[it] ?: it) }, effect) { Pro.effect.value = it }
+            }
+            Section("Microphone") {
+                if (mics.size > 1) {
+                    Pills(listOf("auto" to "Default") + mics.map { "${it.id}" to it.label }, micDev?.toString() ?: "auto") {
+                        Mic.deviceId.value = it.toIntOrNull()
+                    }
+                    Spacer(Modifier.height(8.dp))
+                }
+                Pills(listOf("standard" to "Standard", "voice" to "Voice (cancels echo)", "camera" to "Camera mic", "raw" to "Raw"), micMode) { Mic.mode.value = it }
+                if (Mic.nsAvailable) {
+                    Spacer(Modifier.height(8.dp))
+                    Pills(listOf("off" to "Noise reduction off", "on" to "Noise reduction on"), if (ns) "on" else "off") { Mic.ns.value = it == "on" }
+                }
+            }
             Section("Video sent to the PC", if (codec == "h264") "H.264 (hardware)" else "JPEG") {
                 Text(if (codec == "h264") "Encoded by the phone's video chip: smooth and cool even at 4K." else
                     "KISSIK picks this. Hardware H.264 is used when your KISSIK version supports it.", color = K.muted, fontSize = 13.sp)
             }
-            if (iso != null || shutter != null || focus != null || ev != 0 || wb != "auto" || fps != 0) {
+            if (iso != null || shutter != null || focus != null || ev != 0 || wb != "auto" || fps != 0 || effect != "none") {
                 Spacer(Modifier.height(8.dp))
-                TextButton({ Pro.resetManual(); Pro.wb.value = "auto"; Pro.fps.value = 0 }) { Text("Reset to automatic") }
+                TextButton({ Pro.resetManual(); Pro.wb.value = "auto"; Pro.fps.value = 0; Pro.effect.value = "none" }) { Text("Reset to automatic") }
             }
         }
     }

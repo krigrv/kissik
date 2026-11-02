@@ -30,6 +30,7 @@ import androidx.camera.camera2.interop.Camera2CameraInfo
 import androidx.camera.core.FocusMeteringAction
 import androidx.camera.core.SurfaceOrientedMeteringPointFactory
 import androidx.camera.core.UseCase
+import androidx.camera.extensions.ExtensionsManager
 import kotlinx.coroutines.flow.merge
 import androidx.camera.camera2.interop.ExperimentalCamera2Interop
 import androidx.camera.core.Camera
@@ -145,7 +146,7 @@ class StreamService : LifecycleService() {
 
         // Rebind the camera whenever the lens, the effective quality or the video format changes.
         lifecycleScope.launch {
-            combine(Live.front, Pro.lensId, Live.quality, Live.saving, Pro.codec) { f, l, q, s, c -> BindKey(f, l, if (s) minOf(q, 480) else q, c) }
+            combine(combine(Live.front, Pro.lensId, Live.quality, Live.saving, Pro.codec) { f, l, q, s, c -> BindKey(f, l, if (s) minOf(q, 480) else q, c, "none") }, Pro.effect) { k, e -> k.copy(effect = e) }
                 .distinctUntilChanged().collect { bindCamera(it) }
         }
         lifecycleScope.launch { merge(Pro.ev, Pro.iso, Pro.shutterNs, Pro.focus, Pro.wb, Pro.fps, Pro.stab, Pro.hdr).collect { applyPro() } }
@@ -153,7 +154,9 @@ class StreamService : LifecycleService() {
         lifecycleScope.launch { Live.torch.collect { camera?.cameraControl?.enableTorch(it); sendStatus() } }
         lifecycleScope.launch { Live.zoom.collect { camera?.cameraControl?.setZoomRatio(it); sendStatus() } }
         lifecycleScope.launch {
-            combine(Live.mic, Live.link) { m, l -> m && (l == Link.Wifi || l == Link.Usb) }.distinctUntilChanged().collect { setMic(it) }
+            // Reopen the mic whenever it's switched, or its device, mode or noise suppression changes.
+            combine(Live.mic, Live.link, Mic.deviceId, Mic.mode, Mic.ns) { m, l, d, md, n -> listOf(m && (l == Link.Wifi || l == Link.Usb), d, md, n) }
+                .distinctUntilChanged().collect { setMic(it[0] as Boolean); sendStatus() }
         }
         // Keep the picture upright as the phone turns: frames are rotated by sensor angle + how the phone is held.
         orientation = object : OrientationEventListener(this) {
@@ -166,11 +169,17 @@ class StreamService : LifecycleService() {
                 lifecycleScope.launch { delay(400); sendStatus() } // after a frame at the new size
             }
         }.apply { if (canDetectOrientation()) enable() }
+        // Keep the mic list current as headsets and USB mics come and go.
+        Mic.refresh(this)
+        getSystemService(android.media.AudioManager::class.java).registerAudioDeviceCallback(object : android.media.AudioDeviceCallback() {
+            override fun onAudioDevicesAdded(added: Array<out android.media.AudioDeviceInfo>) { Mic.refresh(this@StreamService); sendStatus() }
+            override fun onAudioDevicesRemoved(removed: Array<out android.media.AudioDeviceInfo>) { Mic.refresh(this@StreamService); sendStatus() }
+        }, null)
         lifecycleScope.launch(Dispatchers.IO) { connectLoop() }
         lifecycleScope.launch { while (isActive) { checkSaver(); sendStatus(); delay(15_000) } }
     }
 
-    private data class BindKey(val front: Boolean, val lensId: String?, val quality: Int, val codec: String)
+    private data class BindKey(val front: Boolean, val lensId: String?, val quality: Int, val codec: String, val effect: String)
     private var boundLens: Pair<Boolean, String?>? = null
 
     private fun sizeFor(shortSide: Int) = ResolutionSelector.Builder()
@@ -190,6 +199,15 @@ class StreamService : LifecycleService() {
             ?.let { lens -> CameraSelector.Builder().addCameraFilter { infos -> infos.filter { Camera2CameraInfo.from(it).cameraId == lens.id } }.build() }
             ?: if (key.front) CameraSelector.DEFAULT_FRONT_CAMERA else CameraSelector.DEFAULT_BACK_CAMERA
         val other = if (key.front) CameraSelector.DEFAULT_BACK_CAMERA else CameraSelector.DEFAULT_FRONT_CAMERA
+        // Camera effects (bokeh, night, HDR, face retouch) come from the phone maker, through CameraX Extensions.
+        // They need the default front/back camera and a phone that allows frame access with the effect on.
+        val base = if (key.front) CameraSelector.DEFAULT_FRONT_CAMERA else CameraSelector.DEFAULT_BACK_CAMERA
+        val ext = runCatching { withContext(Dispatchers.IO) { ExtensionsManager.getInstanceAsync(this@StreamService, provider).get() } }.getOrNull()
+        Pro.effects.value = if (ext == null || key.lensId != null) emptyList() else Pro.EFFECTS.filter { (_, mode) ->
+            runCatching { ext.isExtensionAvailable(base, mode) && ext.isImageAnalysisSupported(base, mode) }.getOrDefault(false)
+        }.map { it.first }
+        val effectMode = Pro.EFFECTS.firstOrNull { it.first == key.effect && it.first in Pro.effects.value }?.second
+        val selector = if (ext != null && effectMode != null) ext.getExtensionEnabledCameraSelector(base, effectMode) else wanted
         val h264 = key.codec == "h264"
         // Frames come from the analysis stream at the full requested size. JPEG needs RGBA; H.264 takes the camera's
         // own YUV straight into the hardware encoder.
@@ -203,7 +221,8 @@ class StreamService : LifecycleService() {
         if (!h264) encoder?.let { encoder = null; it.release() }
         val useCases = listOf<UseCase>(an)
         previous?.let { provider.unbind(it) } // only our own stream; never the scanner's
-        camera = runCatching { provider.bindToLifecycle(this, wanted, *useCases.toTypedArray()) }
+        camera = runCatching { provider.bindToLifecycle(this, selector, *useCases.toTypedArray()) }
+            .recoverCatching { provider.bindToLifecycle(this, wanted, *useCases.toTypedArray()) }
             .recoverCatching { provider.bindToLifecycle(this, other, *useCases.toTypedArray()) }.getOrNull()
         if (camera == null) Live.message.value = "Couldn't open the camera. Is another app using it?"
         readCapabilities()
@@ -391,6 +410,8 @@ class StreamService : LifecycleService() {
                 if (xy.size == 2) Live.focusTap.tryEmit(xy[0].coerceIn(0f, 1f) to xy[1].coerceIn(0f, 1f))
                 return
             }
+            text == "mic:on" || text == "mic:off" -> Live.mic.value = text == "mic:on"
+            Mic.command(text) -> return
             Pro.command(text) -> return
             text.startsWith("q:") -> text.drop(2).toIntOrNull()?.takeIf { it in 144..8640 }?.let { Live.quality.value = it }
             text == "torch:on" || text == "torch:off" -> { Live.torch.value = text == "torch:on"; return }
@@ -422,7 +443,9 @@ class StreamService : LifecycleService() {
     }
 
     private fun sendStatus() {
-        val socket = ws ?: return
+        val debug = applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0
+        val socket = ws
+        if (socket == null && !debug) return
         val (level, charging) = battery()
         val (w, h) = Live.frameSize.value
         val json = JSONObject().put("device", "${Build.MANUFACTURER} ${Build.MODEL}".trim())
@@ -444,8 +467,10 @@ class StreamService : LifecycleService() {
         if (enc != null) json.put("w", if (rot % 180 == 0) enc.width else enc.height).put("h", if (rot % 180 == 0) enc.height else enc.width)
         json.put("rot", rot)
         Pro.putStatus(json)
-        if (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0) android.util.Log.d("KissikStatus", json.toString())
-        socket.send(json.toString())
+        Mic.putStatus(json)
+        json.put("mic", Live.mic.value)
+        if (debug) android.util.Log.d("KissikStatus", json.toString()) // debug builds: readable with adb even offline
+        socket?.send(json.toString())
     }
 
     /** The mic is opened only while it's switched on and connected, and released straight after. */
@@ -455,11 +480,8 @@ class StreamService : LifecycleService() {
         if (!on || !hasMic()) return
         micJob = lifecycleScope.launch(Dispatchers.IO) {
             val rate = 48000
-            val min = AudioRecord.getMinBufferSize(rate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_FLOAT)
-            val rec = runCatching {
-                AudioRecord(MediaRecorder.AudioSource.MIC, rate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_FLOAT, maxOf(min, 4 * 4800))
-            }.getOrNull()
-            if (rec == null || rec.state != AudioRecord.STATE_INITIALIZED) { Live.message.value = "Couldn't open the microphone."; rec?.release(); return@launch }
+            val rec = Mic.open(this@StreamService, rate)
+            if (rec == null) { Live.message.value = "Couldn't open the microphone."; return@launch }
             val samples = FloatArray(960) // 20 ms
             val packet = ByteBuffer.allocate(5 + samples.size * 4).order(ByteOrder.LITTLE_ENDIAN)
             try {
@@ -471,7 +493,7 @@ class StreamService : LifecycleService() {
                     for (i in 0 until n) packet.putFloat(samples[i])
                     ws?.send(packet.array().toByteString(0, 5 + n * 4))
                 }
-            } finally { rec.stop(); rec.release() }
+            } finally { rec.stop(); rec.release(); Mic.close(this@StreamService) }
         }
     }
 

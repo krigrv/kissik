@@ -17,9 +17,10 @@ It speaks the protocol of the phone web page KISSIK already serves, plus the opt
 - Front/back switch, torch, zoom, quality, mic on/off (mic is opened only while on, and released straight away).
 - **Pro camera controls** (the *Pro* button, or from KISSIK on the PC): every lens the phone exposes (ultra-wide,
   main, telephoto, front), brightness (EV), manual ISO and shutter speed, manual focus or tap-to-focus, white balance,
-  frame rate, stabilization and HDR. Controls the open lens doesn't support are hidden.
+  frame rate, stabilization, HDR, phone-maker effects, and the microphone (which mic, its mode, noise reduction).
+  Controls the phone doesn't support are hidden.
 - **Hardware H.264** when KISSIK asks for it (`codec:h264`): the camera feeds the phone's video chip directly, so 4K
-  stays smooth and cool. JPEG stays the default so older KISSIK versions keep working.
+  stays smooth and cool, and the bitrate adapts to the link. JPEG stays the default so older KISSIK versions keep working.
 - **Battery & heat saver** (on by default): drops to 480p when the phone runs hot or battery is under 20% and not charging.
 - One short onboarding: three quick pages (what it is, how pairing works, privacy + permissions), then the scanner.
 
@@ -54,6 +55,9 @@ Status JSON fields. A control the lens lacks is `null` or missing, so the PC can
 | `fpsList`, `fps` | frame rates the lens offers; `fps` 0 = automatic |
 | `stab`, `hdr` | bool, or null when the lens has none |
 | `codecs`, `codec` | `["jpeg","h264"]` and the one in use |
+| `effects`, `effect` | phone-maker effects this camera offers (`bokeh`, `night`, `hdr`, `face`, `auto`) and the current one (`none`) |
+| `mic`, `mics`, `micDev` | mic on/off, `[{id, label}]` (e.g. "Phone mic · Bottom", "Wired headset", "Bluetooth · …"), chosen id or null |
+| `micModes`, `micMode`, `ns` | `standard` / `voice` (echo + noise cancelling) / `camera` / `raw`; extra noise reduction (null if unavailable) |
 
 ### PC → phone (text)
 
@@ -71,6 +75,8 @@ Status JSON fields. A control the lens lacks is `null` or missing, so the PC can
 | `stab:on|off`, `hdr:on|off` | stabilization, HDR scene mode |
 | `codec:jpeg` / `codec:h264` | video format; JPEG is the default |
 | `key` | send an H.264 keyframe now |
+| `effect:<name>` / `effect:none` | phone-maker effect from `effects` |
+| `mic:on|off`, `micdev:<id>` / `micdev:auto`, `micmode:<mode>`, `ns:on|off` | microphone choices |
 
 ## Build
 
