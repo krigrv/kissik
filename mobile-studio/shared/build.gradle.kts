@@ -35,7 +35,6 @@ kotlin {
             implementation("androidx.camera:camera-video:$camerax")
             implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
             implementation("com.google.mediapipe:tasks-vision:1.2.0")
-            implementation("com.google.mlkit:segmentation-selfie:16.0.0-beta6")
             implementation("com.google.android.gms:play-services-mlkit-face-detection:17.1.0")
             implementation("com.google.android.gms:play-services-mlkit-barcode-scanning:18.3.1")
             implementation("com.google.android.gms:play-services-mlkit-text-recognition:19.0.1")

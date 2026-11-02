@@ -127,14 +127,6 @@ fun SettingsScreen(studio: Studio, back: () -> Unit) {
             SwitchRow("Larger text", s.largeText, "On top of the phone's own text size") { v -> studio.updateSettings { it.copy(largeText = v) } }
             SwitchRow("Reduce motion", studio.reducedMotion, if (s.reduceMotion == null) "Following the phone's setting" else null) { v -> studio.updateSettings { it.copy(reduceMotion = v) } }
             if (s.reduceMotion != null) TextButton(onClick = { studio.updateSettings { it.copy(reduceMotion = null) } }) { Text("Follow the phone's setting") }
-            val engines = studio.platform.camera.visionEngines
-            if (engines.isNotEmpty()) {
-                SectionTitle("Person detection")
-                Choices(engines, engines.firstOrNull { it.first == s.visionEngine }, { it.second }) { e ->
-                    studio.updateSettings { it.copy(visionEngine = e.first) }; studio.platform.camera.setVisionEngine(e.first)
-                }
-                Text("Used for background effects and auto-framing. Both run on this phone.", style = MaterialTheme.typography.bodySmall)
-            }
             SectionTitle("Privacy")
             Text("All picture and sound processing happens on this phone: backgrounds, looks, framing, captions, scanning and text recognition. KISSIK has no account and no analytics. Video only leaves the phone when you go live to a server you chose or connect to your own PC.",
                 style = MaterialTheme.typography.bodyMedium)

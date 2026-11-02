@@ -40,10 +40,6 @@ import app.kissik.studio.scenes.SceneDocument
 import com.google.android.gms.tasks.Tasks
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.common.InputImage
-import com.google.mlkit.vision.face.FaceDetection
-import com.google.mlkit.vision.face.FaceDetectorOptions
-import com.google.mlkit.vision.segmentation.Segmentation
-import com.google.mlkit.vision.segmentation.selfie.SelfieSegmenterOptions
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import java.util.concurrent.CopyOnWriteArrayList
@@ -80,9 +76,8 @@ class AndroidCamera(private val activity: ComponentActivity, private val reduced
     @Volatile var lastFrame: Bitmap? = null; private set
 
     private val compositor = Compositor()
-    @Volatile private var visionEngine = PersonVision.MEDIAPIPE
     @Volatile private var vision: PersonVision? = null
-    private fun vision(): PersonVision = vision ?: PersonVision.create(activity, visionEngine).also { vision = it }
+    private fun vision(): PersonVision = vision ?: PersonVision.create(activity).also { vision = it }
     private val barcodeScanner by lazy { BarcodeScanning.getClient() }
 
     // Chosen settings (re-applied after every rebind).
@@ -293,13 +288,6 @@ class AndroidCamera(private val activity: ComponentActivity, private val reduced
 
     private fun segment(bmp: Bitmap): Mask? = vision().mask(bmp)
 
-    /** "mediapipe" (open source, default) or "mlkit". The old engine is closed on the analysis thread. */
-    override fun setVisionEngine(engine: String) {
-        if (engine == visionEngine) return
-        visionEngine = engine
-        analysisExec.execute { vision?.close(); vision = null }
-    }
-
     // ── CameraService controls ─────────────────────────────────────────────
     override fun setEffects(effects: Effects) { this.effects = effects; if (!effects.needsProcessing) processed.value = null }
     override fun setScene(scene: SceneDocument?) { this.scene = scene }
@@ -328,7 +316,6 @@ class AndroidCamera(private val activity: ComponentActivity, private val reduced
     override fun setHdr(on: Boolean) { hdr = on; applyOptions() }
     override fun setStabilization(on: Boolean) { stab = on; applyOptions() }
     override fun setQuality(shortSide: Int) { this.shortSide = shortSide; rebind() }
-    override val visionEngines = listOf(PersonVision.MEDIAPIPE to "MediaPipe (open source)", PersonVision.MLKIT to "ML Kit")
 
     fun release() { stop(); analysisExec.shutdown(); runCatching { vision?.close(); barcodeScanner.close() } }
 }

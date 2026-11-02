@@ -12,3 +12,11 @@
 -dontwarn org.bouncycastle.**
 -dontwarn org.openjsse.**
 -dontwarn org.slf4j.**
+# MediaPipe Tasks: native code looks up Java classes and protobuf fields by name
+-keep class com.google.mediapipe.** { *; }
+-keep class com.google.protobuf.** { *; }
+-dontwarn com.google.mediapipe.**
+-dontwarn com.google.protobuf.**
+# Flogger (used by MediaPipe) finds its caller by walking the stack with real class names
+-keep class com.google.common.flogger.** { *; }
+-dontwarn com.google.common.flogger.**

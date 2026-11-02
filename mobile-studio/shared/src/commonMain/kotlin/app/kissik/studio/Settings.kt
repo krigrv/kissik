@@ -29,7 +29,6 @@ data class Settings(
     val teleprompterText: String = "",
     val teleprompterWpm: Int = 140,
     val sceneId: String = "blank",
-    val visionEngine: String = "mediapipe",
     val sceneOverrides: Map<String, String> = emptyMap(), // scene id → edited scene JSON
 ) {
     fun toJson() = SettingsJson.encodeToString(serializer(), this)

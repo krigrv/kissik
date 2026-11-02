@@ -66,10 +66,6 @@ interface CameraService {
     fun setHdr(on: Boolean)
     fun setStabilization(on: Boolean)
     fun setQuality(shortSide: Int)
-    /** Which person/face engine to use where the platform offers a choice (Android: "mediapipe" or "mlkit"). */
-    fun setVisionEngine(engine: String) {}
-    /** Engines offered, as (id, label); empty when there's no choice. */
-    val visionEngines: List<Pair<String, String>> get() = emptyList()
 }
 
 data class Mic(val id: String, val label: String)

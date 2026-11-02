@@ -9,7 +9,7 @@ tracked in [CHECKLIST.md](CHECKLIST.md).
 |---|---|
 | `shared/src/commonMain` | Everything shared: the picture pipeline (`image/`, `effects/`), framing, scenes (desktop JSON + 100-scene pack in `composeResources/files`), recording logic, RTMP model, captions, teleprompter, phone protocol, crash reports, settings and the whole Compose UI (`ui/`). `platform/Platform.kt` is the interface each phone implements. |
 | `shared/src/commonTest` | Unit tests for the shared logic (run on the JVM). |
-| `shared/src/androidMain` | Android services: CameraX + Camera2 interop, MediaPipe (person + faces, default) or ML Kit, ML Kit (barcodes, text, document scanner), MediaCodec/MediaMuxer, RTMP (RootEncoder `rtmp`, Apache-2.0), SpeechRecognizer, OkHttp WebSocket. |
+| `shared/src/androidMain` | Android services: CameraX + Camera2 interop, MediaPipe (person + faces), ML Kit (barcodes, text, document scanner), MediaCodec/MediaMuxer, RTMP (RootEncoder `rtmp`, Apache-2.0), SpeechRecognizer, OkHttp WebSocket. |
 | `shared/src/iosMain` | iOS services: AVFoundation, Vision, VisionKit, Speech, AVAssetWriter, Photos, NSURLSession WebSockets. `MainViewController()` hosts the Compose UI. |
 | `whisper/` | Android library wrapping whisper.cpp (MIT) for Accurate captions. Gradle downloads the pinned release source; CMake builds it with the NDK. `WhisperTest` is an on-device test. |
 | `androidApp/` | Android app shell (activity, manifest, adaptive icon, R8 rules, per-ABI splits). |

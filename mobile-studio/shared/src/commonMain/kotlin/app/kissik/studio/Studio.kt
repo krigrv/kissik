@@ -78,7 +78,6 @@ class Studio(val platform: StudioPlatform) {
         private set
 
     init {
-        platform.camera.setVisionEngine(settings.visionEngine)
         scenes += SceneTemplates.builtIn.map { applyOverride(it) }
         scene = scenes.firstOrNull { it.id == settings.sceneId }?.takeIf { it.id != "blank" }
         loadPack()
