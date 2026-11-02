@@ -11,6 +11,11 @@ Individual developer accounts are free to open (company accounts have a one-time
    - Package/Identity/Publisher (starts with `CN=`)
    - Package/Properties/PublisherDisplayName
 
+## Crash reports (one-time)
+Create a free project at https://sentry.io (platform: .NET), copy its DSN (Settings → Client Keys) into
+`CrashReports.Dsn` in `src/OpenKamera.Core/CrashReports.cs`, and rebuild. Until then KISSIK never sends anything
+and offers "copy the report" instead.
+
 ## Build the upload
 ```powershell
 ./tools/make-store-package.ps1 -IdentityName "<Name>" -Publisher "CN=<…>" -PublisherDisplayName "<Display name>" -Version 1.0.0.0

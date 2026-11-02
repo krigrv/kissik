@@ -32,6 +32,8 @@ public sealed class AppSettings
     public SceneTransition Transition { get; set; } = SceneTransition.Fade;
     /// <summary>Re-check each captioned sentence with Whisper for accuracy (uses more power).</summary>
     public bool AccurateCaptions { get; set; }
+    /// <summary>Send crash reports automatically: null = not asked yet.</summary>
+    public bool? CrashReportsAuto { get; set; }
     public List<string> DismissedSponsors { get; set; } = [];
     public BackgroundSettings Background { get; set; } = BackgroundSettings.Off;
     /// <summary>Gallery favourites: "scene:id", "bg:id", "filter:Name", "lut:Name".</summary>
