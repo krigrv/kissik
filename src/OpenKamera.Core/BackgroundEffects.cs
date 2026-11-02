@@ -20,6 +20,9 @@ public sealed record BackgroundSettings(
 /// <summary>Composites a frame against its person mask. All buffers are BGRA32, premultiplied.</summary>
 public static class BackgroundEffects
 {
+    /// <summary>How much background colour spills onto the person's edge (0 = pasted-on look).</summary>
+    public const float LightWrap = 0.35f;
+
     public static void Apply(byte[] px, int w, int h, float[] alpha, BackgroundSettings s, byte[]? background = null)
     {
         if (s.Retouch > 0) Retouch(px, w, h, alpha, (float)s.Retouch);
@@ -41,10 +44,12 @@ public static class BackgroundEffects
                     {
                         float a = alpha[ai];
                         if (a >= 0.999f) continue;
-                        float ia = 1 - a;
-                        px[i] = (byte)(px[i] * a + bg[i] * ia);
-                        px[i + 1] = (byte)(px[i + 1] * a + bg[i + 1] * ia);
-                        px[i + 2] = (byte)(px[i + 2] * a + bg[i + 2] * ia);
+                        float ia = 1 - a, wrap = LightWrap * ia;   // room light spills onto the edge, like a real shot
+                        for (int c = 0; c < 3; c++)
+                        {
+                            float fg = px[i + c] + (bg[i + c] - px[i + c]) * wrap;
+                            px[i + c] = (byte)(fg * a + bg[i + c] * ia);
+                        }
                         px[i + 3] = 255;
                     }
                 });
@@ -90,7 +95,8 @@ public static class BackgroundEffects
                     float top = rgb[p00 + c] + (rgb[p01 + c] - rgb[p00 + c]) * dx;
                     float bot = rgb[p10 + c] + (rgb[p11 + c] - rgb[p10 + c]) * dx;
                     float b = top + (bot - top) * dy;
-                    px[i + c] = (byte)Math.Clamp(px[i + c] * a + b * ia, 0, 255);
+                    float fg = px[i + c] + (b - px[i + c]) * LightWrap * ia;
+                    px[i + c] = (byte)Math.Clamp(fg * a + b * ia, 0, 255);
                 }
                 px[i + 3] = 255;
             }

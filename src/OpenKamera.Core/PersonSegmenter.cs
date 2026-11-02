@@ -97,8 +97,14 @@ public sealed class PersonSegmenter : IDisposable
 
         if (KeepMainSubjects) MaskOps.DropSmallRegions(alpha, _inW, _inH, MinRegionShare);
 
+        // Motion-aware smoothing: hold the edge steady where little changed (no shimmer), follow at once where you moved (no lag trail).
         if (_previous is { } prev && prev.Length == plane && Smoothing > 0)
-            for (int j = 0; j < plane; j++) alpha[j] = alpha[j] * (1 - Smoothing) + prev[j] * Smoothing;
+            for (int j = 0; j < plane; j++)
+            {
+                float d = Math.Abs(alpha[j] - prev[j]);
+                float keep = d < 0.12f ? Math.Min(0.8f, Smoothing * 2f) : d < 0.35f ? Smoothing * 0.5f : 0f;
+                alpha[j] = alpha[j] * (1 - keep) + prev[j] * keep;
+            }
         _previous = alpha;
         return new PersonMask(alpha, _inW, _inH);
     }
@@ -178,6 +184,84 @@ public static class MaskOps
         int keepFrom = (int)(largest * minShare);
         for (int i = 0; i < alpha.Length; i++)
             if (label[i] != 0 && sizes[label[i]] < keepFrom) alpha[i] = 0;
+    }
+
+    /// <summary>
+    /// Fast guided filter (He et al.): snaps the upsampled mask to the real edges in the full-resolution picture,
+    /// so hair and shoulders follow the image instead of the blocky model grid. Works at 1/scale size, then applies
+    /// the per-pixel linear model at full size, only on edge pixels.
+    /// </summary>
+    public static void GuidedRefine(float[] alpha, byte[] bgra, int w, int h, int scale = 4, int radius = 6, float eps = 0.002f)
+    {
+        int sw = Math.Max(1, w / scale), sh = Math.Max(1, h / scale), n = sw * sh;
+        var I = new float[n]; var p = new float[n];
+        Parallel.For(0, sh, y =>
+        {
+            int sy = Math.Min(h - 1, y * scale + scale / 2);
+            for (int x = 0; x < sw; x++)
+            {
+                int sx = Math.Min(w - 1, x * scale + scale / 2), i = (sy * w + sx) * 4;
+                I[y * sw + x] = (bgra[i] * 0.114f + bgra[i + 1] * 0.587f + bgra[i + 2] * 0.299f) / 255f;
+                p[y * sw + x] = alpha[sy * w + sx];
+            }
+        });
+        var Ip = new float[n]; var II = new float[n];
+        for (int i = 0; i < n; i++) { Ip[i] = I[i] * p[i]; II[i] = I[i] * I[i]; }
+        var mI = Box(I, sw, sh, radius); var mp = Box(p, sw, sh, radius); var mIp = Box(Ip, sw, sh, radius); var mII = Box(II, sw, sh, radius);
+        var a = new float[n]; var b = new float[n];
+        for (int i = 0; i < n; i++)
+        {
+            float cov = mIp[i] - mI[i] * mp[i], vr = mII[i] - mI[i] * mI[i];
+            a[i] = cov / (vr + eps); b[i] = mp[i] - a[i] * mI[i];
+        }
+        var ma = Box(a, sw, sh, radius); var mb = Box(b, sw, sh, radius);
+        float fx = (float)sw / w, fy = (float)sh / h;
+        Parallel.For(0, h, y =>
+        {
+            float gy = Math.Clamp((y + 0.5f) * fy - 0.5f, 0, sh - 1); int y0 = (int)gy, y1 = Math.Min(y0 + 1, sh - 1); float dy = gy - y0;
+            for (int x = 0; x < w; x++)
+            {
+                int k = y * w + x;
+                float o = alpha[k];
+                if (o <= 0.001f || o >= 0.999f) continue; // solid inside or outside: nothing to refine
+                float gx = Math.Clamp((x + 0.5f) * fx - 0.5f, 0, sw - 1); int x0 = (int)gx, x1 = Math.Min(x0 + 1, sw - 1); float dx = gx - x0;
+                float A = Lerp2(ma, sw, x0, x1, y0, y1, dx, dy), B = Lerp2(mb, sw, x0, x1, y0, y1, dx, dy);
+                int i = k * 4;
+                float lum = (bgra[i] * 0.114f + bgra[i + 1] * 0.587f + bgra[i + 2] * 0.299f) / 255f;
+                float v = Math.Clamp((A * lum + B - 0.15f) / 0.7f, 0, 1); // crisp the soft band (smoothstep 0.15..0.85)
+                alpha[k] = v * v * (3 - 2 * v);
+            }
+        });
+    }
+
+    private static float Lerp2(float[] g, int gw, int x0, int x1, int y0, int y1, float dx, float dy)
+    {
+        float t = g[y0 * gw + x0] + (g[y0 * gw + x1] - g[y0 * gw + x0]) * dx;
+        float u = g[y1 * gw + x0] + (g[y1 * gw + x1] - g[y1 * gw + x0]) * dx;
+        return t + (u - t) * dy;
+    }
+
+    /// <summary>Mean over a (2r+1) square window via a summed-area table (edges average the part inside the image).</summary>
+    private static float[] Box(float[] src, int w, int h, int r)
+    {
+        var sat = new double[(w + 1) * (h + 1)];
+        for (int y = 0; y < h; y++)
+        {
+            double row = 0;
+            for (int x = 0; x < w; x++) { row += src[y * w + x]; sat[(y + 1) * (w + 1) + x + 1] = sat[y * (w + 1) + x + 1] + row; }
+        }
+        var dst = new float[w * h];
+        Parallel.For(0, h, y =>
+        {
+            int ya = Math.Max(0, y - r), yb = Math.Min(h, y + r + 1);
+            for (int x = 0; x < w; x++)
+            {
+                int xa = Math.Max(0, x - r), xb = Math.Min(w, x + r + 1);
+                double s = sat[yb * (w + 1) + xb] - sat[ya * (w + 1) + xb] - sat[yb * (w + 1) + xa] + sat[ya * (w + 1) + xa];
+                dst[y * w + x] = (float)(s / ((yb - ya) * (xb - xa)));
+            }
+        });
+        return dst;
     }
 
     /// <summary>Bilinear upsample of a model mask to frame size, with a soft edge ramp.</summary>
