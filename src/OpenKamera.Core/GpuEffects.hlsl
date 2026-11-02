@@ -7,7 +7,7 @@ cbuffer Params : register(b0)
     int4 I0;   // w, h, maskW, maskH
     int4 I1;   // blurW, blurH, blurRadius, mode (0 none, 1 blur, 2 replace, 3 remove)
     int4 I2;   // flags, filter, lutSize, 0
-    int4 I3;   // camera rect x, y, w, h
+    int4 I3;   // camera rect x, y, w, h; during edge refinement: guide w, h, scale, radius
     int4 I4;   // scene flags
     float4 F0; // spotlight, retouch, lutStrength, sharpness
     float4 F1; // temperature, tint, saturation, vibrance
@@ -51,6 +51,7 @@ RWStructuredBuffer<uint> Dst : register(u0);
 RWStructuredBuffer<float> AlphaOut : register(u1);
 RWStructuredBuffer<float4> AccOut : register(u2);
 
+#define LIGHT_WRAP 0.35f // BackgroundEffects.LightWrap
 #define W I0.x
 #define H I0.y
 
@@ -78,6 +79,78 @@ void Upsample(uint3 id : SV_DispatchThreadID)
     float v = a * (1 - dy) + b * dy;
     v = clamp((v - 0.25f) / 0.5f, 0, 1);
     AlphaOut[p] = v * v * (3 - 2 * v);
+}
+
+// MaskOps.GuidedRefine: a fast guided filter that snaps the upsampled mask to edges in the picture.
+#define GW I3.x
+#define GH I3.y
+float Lum(uint p) { float4 c = Unpack(p); return (c.x * 0.114f + c.y * 0.587f + c.z * 0.299f) / 255; }
+
+// Guide image and mask at 1/scale: (I, p, I·p, I²).
+[numthreads(256, 1, 1)]
+void GuideDown(uint3 id : SV_DispatchThreadID)
+{
+    uint q = Index(id);
+    if (q >= (uint)(GW * GH)) return;
+    int x = q % GW, y = q / GW, s = I3.z;
+    int sy = min(H - 1, y * s + s / 2), sx = min(W - 1, x * s + s / 2);
+    float i = Lum(Src[sy * W + sx]), p = Alpha[sy * W + sx];
+    AccOut[q] = float4(i, p, i * p, i * i);
+}
+
+// Mean over the part of the (2r+1) window inside the image, one direction at a time.
+[numthreads(256, 1, 1)]
+void GuideBoxH(uint3 id : SV_DispatchThreadID)
+{
+    uint q = Index(id);
+    if (q >= (uint)(GW * GH)) return;
+    int x = q % GW, row = q - x, a = max(0, x - I3.w), b = min(GW - 1, x + I3.w);
+    float4 sum = 0;
+    for (int k = a; k <= b; k++) sum += Acc[row + k];
+    AccOut[q] = sum / (b - a + 1);
+}
+
+[numthreads(256, 1, 1)]
+void GuideBoxV(uint3 id : SV_DispatchThreadID)
+{
+    uint q = Index(id);
+    if (q >= (uint)(GW * GH)) return;
+    int x = q % GW, y = q / GW, a = max(0, y - I3.w), b = min(GH - 1, y + I3.w);
+    float4 sum = 0;
+    for (int k = a; k <= b; k++) sum += Acc[k * GW + x];
+    AccOut[q] = sum / (b - a + 1);
+}
+
+// Per-window linear model alpha ≈ a·I + b.
+[numthreads(256, 1, 1)]
+void GuideAB(uint3 id : SV_DispatchThreadID)
+{
+    uint q = Index(id);
+    if (q >= (uint)(GW * GH)) return;
+    float4 m = Acc[q];
+    float cov = m.z - m.x * m.y, vr = m.w - m.x * m.x;
+    float a = cov / (vr + 0.002f);
+    AccOut[q] = float4(a, m.y - a * m.x, 0, 0);
+}
+
+// Applies the smoothed model at full size on edge pixels only, then crisps the band (smoothstep 0.15..0.85).
+[numthreads(256, 1, 1)]
+void GuideApply(uint3 id : SV_DispatchThreadID)
+{
+    uint k = Index(id);
+    if (k >= (uint)(W * H)) return;
+    float o = AlphaOut[k];
+    if (o <= 0.001f || o >= 0.999f) return;
+    int x = k % W, y = k / W;
+    float gy = clamp((y + 0.5f) * ((float)GH / H) - 0.5f, 0, GH - 1);
+    int y0 = (int)gy, y1 = min(y0 + 1, GH - 1); float dy = gy - y0;
+    float gx = clamp((x + 0.5f) * ((float)GW / W) - 0.5f, 0, GW - 1);
+    int x0 = (int)gx, x1 = min(x0 + 1, GW - 1); float dx = gx - x0;
+    float2 t = Acc[y0 * GW + x0].xy + (Acc[y0 * GW + x1].xy - Acc[y0 * GW + x0].xy) * dx;
+    float2 u = Acc[y1 * GW + x0].xy + (Acc[y1 * GW + x1].xy - Acc[y1 * GW + x0].xy) * dx;
+    float2 ab = t + (u - t) * dy;
+    float v = clamp((ab.x * Lum(Src[k]) + ab.y - 0.15f) / 0.7f, 0, 1);
+    AlphaOut[k] = v * v * (3 - 2 * v);
 }
 
 bool IsSkin(float r, float g, float b)
@@ -270,12 +343,14 @@ void Effects(uint3 id : SV_DispatchThreadID)
         float3 p00 = Blurred(y0 * bw + x0), p01 = Blurred(y0 * bw + x1), p10 = Blurred(y1 * bw + x0), p11 = Blurred(y1 * bw + x1);
         float3 top = p00 + (p01 - p00) * dx, bot = p10 + (p11 - p10) * dx;
         float3 bl = top + (bot - top) * dy;
-        c = float4(Sat3(c.xyz * a + bl * ia), 255);
+        float3 fg = c.xyz + (bl - c.xyz) * LIGHT_WRAP * ia; // room light spills onto the edge
+        c = float4(Sat3(fg * a + bl * ia), 255);
     }
     else if (mode == 2 && a < 0.999f)
     {
         float3 bg = Unpack(Aux[p]).xyz;
-        c = float4((uint3)(c.xyz * a + bg * ia), 255);
+        float3 fg = c.xyz + (bg - c.xyz) * (LIGHT_WRAP * ia);
+        c = float4((uint3)(fg * a + bg * ia), 255);
     }
     else if (mode == 3)
     {

@@ -49,7 +49,7 @@ public sealed class GpuEffects : IDisposable
 
         using var stream = typeof(GpuEffects).Assembly.GetManifestResourceStream("OpenKamera.Core.GpuEffects.hlsl")!;
         string source = new StreamReader(stream).ReadToEnd();
-        foreach (var entry in new[] { "Upsample", "Retouch", "BlurDown", "BoxH", "BoxV", "Effects", "Sharpen", "Scene" })
+        foreach (var entry in new[] { "Upsample", "GuideDown", "GuideBoxH", "GuideBoxV", "GuideAB", "GuideApply", "Retouch", "BlurDown", "BoxH", "BoxV", "Effects", "Sharpen", "Scene" })
         {
             var code = Compiler.Compile(source, entry, "GpuEffects.hlsl", "cs_5_0", ShaderFlags.OptimizationLevel3);
             _cs[entry] = _device.CreateComputeShader(code.Span);
@@ -109,6 +109,7 @@ public sealed class GpuEffects : IDisposable
             Ensure("alpha", n * 4, 4);
             SetParams(p);
             Run("Upsample", n, srv: [("maskLow", 6)], uav: [("alpha", 1)]);
+            GuidedRefine(px.Length / 4, w, h, ref p);
         }
         else Ensure("alpha", 4, 4);
 
@@ -189,6 +190,24 @@ public sealed class GpuEffects : IDisposable
         }
 
         return Download(cur, n * 4);
+    }
+
+    /// <summary>MaskOps.GuidedRefine on the GPU, with the scale BackgroundPipeline uses.</summary>
+    private void GuidedRefine(int n, int w, int h, ref Params p)
+    {
+        const int radius = 6;
+        int scale = Math.Max(2, w / 480), gw = Math.Max(1, w / scale), gh = Math.Max(1, h / scale), q = gw * gh;
+        p.I3 = new(gw, gh, scale, radius);
+        SetParams(p);
+        Ensure("guide0", q * 16, 16); Ensure("guide1", q * 16, 16);
+        Run("GuideDown", q, srv: [("frame", 0), ("alpha", 1)], uav: [("guide0", 2)]);
+        Run("GuideBoxH", q, srv: [("guide0", 7)], uav: [("guide1", 2)]);
+        Run("GuideBoxV", q, srv: [("guide1", 7)], uav: [("guide0", 2)]);
+        Run("GuideAB", q, srv: [("guide0", 7)], uav: [("guide1", 2)]);
+        Run("GuideBoxH", q, srv: [("guide1", 7)], uav: [("guide0", 2)]);
+        Run("GuideBoxV", q, srv: [("guide0", 7)], uav: [("guide1", 2)]);
+        Run("GuideApply", n, srv: [("frame", 0), ("guide1", 7)], uav: [("alpha", 1)]);
+        p.I3 = default;
     }
 
     private Fx ColourParams(ImageFilters.Adjustments adj, ref Params p)
