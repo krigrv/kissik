@@ -352,7 +352,7 @@
                             </MenuFlyoutSubItem>
                             <MenuFlyoutSubItem Text="Settings and help">
                                 <MenuFlyoutSubItem.Icon><FontIcon Glyph="&#xE713;" /></MenuFlyoutSubItem.Icon>
-                                <ToggleMenuFlyoutItem x:Name="StartupToggle" Text="Start KISSIK with Windows (in the background)" Click="StartupToggle_Click">
+                                <ToggleMenuFlyoutItem x:Name="StartupToggle" Text="Start KISSIK when Windows starts" Click="StartupToggle_Click">
                                     <ToggleMenuFlyoutItem.Icon><FontIcon Glyph="&#xE7E8;" /></ToggleMenuFlyoutItem.Icon>
                                 </ToggleMenuFlyoutItem>
                                 <ToggleMenuFlyoutItem x:Name="PhoneDimToggle" Text="Dim the phone's screen while it streams" Click="PhoneDimToggle_Click">
