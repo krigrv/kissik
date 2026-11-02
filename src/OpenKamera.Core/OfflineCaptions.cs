@@ -32,6 +32,9 @@ public sealed class OfflineCaptions : IDisposable
 
     public event Action<string>? Partial;
     public event Action<string>? Final;
+    /// <summary>A finished sentence with its audio (16 kHz mono floats), for "Accurate captions" to re-check.</summary>
+    public event Action<string, float[]>? FinalWithAudio;
+    private readonly List<float> _sentence = [];
 
     static OfflineCaptions() { try { Vosk.Vosk.SetLogLevel(-1); } catch { } }
 
@@ -87,14 +90,16 @@ public sealed class OfflineCaptions : IDisposable
     {
         var pcm = ToPcm16Mono16k(stereo48k);
         if (pcm.Length == 0) return;
-        string? fin = null, part = null;
+        string? fin = null, part = null; float[]? audio = null;
         lock (_lock)
         {
             if (_disposed) return;
-            if (_rec.AcceptWaveform(pcm, pcm.Length)) fin = Text(_rec.Result(), "text");
+            if (FinalWithAudio is not null && _sentence.Count < 16000 * 30)
+                for (int i = 0; i + 1 < pcm.Length; i += 2) _sentence.Add((short)(pcm[i] | pcm[i + 1] << 8) / 32768f);
+            if (_rec.AcceptWaveform(pcm, pcm.Length)) { fin = Text(_rec.Result(), "text"); audio = [.. _sentence]; _sentence.Clear(); }
             else part = Text(_rec.PartialResult(), "partial");
         }
-        if (!string.IsNullOrWhiteSpace(fin)) Final?.Invoke(fin);
+        if (!string.IsNullOrWhiteSpace(fin)) { Final?.Invoke(fin); if (audio is not null) FinalWithAudio?.Invoke(fin, audio); }
         else if (!string.IsNullOrWhiteSpace(part)) Partial?.Invoke(part);
     }
 

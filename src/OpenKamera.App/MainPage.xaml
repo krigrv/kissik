@@ -275,6 +275,9 @@
                             <ToggleMenuFlyoutItem x:Name="CaptionsToggle" Text="Live captions" Click="CaptionsToggle_Click">
                                 <ToggleMenuFlyoutItem.Icon><FontIcon Glyph="&#xED1E;" /></ToggleMenuFlyoutItem.Icon>
                             </ToggleMenuFlyoutItem>
+                            <ToggleMenuFlyoutItem x:Name="AccurateToggle" Text="Accurate captions (corrects each line a moment later)" Click="AccurateToggle_Click">
+                                <ToggleMenuFlyoutItem.Icon><FontIcon Glyph="&#xE8FB;" /></ToggleMenuFlyoutItem.Icon>
+                            </ToggleMenuFlyoutItem>
                             <MenuFlyoutSeparator />
                             <ToggleMenuFlyoutItem x:Name="ReplayToggle" Text="Replay buffer (keeps the last 30 seconds)" Click="ReplayToggle_Click">
                                 <ToggleMenuFlyoutItem.Icon><FontIcon Glyph="&#xE81C;" /></ToggleMenuFlyoutItem.Icon>

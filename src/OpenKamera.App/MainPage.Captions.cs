@@ -40,6 +40,7 @@ public sealed partial class MainPage
             _offline = started;
             _offline.Partial += t => DispatcherQueue.TryEnqueue(() => _captions.Partial(t, DateTime.UtcNow));
             _offline.Final += t => DispatcherQueue.TryEnqueue(() => _captions.Final(t, DateTime.UtcNow));
+            if (_settings.AccurateCaptions) StartAccurate(started, lang.Code);
 
             _captionTimer ??= DispatcherQueue.CreateTimer();
             _captionTimer.Interval = TimeSpan.FromMilliseconds(150);
@@ -92,6 +93,8 @@ public sealed partial class MainPage
         _captionTimer?.Stop();
         if (_captionTimer is not null) _captionTimer.Tick -= CaptionTick;
         var o = _offline; _offline = null;
+        var wr = _whisper; _whisper = null;
+        if (wr is not null) await Task.Run(wr.Dispose);
         if (o is not null) await Task.Run(o.Dispose); // never on the UI thread: it waits for the worker
         _captionImage = null; _shownCaption = "";
         CaptionBar.Visibility = Visibility.Collapsed;

@@ -23,6 +23,13 @@ public sealed class CaptionBuffer
         _lastSpeech = now;
     }
 
+    /// <summary>Replaces a finished line with its more accurate version, if it is still on screen.</summary>
+    public void Correct(string draft, string corrected)
+    {
+        int i = _final.FindLastIndex(l => l == draft.Trim());
+        if (i >= 0) _final[i] = corrected.Trim();
+    }
+
     /// <summary>The caption to show now: at most two lines, newest words last; empty after silence.</summary>
     public string Text(DateTime now)
     {

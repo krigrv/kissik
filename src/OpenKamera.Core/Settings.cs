@@ -28,6 +28,8 @@ public sealed class AppSettings
     /// <summary>Show one small, labelled sponsored pick in the Camera panel (never in the video).</summary>
     public bool SponsoredPicks { get; set; } = true;
     public SceneTransition Transition { get; set; } = SceneTransition.Fade;
+    /// <summary>Re-check each captioned sentence with Whisper for accuracy (uses more power).</summary>
+    public bool AccurateCaptions { get; set; }
     public List<string> DismissedSponsors { get; set; } = [];
     public BackgroundSettings Background { get; set; } = BackgroundSettings.Off;
     /// <summary>Gallery favourites: "scene:id", "bg:id", "filter:Name", "lut:Name".</summary>
