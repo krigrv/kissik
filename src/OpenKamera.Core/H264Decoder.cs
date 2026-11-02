@@ -7,7 +7,9 @@ namespace OpenKamera.Core;
 /// A decoded picture: upright BGRA (already turned by the phone's rotation). <see cref="Bgra"/> is reused for the next
 /// picture once the event returns (it may be longer than Width × Height × 4): copy what you keep.
 /// </summary>
-public sealed record DecodedFrame(byte[] Bgra, int Width, int Height, long TimestampUs);
+/// <param name="Nv12">True when <see cref="Bgra"/> actually holds packed NV12 (Width × Height × 3/2, already turned):
+/// <see cref="H264Decoder.OutputNv12"/> was on, so the GPU does the colour conversion.</param>
+public sealed record DecodedFrame(byte[] Bgra, int Width, int Height, long TimestampUs, bool Nv12 = false);
 
 /// <summary>
 /// H.264 to BGRA with the Windows Media Foundation H.264 decoder (built into Windows, hardware-accelerated through
@@ -38,6 +40,20 @@ public sealed unsafe class H264Decoder : IDisposable
     public int Skipped => Volatile.Read(ref _skipped);
     /// <summary>Live mode: show only the newest picture when packets back up (off for file playback and tests).</summary>
     public bool DropStaleFrames { get; set; }
+
+    /// <summary>
+    /// Hand pictures over as NV12 (turned, colour untouched) instead of converting them to BGRA here: set when the GPU
+    /// frame path is on, which converts them for a fraction of the CPU's time. Odd-sized pictures still come as BGRA.
+    /// </summary>
+    public bool OutputNv12 { get; set; }
+
+    /// <summary>Smoothed time per picture to read it from the decoder and convert or turn it (ms).</summary>
+    public double ConvertMs { get; private set; }
+    /// <summary>Smoothed time per picture spent in <see cref="FrameDecoded"/> handlers, on this thread (ms).</summary>
+    public double HandlerMs { get; private set; }
+
+    private static double Smooth(double avg, long fromTicks) =>
+        (avg <= 0 ? 0 : avg * 0.9) + (System.Diagnostics.Stopwatch.GetTimestamp() - fromTicks) * 1000.0 / System.Diagnostics.Stopwatch.Frequency * (avg <= 0 ? 1 : 0.1);
     private readonly BlockingCollection<PhoneVideoPacket> _queue = new(new ConcurrentQueue<PhoneVideoPacket>(), 120);
     private Thread? _thread;
     private volatile bool _disposed;
@@ -52,6 +68,8 @@ public sealed unsafe class H264Decoder : IDisposable
         catch { d.Release(); throw; }
         d._thread = new Thread(d.Run) { IsBackground = true, Name = "H.264 decoder" };
         d._thread.Start();
+        d._deliverThread = new Thread(d.DeliverLoop) { IsBackground = true, Name = "H.264 pictures" };
+        d._deliverThread.Start();
         return d;
     }
 
@@ -225,7 +243,7 @@ public sealed unsafe class H264Decoder : IDisposable
                     // Skip only on a real backlog (2+ newer packets) and never go more than 50 ms without a picture.
                     long now = System.Diagnostics.Stopwatch.GetTimestamp();
                     bool overdue = (now - _lastDeliver) * 1000 / System.Diagnostics.Stopwatch.Frequency >= 50;
-                    if (!DropStaleFrames || _queue.Count < 2 || overdue) { Deliver(data.pSample, fallbackPts); _lastDeliver = now; }
+                    if (!DropStaleFrames || _queue.Count < 2 || overdue) { Hand(data.pSample, fallbackPts); _lastDeliver = now; }
                     else Interlocked.Increment(ref _skipped);
                 }
             }
@@ -237,14 +255,18 @@ public sealed unsafe class H264Decoder : IDisposable
         }
     }
 
-    private void Deliver(nint sample, long fallbackPts)
+    private void Deliver(Picture pic)
     {
+        nint sample = pic.Sample; long fallbackPts = pic.Pts;
+        int _cropW = pic.CropW, _cropH = pic.CropH, _width = pic.Width, _height = pic.Height, _pitchHint = pic.PitchHint;
         long t100;
         long pts = Call(Vt(sample, 35), sample, &t100) >= 0 ? t100 / 10 : fallbackPts;
         Check(Call(Vt(sample, 40), sample, 0u, out nint buf), "GetBufferByIndex");
         try
         {
-            byte[] bgra = Frame(_cropW * _cropH * 4); int w, h;
+            long t0 = System.Diagnostics.Stopwatch.GetTimestamp();
+            bool nv12 = OutputNv12 && (_cropW | _cropH) % 2 == 0;
+            byte[] bgra = Frame(nv12 ? _cropW * _cropH * 3 / 2 : _cropW * _cropH * 4); int w, h;
             var iid2d = IID_IMF2DBuffer;
             if (Marshal.QueryInterface(buf, in iid2d, out nint b2d) >= 0)
             {
@@ -257,7 +279,9 @@ public sealed unsafe class H264Decoder : IDisposable
                         // Top-down only (negative pitch = bottom-up, which NV12 never is).
                         int p = Math.Abs(pitch);
                         long total = (long)p * _height * 3 / 2;
-                        PhoneVideo.Nv12ToBgra(new ReadOnlySpan<byte>(scan0, (int)total), p, _cropW, _cropH, p * _height, Rotation, bgra, out w, out h);
+                        var src = new ReadOnlySpan<byte>(scan0, (int)total);
+                        if (nv12) PhoneVideo.Nv12Rotate(src, p, _cropW, _cropH, p * _height, Rotation, bgra, out w, out h);
+                        else PhoneVideo.Nv12ToBgra(src, p, _cropW, _cropH, p * _height, Rotation, bgra, out w, out h);
                     }
                     finally { Call(Vt(b2d, 4), b2d); }
                 }
@@ -271,14 +295,53 @@ public sealed unsafe class H264Decoder : IDisposable
                 {
                     int p = Math.Max(_pitchHint, _width);
                     int rows = (int)Math.Min(_height, cur * 2 / 3 / Math.Max(1, p));
-                    PhoneVideo.Nv12ToBgra(new ReadOnlySpan<byte>(data, (int)cur), p, _cropW, Math.Min(_cropH, rows), p * rows, Rotation, bgra, out w, out h);
+                    var src = new ReadOnlySpan<byte>(data, (int)cur);
+                    int ch = Math.Min(_cropH, rows);
+                    if (nv12 && ch % 2 == 0) PhoneVideo.Nv12Rotate(src, p, _cropW, ch, p * rows, Rotation, bgra, out w, out h);
+                    else { nv12 = false; bgra = Frame(_cropW * _cropH * 4); PhoneVideo.Nv12ToBgra(src, p, _cropW, ch, p * rows, Rotation, bgra, out w, out h); }
                 }
                 finally { Call(Vt(buf, 4), buf); }
             }
             FramesDecoded++;
-            FrameDecoded?.Invoke(new DecodedFrame(bgra, w, h, pts));
+            ConvertMs = Smooth(ConvertMs, t0);
+            long t1 = System.Diagnostics.Stopwatch.GetTimestamp();
+            FrameDecoded?.Invoke(new DecodedFrame(bgra, w, h, pts, nv12));
+            HandlerMs = Smooth(HandlerMs, t1);
         }
         finally { Marshal.Release(buf); }
+    }
+
+    /// <summary>A decoded picture waiting to be read out, with the geometry it was decoded at.</summary>
+    private readonly record struct Picture(nint Sample, long Pts, int CropW, int CropH, int Width, int Height, int PitchHint);
+
+    private readonly BlockingCollection<Picture> _pictures = new(new ConcurrentQueue<Picture>());
+    private Thread? _deliverThread;
+
+    /// <summary>
+    /// Passes a decoded picture to the delivery thread, so reading it out of the decoder (which waits for the GPU to
+    /// finish it) and the frame path overlap with decoding the next one. Live (<see cref="DropStaleFrames"/>), only
+    /// the newest picture waits: an older one still waiting is skipped.
+    /// </summary>
+    private void Hand(nint sample, long fallbackPts)
+    {
+        if (DropStaleFrames)
+            while (_pictures.TryTake(out var old)) { Marshal.Release(old.Sample); Interlocked.Increment(ref _skipped); }
+        Marshal.AddRef(sample);
+        if (!_pictures.TryAdd(new Picture(sample, fallbackPts, _cropW, _cropH, _width, _height, _pitchHint))) Marshal.Release(sample);
+    }
+
+    private void DeliverLoop()
+    {
+        try
+        {
+            foreach (var pic in _pictures.GetConsumingEnumerable())
+            {
+                try { if (!_disposed) Deliver(pic); }
+                catch (Exception ex) { Error?.Invoke(ex.Message); }
+                finally { Marshal.Release(pic.Sample); }
+            }
+        }
+        catch (ObjectDisposedException) { }
     }
 
     // One picture buffer, reused: a fresh 8 MB array per 4K-ish frame would keep the garbage collector busy.
@@ -291,8 +354,12 @@ public sealed unsafe class H264Decoder : IDisposable
         _disposed = true;
         _queue.CompleteAdding();
         _thread?.Join(2000);
+        _pictures.CompleteAdding();
+        _deliverThread?.Join(2000);
+        while (_pictures.TryTake(out var left)) Marshal.Release(left.Sample);
         Release();
         _queue.Dispose();
+        _pictures.Dispose();
     }
 
     private void Release()

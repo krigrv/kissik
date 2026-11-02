@@ -13,7 +13,7 @@ var cases = new (string Name, FrameRecipe Recipe)[]
     ("blur+framing", FrameRecipe.Passthrough with { Background = new BackgroundSettings(BackgroundMode.Blur, 0.6), Transform = new FrameTransform(Mirror: true, Zoom: 1.5) }),
     ("look+lut", FrameRecipe.Passthrough with { Adjustments = new ImageFilters.Adjustments(Contrast: 1.1, Saturation: 1.2, Sharpness: 0.5, Filter: FilterPreset.Cinematic) }),
 };
-foreach (var (w, h) in new[] { (1920, 1080), (3840, 2160) })
+foreach (var (w, h) in only is "decode" or "phone" ? [] : new[] { (1920, 1080), (3840, 2160) })
 {
     using var bmp = Synthetic(w, h);
     foreach (var mode in new[] { "cpu", "gpu" })
@@ -99,6 +99,74 @@ static byte[] Layer(int w, int h, int every)
     var px = new byte[w * h * 4];
     for (int y = 0; y < h; y += every) for (int x = 0; x < w; x++) { int i = (y * w + x) * 4; px[i] = px[i + 1] = px[i + 2] = 100; px[i + 3] = 128; }
     return px;
+}
+
+// Phone pictures (bench "phone"): the decoder's NV12 to a frame on the GPU, against the old CPU conversion.
+if (only is "" or "phone" or "gpu" && GpuEffects.Shared is not null)
+{
+    FrameProcessor.UseGpu = true;
+    foreach (var (pw, ph, rot) in new[] { (1080, 1920, 0), (1920, 1080, 90), (3840, 2160, 0), (3840, 2160, 90) })
+    {
+        int pitch = (pw + 63) & ~63; // decoder buffers are padded
+        var nv12 = new byte[pitch * ph * 3 / 2];
+        new Random(1).NextBytes(nv12);
+        var bgra = new byte[pw * ph * 4];
+        double Ms(Action a) { for (int i = 0; i < 5; i++) a(); var sw = Stopwatch.StartNew(); int n = 0; while (sw.Elapsed.TotalSeconds < 2) { a(); n++; } return sw.Elapsed.TotalMilliseconds / n; }
+        double cpu = Ms(() => PhoneVideo.Nv12ToBgra(nv12, pitch, pw, ph, pitch * ph, rot, bgra, out _, out _));
+        var packed = new byte[pw * ph * 3 / 2];
+        int ow = 0, oh = 0;
+        double hand = Ms(() => PhoneVideo.Nv12Rotate(nv12, pitch, pw, ph, pitch * ph, rot, packed, out ow, out oh));
+        double gpu = Ms(() =>
+        {
+            PhoneVideo.Nv12Rotate(nv12, pitch, pw, ph, pitch * ph, rot, packed, out ow, out oh);
+            using var bmp = SoftwareBitmap.CreateCopyFromBuffer(packed.AsBuffer(), BitmapPixelFormat.Nv12, ow, oh);
+            YuvConvert.MarkBt709(bmp);
+            FrameProcessor.Process(bmp, FrameRecipe.Passthrough, null, null, (1920, 1080));
+        });
+        Console.WriteLine($"phone {pw}x{ph} turned {rot}: CPU to BGRA {cpu:F1} ms; NV12 handoff {hand:F1} ms, whole frame on the GPU incl. preview readback {gpu:F1} ms");
+    }
+}
+
+// Live phone decode (bench "decode <clip.h264>..."): packets paced at 60 per second as the phone sends them, decoded
+// (hardware when there is one), then handed to the frame path on the decoder thread as the app does.
+if (only == "decode")
+{
+    FrameProcessor.UseGpu = true;
+    foreach (var clip in args.Skip(1))
+        foreach (var (nv12, rot) in new[] { (false, 0), (true, 0), (false, 90), (true, 90) })
+        {
+            if (nv12 && !FrameProcessor.GpuActive) continue;
+            using var dec = H264Decoder.Create();
+            dec.DropStaleFrames = true; dec.OutputNv12 = nv12; dec.Rotation = rot;
+            var session = new CaptureSession();
+            await session.StartExternalAsync();
+            using var bg = new BackgroundPipeline();
+            var recipe = cases[0].Recipe; // blur, as a typical live setup
+            int shown = 0; double firstMs = -1, lastMs = 0;
+            var clock = Stopwatch.StartNew();
+            session.FrameAvailable += bmp =>
+            {
+                FrameProcessor.Process(bmp, recipe, bg, null, (1920, 1080));
+                double now = clock.Elapsed.TotalMilliseconds;
+                if (firstMs < 0) firstMs = now; else shown++;
+                lastMs = now;
+            };
+            dec.FrameDecoded += f => session.PushBgra(f);
+            var packets = PhoneVideo.SplitAccessUnits(File.ReadAllBytes(clip)).ToList();
+            var sw = Stopwatch.StartNew();
+            long t = 0; int i = 0;
+            foreach (var (data, key) in packets)
+            {
+                var due = TimeSpan.FromSeconds(i++ / 60.0);
+                while (sw.Elapsed < due) Thread.Sleep(1);
+                dec.Push(new PhoneVideoPacket(key, t += 16_667, data));
+            }
+            Thread.Sleep(300);
+            double secs = (lastMs - firstMs) / 1000; // steady state: from the first picture to the last
+            Console.WriteLine($"{Path.GetFileNameWithoutExtension(clip)} turned {rot} {(nv12 ? "NV12 to GPU" : "BGRA on CPU")}: {shown / secs:F1} shown/s of 60 ({(dec.Hardware ? "hardware" : "software")} decode), " +
+                $"read+convert {dec.ConvertMs:F1} ms, frame path {dec.HandlerMs:F1} ms per picture");
+            await session.StopAsync();
+        }
 }
 
 static SoftwareBitmap Synthetic(int w, int h)

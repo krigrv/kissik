@@ -547,11 +547,13 @@ void Scene(uint3 id : SV_DispatchThreadID)
 // ---- Camera input: YUV straight from the camera, converted here (mirrors YuvConvert) ----
 // Src holds the raw bytes packed four to a word. I0: w, h, chroma offset (NV12), row stride.
 uint ByteAt(uint k) { return (Src[k >> 2] >> ((k & 3) * 8)) & 255; }
+// I1: the matrix as integers out of 256, (r from v, g from u, g from v, b from u): BT.601 for cameras
+// (409, 100, 208, 516), BT.709 for the phone's H.264 (459, 55, 136, 541), as PhoneVideo converts it.
 uint Yuv(int y, int u, int v)
 {
     int c = 298 * (y - 16), d = u - 128, e = v - 128;
-    return Pack(uint4(clamp((c + 516 * d + 128) >> 8, 0, 255), clamp((c - 100 * d - 208 * e + 128) >> 8, 0, 255),
-        clamp((c + 409 * e + 128) >> 8, 0, 255), 255));
+    return Pack(uint4(clamp((c + I1.w * d + 128) >> 8, 0, 255), clamp((c - I1.y * d - I1.z * e + 128) >> 8, 0, 255),
+        clamp((c + I1.x * e + 128) >> 8, 0, 255), 255));
 }
 
 [numthreads(256, 1, 1)]

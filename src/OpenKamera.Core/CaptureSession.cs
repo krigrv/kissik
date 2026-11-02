@@ -104,7 +104,15 @@ public sealed class CaptureSession : IAsyncDisposable
         if (!_external) return;
         try
         {
-            var bmp = SoftwareBitmap.CreateCopyFromBuffer(System.Runtime.InteropServices.WindowsRuntime.WindowsRuntimeBufferExtensions.AsBuffer(f.Bgra, 0, f.Width * f.Height * 4),
+            SoftwareBitmap bmp;
+            if (f.Nv12)
+            {
+                // The GPU converts it (BT.709, as the phone's video is), like a camera's NV12.
+                bmp = SoftwareBitmap.CreateCopyFromBuffer(System.Runtime.InteropServices.WindowsRuntime.WindowsRuntimeBufferExtensions.AsBuffer(f.Bgra, 0, f.Width * f.Height * 3 / 2),
+                    BitmapPixelFormat.Nv12, f.Width, f.Height);
+                YuvConvert.MarkBt709(bmp);
+            }
+            else bmp = SoftwareBitmap.CreateCopyFromBuffer(System.Runtime.InteropServices.WindowsRuntime.WindowsRuntimeBufferExtensions.AsBuffer(f.Bgra, 0, f.Width * f.Height * 4),
                 BitmapPixelFormat.Bgra8, f.Width, f.Height, BitmapAlphaMode.Premultiplied);
             if (Mode is not { } m || m.Width != f.Width || m.Height != f.Height || m.Subtype != "PHONE H264")
                 Mode = new CaptureMode(f.Width, f.Height, 30, "PHONE H264");

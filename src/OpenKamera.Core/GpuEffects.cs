@@ -155,7 +155,8 @@ public sealed class GpuEffects : IDisposable
             try
             {
                 var (stride, uvOffset) = YuvConvert.Read(yuv, (ptr, bytes, stride, uv) => { UploadRaw("yuv", ptr, bytes); return (stride, uv); });
-                SetParams(new Params { I0 = new(w, h, uvOffset, stride) });
+                var m = YuvConvert.IsBt709(yuv) ? YuvConvert.Bt709 : YuvConvert.Bt601;
+                SetParams(new Params { I0 = new(w, h, uvOffset, stride), I1 = new(m.Rv, m.Gu, m.Gv, m.Bu) });
                 Ensure("raw", w * h * 4, 4);
                 Run(nv12 ? "Nv12" : "Yuy2", w * h, srv: [("yuv", 0)], uav: [("raw", 0)]);
                 return Pipeline("raw", w, h, r, background, false, bake, previewWithin);

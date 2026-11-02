@@ -144,6 +144,22 @@ Still to test by hand before v1 (needs a person at the PC):
   - *Preview from a texture:* the preview now reads back at most 1080p. Drawing it straight from a texture
     (SwapChainPanel) would save that too, but the thumbnails, auto picture and meeting check still read its bytes.
 
+Phone video (`dotnet run -c Release --project tests/OpenKamera.Bench -- decode <clip.h264>...`): 4-second ffmpeg test
+streams at 60 fps, sent to the decoder at the phone's pace, hardware H.264 decode, then the frame path with blur, as
+the app runs it. Steady state, pictures shown per second of 60, and per-picture times:
+
+| Stream | Turned | Before (BGRA on CPU, one thread) | After (NV12 to the GPU, reading out on its own thread) |
+| --- | --- | --- | --- |
+| 1080×1920 | no | 44 shown | 60 shown (read 6.3 ms, frame path 4.3 ms) |
+| 1080×1920 | 90° | 53 shown | 60 shown (read 7.7 ms, frame path 7.0 ms) |
+| 3840×2160 | no | 18 shown | 60 shown (read 7.5 ms, frame path 9.0 ms) |
+| 3840×2160 | 90° | 14 shown | 60 shown (read 7.8 ms, frame path 9.3 ms) |
+
+The colour conversion itself was never the big cost (0.5–0.7 ms at 1080p on the CPU). Reading the picture out of
+the hardware decoder waits for the GPU to finish it (6–8 ms), and that wait and the frame path ran one after the
+other on the decoder thread. Now the decoder hands each picture to a second thread and goes on decoding, and the
+phone's NV12 goes to the GPU (turned by moving bytes, coloured with the phone's BT.709 matrix, exactly as the CPU did).
+
 Frame-path benchmark (`dotnet run -c Release --project tests/OpenKamera.Bench`): a synthetic frame through
 `FrameProcessor` with Fast segmentation on DirectML, RTX 4080 SUPER, frames per second. The effects step only;
 the app adds capture, preview and output on top. "Before" is the CPU path (the framing row with today's CPU

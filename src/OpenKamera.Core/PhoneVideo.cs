@@ -73,6 +73,58 @@ public static class PhoneVideo
         finally { if (temp is not null) System.Buffers.ArrayPool<uint>.Shared.Return(temp); }
     }
 
+    /// <summary>
+    /// Copies an NV12 picture into a packed one (rows exactly <paramref name="width"/> bytes, chroma straight after)
+    /// turned clockwise by <paramref name="rotation"/>, the same way <see cref="Nv12ToBgra(ReadOnlySpan{byte}, int, int, int, int, int, byte[], out int, out int)"/> turns pixels. Only bytes move: the GPU converts the colour. Even sizes only.
+    /// </summary>
+    public static unsafe void Nv12Rotate(ReadOnlySpan<byte> nv12, int pitch, int width, int height, int uvOffset, int rotation, byte[] dst, out int outW, out int outH)
+    {
+        rotation = ((rotation % 360) + 360) % 360;
+        if ((width | height) % 2 != 0) throw new ArgumentException("NV12 needs even sides.");
+        bool swap = rotation is 90 or 270;
+        int ow = swap ? height : width, oh = swap ? width : height;
+        outW = ow; outH = oh;
+        if ((long)uvOffset + pitch * (height / 2) > nv12.Length || uvOffset < pitch * height) throw new ArgumentException("NV12 buffer too small.");
+        if (dst.Length < ow * oh * 3 / 2) throw new ArgumentException("Destination too small.", nameof(dst));
+        fixed (byte* s = nv12)
+        fixed (byte* d = dst)
+        {
+            byte* src = s, dy = d, duv = d + (long)ow * oh;
+            int p = pitch, uv = uvOffset;
+            if (rotation == 0)
+            {
+                Parallel.For(0, height, y => Buffer.MemoryCopy(src + (long)y * p, dy + (long)y * width, width, width));
+                Parallel.For(0, height / 2, y => Buffer.MemoryCopy(src + uv + (long)y * p, duv + (long)y * width, width, width));
+                return;
+            }
+            Turn<byte>(src, p, dy, width, height, rotation);
+            Turn<ushort>(src + uv, p, duv, width / 2, height / 2, rotation); // U and V travel together
+        }
+    }
+
+    /// <summary>Turns a w x h plane of T (rows <paramref name="pitch"/> bytes apart) into a packed plane, in cache-sized tiles.</summary>
+    private static unsafe void Turn<T>(byte* src, int pitch, byte* dst, int w, int h, int rotation) where T : unmanaged
+    {
+        const int Tile = 32;
+        int ow = rotation == 180 ? w : h;
+        T* o = (T*)dst;
+        Parallel.For(0, (h + Tile - 1) / Tile, by =>
+        {
+            for (int bx = 0; bx < w; bx += Tile)
+                for (int y = by * Tile, yEnd = Math.Min(y + Tile, h); y < yEnd; y++)
+                {
+                    T* row = (T*)(src + (long)y * pitch);
+                    int xEnd = Math.Min(bx + Tile, w);
+                    switch (rotation)
+                    {
+                        case 90: { T* q = o + (long)bx * ow + (h - 1 - y); for (int x = bx; x < xEnd; x++, q += ow) *q = row[x]; break; }
+                        case 270: { T* q = o + (long)(w - 1 - bx) * ow + y; for (int x = bx; x < xEnd; x++, q -= ow) *q = row[x]; break; }
+                        default: { T* q = o + (long)(h - 1 - y) * ow + (w - 1 - bx); for (int x = bx; x < xEnd; x++, q--) *q = row[x]; break; }
+                    }
+                }
+        });
+    }
+
     // Clamp table for -384..639 (the full range the integer maths above can reach).
     private static readonly byte[] Clamp = Enumerable.Range(-384, 1024).Select(i => (byte)Math.Clamp(i, 0, 255)).ToArray();
 

@@ -292,6 +292,7 @@ public sealed partial class MainPage
             {
                 var dec = H264Decoder.Create();
                 dec.DropStaleFrames = true; // live: never let pictures queue up behind the phone
+                dec.OutputNv12 = FrameProcessor.GpuActive; // the GPU turns NV12 into colour, not this thread
                 dec.FrameDecoded += f =>
                 {
                     Interlocked.Increment(ref _h264Out);

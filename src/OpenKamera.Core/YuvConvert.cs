@@ -11,6 +11,18 @@ public static class YuvConvert
 {
     public static bool IsYuv(SoftwareBitmap b) => b.BitmapPixelFormat is BitmapPixelFormat.Nv12 or BitmapPixelFormat.Yuy2;
 
+    /// <summary>Integer YUV-to-RGB matrices (out of 256): red from V, green from U and V, blue from U.</summary>
+    public readonly record struct Matrix(int Rv, int Gu, int Gv, int Bu);
+    public static readonly Matrix Bt601 = new(409, 100, 208, 516);
+    /// <summary>The phone's H.264 (HD video), exactly as <see cref="PhoneVideo.Nv12ToBgra(ReadOnlySpan{byte}, int, int, int, int, int, byte[], out int, out int)"/> converts it.</summary>
+    public static readonly Matrix Bt709 = new(459, 55, 136, 541);
+
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<SoftwareBitmap, object> _bt709 = new();
+
+    /// <summary>Marks a bitmap as BT.709 (the phone's video) so the GPU converts it with that matrix.</summary>
+    public static void MarkBt709(SoftwareBitmap b) => _bt709.AddOrUpdate(b, true);
+    public static bool IsBt709(SoftwareBitmap b) => _bt709.TryGetValue(b, out _);
+
     public static uint Pixel(int y, int u, int v)
     {
         int c = 298 * (y - 16), d = u - 128, e = v - 128;
