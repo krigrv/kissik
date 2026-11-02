@@ -59,6 +59,7 @@ public sealed partial class MainPage
             if (_secondSource == PhoneDevice.Id) _ = OnSecondPhoneJpegAsync(jpeg); // phone as the second camera
             else if (_session is { } s) _ = s.PushJpegAsync(jpeg);
         };
+        server.VideoPacketReceived += OnPhoneVideo;
         server.AudioReceived += samples =>
         {
             // The phone mic joins the mix as its own track (with meter, volume and mute) the first time it sends sound.
@@ -80,6 +81,8 @@ public sealed partial class MainPage
         server.ConnectionChanged += connected => DispatcherQueue.TryEnqueue(() =>
         {
             if (!connected && _phoneMicTrack is not null) { _audio.RemovePushTrack(PhoneMicId); _phoneMicTrack = null; BuildMicTracks(); }
+            // A new connection starts on JPEG; its first status asks for H.264 again with a fresh decoder.
+            _h264Asked = false; _h264?.Dispose(); _h264 = null;
             if (connected) { _phoneDialog?.Hide(); _ = SwitchToPhoneAsync(); }
             else if (DeviceBox.SelectedItem == PhoneDevice) Status("Phone disconnected. It reconnects by itself when the phone page is open again.");
         });
@@ -90,6 +93,8 @@ public sealed partial class MainPage
             if (st.Width > 0) SourceInfo.Text = $"{st.Width}×{st.Height} · phone";
             if (st.MaxLongSide is { } max && max != _phoneMaxShown) { _phoneMaxShown = max; BuildProfileMenu(); MatchPhoneQuality(); Status($"Your phone camera can do up to {PhoneMaxLabel(max)}."); }
             UpdatePhoneControls(st);
+            UpdatePhonePro(st);
+            UpdatePhoneCodec(st);
             if (st.Height > 0 && st.Height < _profile.Height && _phoneLimitShown != st.Height)
             {
                 _phoneLimitShown = st.Height;

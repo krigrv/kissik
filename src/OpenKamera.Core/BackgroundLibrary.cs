@@ -31,16 +31,23 @@ public static class BackgroundLibrary
     {
         var list = new List<BackgroundInfo>(BuiltIn);
         if (Directory.Exists(UserFolder))
-            foreach (var f in Directory.EnumerateFiles(UserFolder).Where(f => f.EndsWith(".png", StringComparison.OrdinalIgnoreCase) || f.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) || f.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase)))
-                list.Add(new("user:" + Path.GetFileName(f), Path.GetFileNameWithoutExtension(f), "Imported", f));
+            foreach (var f in Directory.EnumerateFiles(UserFolder).Where(f => ImageExtensions.Concat(VideoExtensions).Any(e => f.EndsWith(e, StringComparison.OrdinalIgnoreCase))))
+                list.Add(new("user:" + Path.GetFileName(f), Path.GetFileNameWithoutExtension(f), IsVideo(f) ? "Video" : "Imported", f));
         return list;
     }
+
+    public static readonly string[] ImageExtensions = [".png", ".jpg", ".jpeg"];
+    /// <summary>Looping video backgrounds, decoded by Windows (H.264/HEVC .mp4 and .mov).</summary>
+    public static readonly string[] VideoExtensions = [".mp4", ".mov"];
+    public static bool IsVideo(string idOrPath) => VideoExtensions.Any(e => idOrPath.EndsWith(e, StringComparison.OrdinalIgnoreCase));
+    public static string? FilePathOf(string id) => id.StartsWith("user:", StringComparison.Ordinal) ? Path.Combine(UserFolder, id[5..]) : null;
 
     private static readonly ConcurrentDictionary<(string, int, int), byte[]> Cache = new();
 
     /// <summary>BGRA pixels for the background at exactly w×h (cover-fit for images), or null if unknown.</summary>
     public static byte[]? Render(string id, int w, int h)
     {
+        if (IsVideo(id)) return null; // videos are played by VideoBackground, frame by frame
         if (Cache.TryGetValue((id, w, h), out var hit)) return hit;
         byte[]? px = id.StartsWith("user:", StringComparison.Ordinal)
             ? LoadImage(Path.Combine(UserFolder, id[5..]), w, h)

@@ -19,6 +19,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- One second of H.264 made with: ffmpeg -f lavfi -i testsrc=size=320x240:rate=30 -t 1 -c:v libx264 -bf 0 -g 15 -x264-params repeat-headers=1 -->
+    <None Include="Assets/test-320x240.h264" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>
 

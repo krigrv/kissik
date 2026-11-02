@@ -98,6 +98,22 @@ public sealed class CaptureSession : IAsyncDisposable
         finally { Volatile.Write(ref _decoding, 0); }
     }
 
+    /// <summary>Delivers a picture decoded elsewhere (the phone's H.264 stream) like a camera frame.</summary>
+    public void PushBgra(DecodedFrame f)
+    {
+        if (!_external) return;
+        try
+        {
+            var bmp = SoftwareBitmap.CreateCopyFromBuffer(System.Runtime.InteropServices.WindowsRuntime.WindowsRuntimeBufferExtensions.AsBuffer(f.Bgra, 0, f.Width * f.Height * 4),
+                BitmapPixelFormat.Bgra8, f.Width, f.Height, BitmapAlphaMode.Premultiplied);
+            if (Mode is not { } m || m.Width != f.Width || m.Height != f.Height || m.Subtype != "PHONE H264")
+                Mode = new CaptureMode(f.Width, f.Height, 30, "PHONE H264");
+            Interlocked.Exchange(ref _latest, bmp)?.Dispose();
+            if (_external) FrameAvailable?.Invoke(bmp);
+        }
+        catch { /* raced with stop */ }
+    }
+
     private static CaptureMode ToMode(MediaFrameFormat f) => new(
         (int)f.VideoFormat.Width, (int)f.VideoFormat.Height,
         f.FrameRate is { Denominator: > 0 } r ? (double)r.Numerator / r.Denominator : 0,

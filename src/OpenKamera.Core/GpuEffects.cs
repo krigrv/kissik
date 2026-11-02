@@ -81,7 +81,7 @@ public sealed class GpuEffects : IDisposable
     [Flags]
     private enum Fx { Temp = 1, Tint = 2, Hue = 4, Vib = 8, Sat = 16, Lut = 32, Colour = 64, Behind = 128, Spot = 256 }
     [Flags]
-    private enum Sf { Fills = 1, Ellipse = 2, Camera = 4, Overlay = 8, Underlay = 16 }
+    private enum Sf { Fills = 1, Ellipse = 2, Camera = 4, Overlay = 8, Underlay = 16, Under = 32 }
 
     /// <summary>
     /// Runs every effect after framing and output fit. <paramref name="mask"/> is the model-resolution person mask
@@ -161,7 +161,7 @@ public sealed class GpuEffects : IDisposable
         var s = r.Background;
         bool wantsMask = background is not null && (s.NeedsMask || r.BehindOverlay is { } bo && bo.Length == w * h * 4);
         var mask = wantsMask ? background!.ModelMask((iw, ih) => Small(src, w, h, iw, ih), s) : null;
-        byte[]? bg = s.NeedsMask && s.Mode == BackgroundMode.Replace && s.BackgroundId is { } id ? BackgroundLibrary.Render(id, w, h) : null;
+        byte[]? bg = s.NeedsMask ? background?.ReplacementFor(s, w, h) : null;
         string cur = Effects(src, w, h, r, mask, bg, transparent);
         var pixels = Download(cur, w * h * 4);
         return new FrameOutput(pixels, w, h, bake is null ? null : Bake(cur, w, h, bake, pixels));
@@ -389,11 +389,13 @@ public sealed class GpuEffects : IDisposable
         if (r.Scene is { } scene)
         {
             // Only Remove makes the camera see-through (blur and replace leave it opaque).
-            SceneParams(scene, mode == 3 || transparent, w, h, r.Overlay, ref p);
+            SceneParams(scene, mode == 3 || transparent, w, h, r.Overlay, r.UnderOverlay, ref p);
             SetParams(p);
             if (((Sf)p.I4.X & Sf.Overlay) != 0) Upload("aux", r.Overlay!, 4);
+            bool under = ((Sf)p.I4.X & Sf.Under) != 0;
+            if (under) UploadCached("under", r.UnderOverlay!);
             string o = Next(); Ensure(o, n * 4, 4);
-            Run("Scene", n, srv: [(cur, 0), ("aux", 2)], uav: [(o, 0)]);
+            Run("Scene", n, srv: [(cur, 0), ("aux", 2), (under ? "under" : cur, 3)], uav: [(o, 0)]);
             cur = o;
         }
 
@@ -447,7 +449,7 @@ public sealed class GpuEffects : IDisposable
         return f;
     }
 
-    private static void SceneParams(SceneDocument scene, bool transparent, int w, int h, byte[]? overlay, ref Params p)
+    private static void SceneParams(SceneDocument scene, bool transparent, int w, int h, byte[]? overlay, byte[]? under, ref Params p)
     {
         var top = ColorHex.Parse(scene.Background, (255, 16, 20, 24));
         var bottom = string.IsNullOrEmpty(scene.Background2) ? top : ColorHex.Parse(scene.Background2, top);
@@ -465,6 +467,7 @@ public sealed class GpuEffects : IDisposable
             int rw = Math.Max(1, (int)Math.Round(c.W * w)), rh = Math.Max(1, (int)Math.Round(c.H * h));
             p.I3 = new(rx, ry, rw, rh);
             if (c.Visible) f |= Sf.Camera;
+            if (under is not null && under.Length == w * h * 4) f |= Sf.Under;
             if (c.Shape == "ellipse") f |= Sf.Ellipse;
             p.F4.Y = (float)Math.Clamp(c.Opacity, 0, 1);
             p.F4.Z = (float)(c.CornerRadius * h);

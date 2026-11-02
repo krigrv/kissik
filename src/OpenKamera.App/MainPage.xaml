@@ -275,6 +275,9 @@
                             <ToggleMenuFlyoutItem x:Name="CaptionsToggle" Text="Live captions" Click="CaptionsToggle_Click">
                                 <ToggleMenuFlyoutItem.Icon><FontIcon Glyph="&#xED1E;" /></ToggleMenuFlyoutItem.Icon>
                             </ToggleMenuFlyoutItem>
+                            <ToggleMenuFlyoutItem x:Name="AccurateToggle" Text="Accurate captions (corrects each line a moment later)" Click="AccurateToggle_Click">
+                                <ToggleMenuFlyoutItem.Icon><FontIcon Glyph="&#xE8FB;" /></ToggleMenuFlyoutItem.Icon>
+                            </ToggleMenuFlyoutItem>
                             <MenuFlyoutSeparator />
                             <ToggleMenuFlyoutItem x:Name="ReplayToggle" Text="Replay buffer (keeps the last 30 seconds)" Click="ReplayToggle_Click">
                                 <ToggleMenuFlyoutItem.Icon><FontIcon Glyph="&#xE81C;" /></ToggleMenuFlyoutItem.Icon>
@@ -411,6 +414,48 @@
                             <Slider x:Name="PhoneZoom" Grid.Column="2" Minimum="1" Maximum="1" StepFrequency="0.1" Value="1" IsEnabled="False"
                                     ValueChanged="PhoneZoom_ValueChanged" AutomationProperties.Name="Phone zoom" ToolTipService.ToolTip="Phone zoom" AutomationProperties.HelpText="Phone zoom" VerticalAlignment="Center" />
                         </Grid>
+                        <!-- Phone camera (native app): each control shows only when the phone reports it. -->
+                        <StackPanel x:Name="PhonePro" Visibility="Collapsed" Spacing="6" Margin="0,8,0,0">
+                            <ComboBox x:Name="PhoneLens" Header="Lens" HorizontalAlignment="Stretch" Visibility="Collapsed"
+                                      SelectionChanged="PhoneLens_SelectionChanged" AutomationProperties.Name="Phone lens" />
+                            <Slider x:Name="PhoneEv" Header="Exposure" StepFrequency="1" Visibility="Collapsed"
+                                    ValueChanged="PhoneEv_ValueChanged" AutomationProperties.Name="Phone exposure compensation" />
+                            <Grid x:Name="PhoneIsoRow" ColumnSpacing="8" Visibility="Collapsed">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <Slider x:Name="PhoneIso" Header="ISO" StepFrequency="1" ValueChanged="PhoneIso_ValueChanged" AutomationProperties.Name="Phone ISO" />
+                                <CheckBox x:Name="PhoneIsoAuto" Grid.Column="1" Content="Auto" MinWidth="0" VerticalAlignment="Bottom"
+                                          Click="PhoneIsoAuto_Click" AutomationProperties.Name="Automatic ISO" />
+                            </Grid>
+                            <Grid x:Name="PhoneShutterRow" ColumnSpacing="8" Visibility="Collapsed">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <Slider x:Name="PhoneShutter" Header="Shutter" Minimum="0" Maximum="1000" StepFrequency="1" IsThumbToolTipEnabled="False"
+                                        ValueChanged="PhoneShutter_ValueChanged" AutomationProperties.Name="Phone shutter speed" />
+                                <CheckBox x:Name="PhoneShutterAuto" Grid.Column="1" Content="Auto" MinWidth="0" VerticalAlignment="Bottom"
+                                          Click="PhoneShutterAuto_Click" AutomationProperties.Name="Automatic shutter speed" />
+                            </Grid>
+                            <Grid x:Name="PhoneFocusRow" ColumnSpacing="8" Visibility="Collapsed">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <Slider x:Name="PhoneFocus" Header="Focus" Minimum="0" Maximum="100" StepFrequency="1" ValueChanged="PhoneFocus_ValueChanged"
+                                        AutomationProperties.Name="Phone focus, far to near" ToolTipService.ToolTip="Far to near. Or click the picture to focus there." />
+                                <CheckBox x:Name="PhoneFocusAuto" Grid.Column="1" Content="Auto" MinWidth="0" VerticalAlignment="Bottom"
+                                          Click="PhoneFocusAuto_Click" AutomationProperties.Name="Autofocus" />
+                            </Grid>
+                            <Grid ColumnSpacing="6">
+                                <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition /></Grid.ColumnDefinitions>
+                                <ComboBox x:Name="PhoneWb" Header="White balance" HorizontalAlignment="Stretch" Visibility="Collapsed"
+                                          SelectionChanged="PhoneWb_SelectionChanged" AutomationProperties.Name="Phone white balance" />
+                                <ComboBox x:Name="PhoneFps" Grid.Column="1" Header="Frame rate" HorizontalAlignment="Stretch" Visibility="Collapsed"
+                                          SelectionChanged="PhoneFps_SelectionChanged" AutomationProperties.Name="Phone frame rate" />
+                            </Grid>
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <ToggleButton x:Name="PhoneStabBtn" Content="Stabilise" Visibility="Collapsed" Click="PhoneStab_Click"
+                                              AutomationProperties.Name="Phone stabilisation" ToolTipService.ToolTip="Steadier picture when the phone is handheld" />
+                                <ToggleButton x:Name="PhoneHdrBtn" Content="HDR" Visibility="Collapsed" Click="PhoneHdr_Click"
+                                              AutomationProperties.Name="Phone HDR" ToolTipService.ToolTip="More detail in bright and dark areas" />
+                            </StackPanel>
+                            <CheckBox x:Name="PhoneH264Box" Content="Sharper stream (H.264)" Visibility="Collapsed" Click="PhoneH264_Click"
+                                      AutomationProperties.Name="Sharper stream (H.264)" ToolTipService.ToolTip="Video compression: a cleaner picture on the same Wi-Fi. Turn off if the picture breaks up." />
+                        </StackPanel>
                         <Grid Margin="0,8,0,0">
                             <TextBlock Text="Focus" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
                             <SelectorBar x:Name="FocusMode" SelectionChanged="FocusMode_SelectionChanged" IsEnabled="False" HorizontalAlignment="Right">

@@ -71,6 +71,7 @@ public sealed partial class MainPage : Page
         _ = CheckForUpdateAsync(quiet: true);
         _ = InitSponsorsAsync();
         InitTransitions();
+        InitAccurate();
         try { InitControl(); } catch (Exception ex) { Status("Remote control unavailable: " + ex.Message); }
         Unloaded += async (_, _) => { if (_control is { } c) await c.DisposeAsync(); };
         try { InitGlobalHotkeys(); } catch (Exception ex) { Status("Global shortcuts unavailable: " + ex.Message); }
@@ -358,6 +359,8 @@ public sealed partial class MainPage : Page
             if (_recorder is not null) await StopRecordingAsync();
             // The phone server keeps running so a paired phone can come back by itself.
             PhoneControls.Visibility = Visibility.Collapsed;
+            PhonePro.Visibility = Visibility.Collapsed;
+            if (DeviceBox.SelectedItem == PhoneDevice) StopPhoneH264();
             await _session.DisposeAsync();
             _session = null; _controller = null;
             ConnectBtn.Content = "Connect";
@@ -849,7 +852,7 @@ public sealed partial class MainPage : Page
     private async void BgImportBtn_Click(object sender, RoutedEventArgs e)
     {
         var picker = new Windows.Storage.Pickers.FileOpenPicker();
-        foreach (var ext in new[] { ".png", ".jpg", ".jpeg" }) picker.FileTypeFilter.Add(ext);
+        foreach (var ext in BackgroundLibrary.ImageExtensions.Concat(BackgroundLibrary.VideoExtensions)) picker.FileTypeFilter.Add(ext); // pictures and looping videos
         WinRT.Interop.InitializeWithWindow.Initialize(picker, WinRT.Interop.WindowNative.GetWindowHandle(App.MainWindow));
         var file = await picker.PickSingleFileAsync();
         if (file is null) return;

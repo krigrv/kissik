@@ -451,6 +451,7 @@ public sealed partial class MainPage
     private void Overlay_PointerPressed(object sender, PointerRoutedEventArgs e)
     {
         string? id = HitLayerId(e.OriginalSource);
+        if (id is null && TryPhoneTapFocus(e)) { e.Handled = true; return; }
         // Clicking empty canvas selects the camera when it is a placed layer, otherwise clears the selection.
         _selectedLayerId = id;
         RefreshLayerList(); UpdateAdorner(); BuildProps();
