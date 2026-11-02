@@ -20,7 +20,7 @@ public sealed class DonationInfo
     /// <summary>UPI deep link any UPI app understands (GPay, PhonePe, Paytm, BHIM). Amount left to the donor.</summary>
     public string UpiUri =>
         // pa stays literal (handle@psp): several UPI apps reject a percent-encoded '@'. IsValidUpiId guarantees it is URL-safe.
-        $"upi://pay?pa={UpiId}&pn={Uri.EscapeDataString(UpiName)}&cu=INR&tn={Uri.EscapeDataString("OpenKamera donation")}";
+        $"upi://pay?pa={UpiId}&pn={Uri.EscapeDataString(UpiName)}&cu=INR&tn={Uri.EscapeDataString("KISSIK donation")}";
 
     /// <summary>handle@psp — letters, digits, dot, dash, underscore; PSP letters only.</summary>
     public static bool IsValidUpiId(string id) =>

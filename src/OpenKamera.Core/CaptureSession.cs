@@ -55,6 +55,36 @@ public sealed class CaptureSession : IAsyncDisposable
         await _reader.StartAsync();
     }
 
+    /// <summary>Starts a session fed from outside (the phone) instead of a local camera.</summary>
+    public async Task StartExternalAsync()
+    {
+        await StopAsync();
+        _external = true;
+    }
+
+    private bool _external;
+    private int _decoding;
+
+    /// <summary>Decodes a JPEG from the phone and delivers it like a camera frame. Drops frames while busy (no lag build-up).</summary>
+    public async Task PushJpegAsync(byte[] jpeg)
+    {
+        if (!_external || Interlocked.Exchange(ref _decoding, 1) == 1) return;
+        try
+        {
+            using var ms = new Windows.Storage.Streams.InMemoryRandomAccessStream();
+            await ms.WriteAsync(System.Runtime.InteropServices.WindowsRuntime.WindowsRuntimeBufferExtensions.AsBuffer(jpeg));
+            ms.Seek(0);
+            var dec = await BitmapDecoder.CreateAsync(BitmapDecoder.JpegDecoderId, ms);
+            var bmp = await dec.GetSoftwareBitmapAsync(BitmapPixelFormat.Bgra8, BitmapAlphaMode.Premultiplied);
+            if (Mode is not { } m || m.Width != bmp.PixelWidth || m.Height != bmp.PixelHeight)
+                Mode = new CaptureMode(bmp.PixelWidth, bmp.PixelHeight, 30, "PHONE JPEG");
+            Interlocked.Exchange(ref _latest, bmp)?.Dispose();
+            if (_external) FrameAvailable?.Invoke(bmp);
+        }
+        catch { /* a corrupt frame is skipped */ }
+        finally { Volatile.Write(ref _decoding, 0); }
+    }
+
     private static CaptureMode ToMode(MediaFrameFormat f) => new(
         (int)f.VideoFormat.Width, (int)f.VideoFormat.Height,
         f.FrameRate is { Denominator: > 0 } r ? (double)r.Numerator / r.Denominator : 0,
@@ -105,6 +135,7 @@ public sealed class CaptureSession : IAsyncDisposable
             _reader.Dispose();
             _reader = null;
         }
+        _external = false;
         _capture?.Dispose();
         _capture = null;
         Controls = null;

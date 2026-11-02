@@ -14,6 +14,7 @@
   <ItemGroup>
     <!-- Same Windows ML build the Windows App SDK ships: managed ONNX Runtime + DirectML. -->
     <PackageReference Include="Microsoft.Windows.AI.MachineLearning" Version="2.4.89" />
+    <PackageReference Include="NAudio.Wasapi" Version="2.2.1" />
     <!-- QR codes for the UPI donation link (MIT). -->
     <PackageReference Include="QRCoder" Version="1.6.0" />
   </ItemGroup>

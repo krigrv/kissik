@@ -21,10 +21,15 @@ public sealed class BackgroundPipeline : IDisposable
             var sw = Stopwatch.StartNew();
             try
             {
-                if (!_segmenters.TryGetValue(s.Quality, out var seg))
-                    _segmenters[s.Quality] = seg = new PersonSegmenter(s.Quality);
-                var mask = seg.Segment(px, w, h);
-                var alpha = MaskOps.Upsample(mask, w, h);
+                float[] alpha;
+                if (s.GreenScreen)
+                    alpha = ChromaKey.Mask(px, w, h, s.KeyColor, s.Similarity, s.Smoothness, s.Spill);
+                else
+                {
+                    if (!_segmenters.TryGetValue(s.Quality, out var seg))
+                        _segmenters[s.Quality] = seg = new PersonSegmenter(s.Quality);
+                    alpha = MaskOps.Upsample(seg.Segment(px, w, h), w, h);
+                }
                 byte[]? bg = s.Mode == BackgroundMode.Replace && s.BackgroundId is { } id ? BackgroundLibrary.Render(id, w, h) : null;
                 BackgroundEffects.Apply(px, w, h, alpha, s, bg);
                 LastError = null;

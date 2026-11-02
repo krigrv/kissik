@@ -1,0 +1,39 @@
+namespace OpenKamera.Core.Tests;
+
+public class CaptionTests
+{
+    [Fact]
+    public void ShowsLastTwoLinesWithPartialWordsLast()
+    {
+        var c = new CaptionBuffer { MaxCharsPerLine = 20 };
+        var t = DateTime.UtcNow;
+        c.Final("hello everyone and welcome to the show", t);
+        c.Partial("today we talk cameras", t);
+        var lines = c.Text(t).Split('\n');
+        Assert.Equal(2, lines.Length);
+        Assert.EndsWith("cameras", lines[1]);
+        Assert.All(lines, l => Assert.True(l.Length <= 20));
+    }
+
+    [Fact]
+    public void ClearsAfterSilence()
+    {
+        var c = new CaptionBuffer();
+        var t = DateTime.UtcNow;
+        c.Final("hi", t);
+        Assert.Equal("hi", c.Text(t.AddSeconds(1)));
+        Assert.Equal("", c.Text(t.AddSeconds(5)));
+    }
+
+    [Fact]
+    public void Burn_BlendsCentredNearTheBottom()
+    {
+        int w = 100, h = 100;
+        var dst = new byte[w * h * 4];
+        var src = new byte[10 * 4 * 4]; for (int i = 0; i < src.Length; i++) src[i] = 255;
+        CaptionBurn.Blend(dst, w, h, src, 10, 4, 0.1);
+        int y = 100 - 4 - 10, x = 45;
+        Assert.Equal(255, dst[(y * w + x) * 4]);
+        Assert.Equal(0, dst[(10 * w + x) * 4]);
+    }
+}

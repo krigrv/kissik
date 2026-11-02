@@ -6,10 +6,12 @@ public enum BackgroundMode { Off, Blur, Replace, Remove }
 /// <param name="Spotlight">0..1: darkens the room and lifts the person. 0 = off.</param>
 /// <param name="Retouch">0..1: skin smoothing on the person. 0 = off.</param>
 /// <param name="BackgroundId">Id from <see cref="BackgroundLibrary"/> for Replace.</param>
+/// <param name="GreenScreen">Use a physical green/blue screen (chroma key) instead of AI segmentation.</param>
 public sealed record BackgroundSettings(
     BackgroundMode Mode = BackgroundMode.Off, double BlurStrength = 0.5,
     double Spotlight = 0, double Retouch = 0, string? BackgroundId = null,
-    SegmentationQuality Quality = SegmentationQuality.Fast)
+    SegmentationQuality Quality = SegmentationQuality.Fast,
+    bool GreenScreen = false, string KeyColor = "#00B140", double Similarity = 0.4, double Smoothness = 0.1, double Spill = 0.5)
 {
     public static readonly BackgroundSettings Off = new();
     public bool NeedsMask => Mode != BackgroundMode.Off || Spotlight > 0 || Retouch > 0;

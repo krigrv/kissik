@@ -22,10 +22,31 @@ public sealed class AppSettings
     public FilterPreset Filter { get; set; } = FilterPreset.None;
     public string? LutName { get; set; }
     public bool Mirror { get; set; }
+    /// <summary>Mirror only the on-screen preview; meetings and recordings get the true (unmirrored) view.</summary>
+    public bool SmartMirror { get; set; }
+    public bool PrivacyGuard { get; set; }
     public BackgroundSettings Background { get; set; } = BackgroundSettings.Off;
     /// <summary>Gallery favourites: "scene:id", "bg:id", "filter:Name", "lut:Name".</summary>
     public HashSet<string> Favourites { get; set; } = [];
+    public ScreenLightSettings ScreenLight { get; set; } = new();
+    public AudioMixSettings Audio { get; set; } = new();
+    /// <summary>Capture microphone audio (meters + sound in recordings). Off until the user turns it on.</summary>
+    public bool AudioOn { get; set; }
+    /// <summary>Mix what the PC plays (loopback) into recordings and the meeting mix.</summary>
+    public bool SystemSoundOn { get; set; }
+    /// <summary>Counts finished recordings, for an occasional quiet "support the project" line.</summary>
+    public int RecordingsSaved { get; set; }
+    /// <summary>"System" (follow Windows), "Light" or "Dark".</summary>
+    public string Theme { get; set; } = "System";
+    /// <summary>The one-time welcome has been shown.</summary>
+    public bool SeenWelcome { get; set; }
+    /// <summary>The user picked a meeting output themselves (so we stop auto-picking a virtual cable).</summary>
+    public bool MeetOutChosen { get; set; }
     public int Rotation { get; set; }
+    public List<LookPreset> Presets { get; set; } = [];
+    public PrompterSettings Prompter { get; set; } = new();
+    /// <summary>Per-app profiles: app name (as Windows reports it) → preset name.</summary>
+    public Dictionary<string, string> AppPresets { get; set; } = [];
 
     /// <summary>Imported <c>.cube</c> files are copied here.</summary>
     public static string LutFolder => Path.Combine(

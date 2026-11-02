@@ -8,12 +8,17 @@ using Windows.Storage;
 namespace OpenKamera.Core;
 
 /// <summary>
-/// Records processed frames (exactly what the preview shows) to an H.264 MP4.
-/// Frames are pushed from any thread with their capture time; the encoder pulls them in order.
+/// Records processed frames (exactly what the preview shows) to an H.264 MP4, plus an optional AAC track
+/// from the audio mix. Frames and audio are pushed from any thread with times on the same clock; the encoder
+/// pulls them in order.
 /// </summary>
 public sealed class CompositeRecorder : IAsyncDisposable
 {
     private readonly BlockingCollection<(byte[] Pixels, TimeSpan Time)> _queue = new(boundedCapacity: 45);
+    private readonly BlockingCollection<(byte[] Pcm, TimeSpan Time, TimeSpan Duration)> _audio = new(boundedCapacity: 400);
+    private VideoStreamDescriptor? _videoStream;
+    private AudioStreamDescriptor? _audioStream;
+    private TimeSpan _audioNext = TimeSpan.Zero;
     private MediaStreamSource? _source;
     private Task? _transcode;
     private TimeSpan? _first;
@@ -27,9 +32,12 @@ public sealed class CompositeRecorder : IAsyncDisposable
     public int FramesWritten { get; private set; }
     public int FramesDropped { get; private set; }
     public bool IsRecording => _transcode is { IsCompleted: false };
+    public bool HasAudio { get; }
+    public int AudioBlocksWritten { get; private set; }
 
-    public CompositeRecorder(int width, int height, int fps)
+    public CompositeRecorder(int width, int height, int fps, bool withAudio = false)
     {
+        HasAudio = withAudio;
         // H.264 needs even dimensions.
         Width = width & ~1; Height = height & ~1; Fps = Math.Max(1, fps);
     }
@@ -45,11 +53,20 @@ public sealed class CompositeRecorder : IAsyncDisposable
 
         var input = VideoEncodingProperties.CreateUncompressed(MediaEncodingSubtypes.Bgra8, (uint)Width, (uint)Height);
         input.FrameRate.Numerator = (uint)Fps; input.FrameRate.Denominator = 1;
-        _source = new MediaStreamSource(new VideoStreamDescriptor(input)) { BufferTime = TimeSpan.Zero, CanSeek = false };
+        _videoStream = new VideoStreamDescriptor(input);
+        if (HasAudio)
+        {
+            var pcm = AudioEncodingProperties.CreatePcm(AudioEngine.SampleRate, AudioEngine.Channels, 32);
+            pcm.Subtype = MediaEncodingSubtypes.Float;
+            _audioStream = new AudioStreamDescriptor(pcm);
+            _source = new MediaStreamSource(_videoStream, _audioStream);
+        }
+        else _source = new MediaStreamSource(_videoStream);
+        _source.BufferTime = TimeSpan.Zero; _source.CanSeek = false;
         _source.SampleRequested += OnSampleRequested;
 
         var profile = MediaEncodingProfile.CreateMp4(VideoEncodingQuality.HD1080p);
-        profile.Audio = null;
+        profile.Audio = HasAudio ? AudioEncodingProperties.CreateAac(AudioEngine.SampleRate, AudioEngine.Channels, 192_000) : null;
         profile.Video!.Width = (uint)Width; profile.Video.Height = (uint)Height;
         profile.Video.FrameRate.Numerator = (uint)Fps; profile.Video.FrameRate.Denominator = 1;
         profile.Video.Bitrate = BitrateFor(Width, Height, Fps);
@@ -85,6 +102,22 @@ public sealed class CompositeRecorder : IAsyncDisposable
         if (!_queue.TryAdd(((byte[])bgra.Clone(), t))) FramesDropped++; // encoder behind: drop, never block capture
     }
 
+    /// <summary>
+    /// Queues interleaved stereo float samples (48 kHz). Audio is laid end to end from the first video frame,
+    /// so it never drifts from its own clock; <paramref name="captureTime"/> only anchors the start.
+    /// </summary>
+    public void PushAudio(float[] interleaved, TimeSpan captureTime)
+    {
+        if (!HasAudio || _stopping || _transcode is null || interleaved.Length == 0) return;
+        if (_first is null) return; // start with the first video frame so both tracks begin together
+        if (_audioNext == TimeSpan.Zero) _audioNext = captureTime - _first.Value;
+        if (_audioNext < TimeSpan.Zero) _audioNext = TimeSpan.Zero;
+        var duration = TimeSpan.FromSeconds(interleaved.Length / (double)AudioEngine.Channels / AudioEngine.SampleRate);
+        var bytes = new byte[interleaved.Length * sizeof(float)];
+        Buffer.BlockCopy(interleaved, 0, bytes, 0, bytes.Length);
+        if (_audio.TryAdd((bytes, _audioNext, duration))) _audioNext += duration;
+    }
+
     private static byte[] Crop(byte[] src, int srcW, int w, int h)
     {
         var dst = new byte[w * h * 4];
@@ -95,6 +128,30 @@ public sealed class CompositeRecorder : IAsyncDisposable
     private void OnSampleRequested(MediaStreamSource sender, MediaStreamSourceSampleRequestedEventArgs args)
     {
         var deferral = args.Request.GetDeferral();
+        // Compare by type: the projected descriptor object is not reference-equal to ours.
+        if (_audioStream is not null && args.Request.StreamDescriptor is AudioStreamDescriptor)
+        {
+            _ = Task.Run(() =>
+            {
+                try
+                {
+                    while (true)
+                    {
+                        if (_audio.TryTake(out var block, 100))
+                        {
+                            var sample = MediaStreamSample.CreateFromBuffer(block.Pcm.AsBuffer(), block.Time);
+                            sample.Duration = block.Duration;
+                            args.Request.Sample = sample;
+                            AudioBlocksWritten++;
+                            return;
+                        }
+                        if (_stopping) { args.Request.Sample = null; return; }
+                    }
+                }
+                finally { deferral.Complete(); }
+            });
+            return;
+        }
         _ = Task.Run(() =>
         {
             try
@@ -134,5 +191,6 @@ public sealed class CompositeRecorder : IAsyncDisposable
     {
         await StopAsync();
         _queue.Dispose();
+        _audio.Dispose();
     }
 }

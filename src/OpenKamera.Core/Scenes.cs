@@ -67,6 +67,7 @@ public sealed class SceneDocument
     /// <summary>Ctrl+N shortcut shown on the scene rail (1-based), set by the UI.</summary>
     [JsonIgnore] public int Shortcut { get; set; }
     /// <summary>1 when the scene has a Ctrl+1…9 shortcut, else 0 (badge opacity).</summary>
+    [JsonIgnore] public string ShortcutText => Shortcut is >= 1 and <= 9 ? $"Ctrl {Shortcut}" : "";
     [JsonIgnore] public double ShortcutOpacity => Shortcut is >= 1 and <= 9 ? 1 : 0;
     [JsonIgnore] public bool IsTemplate => Templates.Any(t => t.Id == Id);
     /// <summary>Folder that holds this scene's assets (null for unsaved templates).</summary>
@@ -113,6 +114,16 @@ public sealed class SceneDocument
     public static IReadOnlyList<SceneDocument> Templates { get; } =
     [
         new() { Id = "blank", Name = "Blank", Category = "Utility", Layers = [] },
+        new()
+        {
+            // Just your name, small and quiet in the corner: no branding, no handles, no watermark.
+            Id = "just-my-name", Name = "Just my name", Category = "Professional",
+            Layers =
+            [
+                new() { Kind = "shape", Name = "Plate", X = 0.03, Y = 0.865, W = 0.26, H = 0.075, Color = "#B3101214", CornerRadius = 0.012 },
+                T("Your Name", 0.045, 0.875, 0.24, 0.055, 0.04, bold: true, name: "Name"),
+            ],
+        },
         new()
         {
             Id = "lower-third", Name = "Lower Third", Category = "Professional",
@@ -285,7 +296,7 @@ public static class SceneLibrary
     public static SceneDocument Import(string zipPath)
     {
         using var zip = ZipFile.OpenRead(zipPath);
-        var json = zip.GetEntry("scene.json") ?? throw new InvalidDataException("Not an OpenKamera scene: scene.json missing.");
+        var json = zip.GetEntry("scene.json") ?? throw new InvalidDataException("Not an KISSIK scene: scene.json missing.");
         SceneDocument scene;
         using (var r = new StreamReader(json.Open())) scene = SceneDocument.FromJson(r.ReadToEnd());
         scene.Id = "user-" + Guid.NewGuid().ToString("N")[..10];
