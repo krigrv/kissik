@@ -292,6 +292,9 @@
                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE74E;" /></MenuFlyoutItem.Icon>
                                 <MenuFlyoutItem.KeyboardAccelerators><KeyboardAccelerator Modifiers="Control,Menu" Key="S" /></MenuFlyoutItem.KeyboardAccelerators>
                             </MenuFlyoutItem>
+                            <MenuFlyoutItem Text="Scan a document…" Click="ScanDocument_Click">
+                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8A5;" /></MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
                             <MenuFlyoutItem x:Name="UpdateItem" Text="Check for updates" Click="UpdateItem_Click">
                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE895;" /></MenuFlyoutItem.Icon>
                             </MenuFlyoutItem>
