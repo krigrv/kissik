@@ -34,6 +34,7 @@ dependencies {
     implementation("androidx.camera:camera-lifecycle:$camerax")
     implementation("androidx.camera:camera-view:$camerax")
     implementation("androidx.camera:camera-extensions:$camerax")
+    implementation("androidx.camera:camera-video:$camerax")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.google.zxing:core:3.5.3")
 }

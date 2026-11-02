@@ -29,8 +29,10 @@ import androidx.camera.camera2.interop.Camera2CameraControl
 import androidx.camera.camera2.interop.Camera2CameraInfo
 import androidx.camera.core.FocusMeteringAction
 import androidx.camera.core.SurfaceOrientedMeteringPointFactory
+import androidx.camera.core.Preview
 import androidx.camera.core.UseCase
 import androidx.camera.extensions.ExtensionsManager
+import androidx.camera.video.VideoCapture
 import kotlinx.coroutines.flow.merge
 import androidx.camera.camera2.interop.ExperimentalCamera2Interop
 import androidx.camera.core.Camera
@@ -92,6 +94,9 @@ class StreamService : LifecycleService() {
     private var micJob: Job? = null
     private var started = false
     private var analysis: ImageAnalysis? = null
+    private var previewUse: Preview? = null
+    /** Our own bound camera streams (never the scanner's), so they can be released precisely. */
+    private var bound: List<UseCase> = emptyList()
     @Volatile private var lastRotation = 0
     @Volatile private var encoder: H264Encoder? = null
     /** After dropping video on a slow link, skip until the next keyframe so the PC never sees a broken picture. */
@@ -151,6 +156,9 @@ class StreamService : LifecycleService() {
         }
         lifecycleScope.launch { merge(Pro.ev, Pro.iso, Pro.shutterNs, Pro.focus, Pro.wb, Pro.fps, Pro.stab, Pro.hdr).collect { applyPro() } }
         lifecycleScope.launch { Live.focusTap.collect { (x, y) -> focusAt(x, y) } }
+        lifecycleScope.launch { Live.meteringTap.collect { focusOn(it) } }
+        // The phone's screen preview comes and goes with the app; the stream to the PC carries on either way.
+        lifecycleScope.launch { Live.previewSurface.collect { previewUse?.surfaceProvider = it } }
         lifecycleScope.launch { Live.torch.collect { camera?.cameraControl?.enableTorch(it); sendStatus() } }
         lifecycleScope.launch { Live.zoom.collect { camera?.cameraControl?.setZoomRatio(it); sendStatus() } }
         lifecycleScope.launch {
@@ -166,6 +174,7 @@ class StreamService : LifecycleService() {
                 if (r == deviceRotation) return
                 deviceRotation = r
                 analysis?.targetRotation = r
+                previewUse?.targetRotation = r
                 lifecycleScope.launch { delay(400); sendStatus() } // after a frame at the new size
             }
         }.apply { if (canDetectOrientation()) enable() }
@@ -209,21 +218,50 @@ class StreamService : LifecycleService() {
         val effectMode = Pro.EFFECTS.firstOrNull { it.first == key.effect && it.first in Pro.effects.value }?.second
         val selector = if (ext != null && effectMode != null) ext.getExtensionEnabledCameraSelector(base, effectMode) else wanted
         val h264 = key.codec == "h264"
-        // Frames come from the analysis stream at the full requested size. JPEG needs RGBA; H.264 takes the camera's
-        // own YUV straight into the hardware encoder.
-        val an = ImageAnalysis.Builder().setResolutionSelector(sizeFor(key.quality))
-            .setOutputImageFormat(if (h264) ImageAnalysis.OUTPUT_IMAGE_FORMAT_YUV_420_888 else ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
+        // The phone's own screen gets a hardware preview (smooth, no work for the processor).
+        // JPEG: frames for the PC come from an analysis stream at the full requested size.
+        // H.264: the camera's video stream draws straight into the hardware encoder (zero copy).
+        val pv = Preview.Builder().setResolutionSelector(sizeFor(1080)).setTargetRotation(deviceRotation).build()
+        pv.surfaceProvider = Live.previewSurface.value
+        val an = if (h264) null else ImageAnalysis.Builder().setResolutionSelector(sizeFor(key.quality))
+            .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
             .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST).setTargetRotation(deviceRotation)
-            .setOutputImageRotationEnabled(!h264).build()
-        an.setAnalyzer(analysisExecutor, ::onFrame)
-        val previous = analysis
+            .setOutputImageRotationEnabled(true).build().also { it.setAnalyzer(analysisExecutor, ::onFrame) }
+        val previous = bound
         analysis = an
+        previewUse = pv
         useH264 = h264
+        zeroCopy = h264
         if (!h264) encoder?.let { encoder = null; it.release() }
-        val useCases = listOf<UseCase>(an)
-        previous?.let { provider.unbind(it) } // only our own stream; never the scanner's
+        val useCases = mutableListOf<UseCase>(pv)
+        an?.let { useCases += it }
+        if (h264) useCases += VideoCapture.withOutput(VideoFeed(key.quality) { request ->
+            val size = request.resolution
+            val enc = runCatching { H264Encoder(size.width, size.height, Pro.fps.value.takeIf { it > 0 } ?: 30, surfaceInput = true, onPacket = ::sendVideo) }.getOrNull()
+            if (enc?.surface == null) { request.willNotProvideSurface(); Live.message.value = "This phone's video encoder couldn't start."; return@VideoFeed }
+            encoder?.release(); encoder = enc; needKey = true
+            netLog("zero-copy encoder ${size.width}x${size.height}")
+            request.provideSurface(enc.surface, encoderExecutor) { if (encoder === enc) encoder = null; enc.release() }
+            lifecycleScope.launch { sendStatus() }
+        })
+        if (previous.isNotEmpty()) provider.unbind(*previous.toTypedArray()) // only our own streams; never the scanner's
+        bound = useCases
         camera = runCatching { provider.bindToLifecycle(this, selector, *useCases.toTypedArray()) }
             .recoverCatching { provider.bindToLifecycle(this, wanted, *useCases.toTypedArray()) }
+            .recoverCatching {
+                if (!h264) throw it
+                // This phone can't run the video stream next to the preview: fall back to copying full-size frames.
+                netLog("zero-copy unavailable ($it); copying frames instead")
+                zeroCopy = false
+                provider.unbind(*useCases.toTypedArray())
+                val full = ImageAnalysis.Builder().setResolutionSelector(sizeFor(key.quality))
+                    .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_YUV_420_888)
+                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST).setTargetRotation(deviceRotation).build()
+                full.setAnalyzer(analysisExecutor, ::onFrame)
+                analysis = full
+                bound = listOf(pv, full)
+                provider.bindToLifecycle(this, wanted, pv, full)
+            }
             .recoverCatching { provider.bindToLifecycle(this, other, *useCases.toTypedArray()) }.getOrNull()
         if (camera == null) Live.message.value = "Couldn't open the camera. Is another app using it?"
         readCapabilities()
@@ -246,15 +284,22 @@ class StreamService : LifecycleService() {
         sendStatus()
     }
 
-    /** Focus and meter on a point of the picture as shown (0..1, already rotated upright). */
+    /** Focus and meter on a point of the picture as shown (0..1, already rotated upright): taps from the PC. */
     private fun focusAt(x: Float, y: Float) {
+        val pv = previewUse ?: return
+        val rot = sensorRotation()
+        val (bx, by) = when (rot) { 90 -> y to 1 - x; 180 -> 1 - x to 1 - y; 270 -> 1 - y to x; else -> x to y }
+        focusOn(SurfaceOrientedMeteringPointFactory(1f, 1f, pv).createPoint(bx, by))
+    }
+
+    private fun focusOn(point: androidx.camera.core.MeteringPoint) {
         val cam = camera ?: return
-        val an = analysis ?: return
-        val (bx, by) = when (lastRotation) { 90 -> y to 1 - x; 180 -> 1 - x to 1 - y; 270 -> 1 - y to x; else -> x to y }
         Pro.focus.value = null
-        val point = SurfaceOrientedMeteringPointFactory(1f, 1f, an).createPoint(bx, by)
         cam.cameraControl.startFocusAndMetering(FocusMeteringAction.Builder(point).setAutoCancelDuration(5, TimeUnit.SECONDS).build())
     }
+
+    /** How far frames from the sensor must turn to be upright, given how the phone is held. */
+    private fun sensorRotation() = camera?.cameraInfo?.getSensorRotationDegrees(deviceRotation) ?: 0
 
     private fun sendVideo(packet: ByteArray, key: Boolean) {
         val socket = ws ?: return
@@ -272,13 +317,15 @@ class StreamService : LifecycleService() {
     }
 
     @Volatile private var useH264 = false
+    /** H.264 with the camera drawing straight into the encoder (no per-frame copying). */
+    @Volatile private var zeroCopy = false
 
     /** H.264: hand the camera's YUV frame to the hardware encoder (made, or remade, to match the frame size). */
     private fun encodeFrame(image: ImageProxy) {
         var enc = encoder
         if (enc == null || enc.width != image.width || enc.height != image.height) {
             enc?.release()
-            enc = runCatching { H264Encoder(image.width, image.height, Pro.fps.value.takeIf { it > 0 } ?: 30, ::sendVideo) }.getOrNull()
+            enc = runCatching { H264Encoder(image.width, image.height, Pro.fps.value.takeIf { it > 0 } ?: 30, onPacket = ::sendVideo) }.getOrNull()
             if (enc == null) { Live.message.value = "This phone's video encoder couldn't start."; return }
             encoder = enc; needKey = true
             lifecycleScope.launch { sendStatus() }
@@ -301,27 +348,14 @@ class StreamService : LifecycleService() {
     private var frameNo = 0L
     private fun onFrame(image: ImageProxy) {
         image.use {
-            // JPEG frames arrive already upright (rotation 0), but tap-to-focus still needs the sensor's angle.
-            lastRotation = if (useH264) it.imageInfo.rotationDegrees else camera?.cameraInfo?.getSensorRotationDegrees(deviceRotation) ?: 0
-            if (useH264) {
-                encodeFrame(it)
-                // The on-phone preview only needs a few frames a second.
-                if (frameNo++ % 6 == 0L) runCatching {
-                    var b = it.toBitmap()
-                    if (lastRotation != 0) b = Bitmap.createBitmap(b, 0, 0, b.width, b.height, Matrix().apply { postRotate(lastRotation.toFloat()) }, true)
-                    Live.preview.value = b
-                }
-                return
-            }
+            if (useH264) { if (!zeroCopy) encodeFrame(it); return } // the fallback copy path
             val socket = ws.takeIf { Pro.codec.value == "jpeg" }
-            val wantPreview = frameNo++ % 3 == 0L
+            Live.frameSize.value = it.width to it.height // already upright: CameraX rotated it
             // Drop frames rather than lag behind: skip when the link is backed up or every compressor is busy.
             val canSend = socket != null && socket.queueSize() <= 512 * 1024 && compressors.tryAcquire()
-            if (!canSend && !wantPreview) return
-            val bmp = it.toBitmap() // already upright: CameraX rotated it
-            Live.frameSize.value = bmp.width to bmp.height
-            if (wantPreview) Live.preview.value = bmp
-            if (canSend) {
+            if (!canSend) return
+            val bmp = it.toBitmap()
+            run {
                 // Compress on a small pool so several frames are in flight at once, then send them in order.
                 val seq = nextSeq++
                 jpegPool.execute {
@@ -487,7 +521,7 @@ class StreamService : LifecycleService() {
             .put("zoomMin", zs?.minZoomRatio?.toDouble() ?: JSONObject.NULL)
         // H.264 frames come straight from the sensor: the PC rotates them by "rot" (clockwise degrees). JPEGs are upright.
         val enc = encoder
-        val rot = if (enc != null) lastRotation else 0 // the frame's own rotation: sensor angle plus how the phone is held
+        val rot = if (enc != null) sensorRotation() else 0 // H.264 frames come as the sensor sees them
         if (enc != null) json.put("w", if (rot % 180 == 0) enc.width else enc.height).put("h", if (rot % 180 == 0) enc.height else enc.width)
         json.put("rot", rot)
         Pro.putStatus(json)
@@ -523,11 +557,10 @@ class StreamService : LifecycleService() {
 
     override fun onDestroy() {
         Live.running.value = false; Live.hasTorch.value = null; Live.link.value = Link.Off; Live.message.value = ""; Live.torch.value = false
-        Live.preview.value = null
         ws?.close(1000, "stopped"); ws = null
         micJob?.cancel()
         // Release only the stream's own camera use: the scanner may already be using the camera.
-        runCatching { ProcessCameraProvider.getInstance(this).get().unbind(*listOfNotNull(analysis).toTypedArray()) }
+        runCatching { ProcessCameraProvider.getInstance(this).get().unbind(*bound.toTypedArray()) }
         wake?.takeIf { it.isHeld }?.release(); wifiLock?.takeIf { it.isHeld }?.release()
         orientation?.disable()
         analysisExecutor.shutdown(); encoderExecutor.shutdown(); jpegPool.shutdown()

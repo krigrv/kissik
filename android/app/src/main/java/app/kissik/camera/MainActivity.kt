@@ -222,7 +222,6 @@ private fun Home(pairing: Pairing?, onSettings: () -> Unit, onPair: () -> Unit) 
     val link by Live.link.collectAsState()
     val running by Live.running.collectAsState()
     val message by Live.message.collectAsState()
-    val preview by Live.preview.collectAsState()
     val front by Live.front.collectAsState()
     val torch by Live.torch.collectAsState()
     val mic by Live.mic.collectAsState()
@@ -237,17 +236,7 @@ private fun Home(pairing: Pairing?, onSettings: () -> Unit, onPair: () -> Unit) 
     if (showPro) ProSheet { showPro = false }
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
-        preview?.let { bmp ->
-            // Tap the picture to focus and meter there (maps the tap through the crop to picture coordinates).
-            Image(bmp.asImageBitmap(), "Camera preview, tap to focus", Modifier.fillMaxSize().pointerInput(bmp.width, bmp.height) {
-                detectTapGestures { o ->
-                    val scale = maxOf(size.width / bmp.width.toFloat(), size.height / bmp.height.toFloat())
-                    val x = (o.x - (size.width - bmp.width * scale) / 2) / (bmp.width * scale)
-                    val y = (o.y - (size.height - bmp.height * scale) / 2) / (bmp.height * scale)
-                    Live.focusTap.tryEmit(x.coerceIn(0f, 1f) to y.coerceIn(0f, 1f))
-                }
-            }, contentScale = ContentScale.Crop)
-        }
+        if (running) LivePreview()
         // Soft shades so the controls stay readable over any picture.
         Box(Modifier.fillMaxWidth().height(140.dp).background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.7f), Color.Transparent))))
         Box(Modifier.fillMaxWidth().height(260.dp).align(Alignment.BottomCenter).background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.85f)))))
@@ -287,7 +276,7 @@ private fun Home(pairing: Pairing?, onSettings: () -> Unit, onPair: () -> Unit) 
                     modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp))
                 if (link == Link.Rejected) Button(onPair, Modifier.fillMaxWidth().padding(bottom = 12.dp).height(54.dp), shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = K.accent, contentColor = Color.White)) { Text("Scan the code", fontSize = 16.sp) }
-                if (preview == null && !running) Text("Paired with ${pairing.host}", color = K.muted, fontSize = 15.sp,
+                if (!running) Text("Paired with ${pairing.host}", color = K.muted, fontSize = 15.sp,
                     textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp))
                 Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(K.card.copy(alpha = 0.92f)).padding(12.dp)) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
@@ -326,6 +315,26 @@ private fun Home(pairing: Pairing?, onSettings: () -> Unit, onPair: () -> Unit) 
             }
         }
     }
+}
+
+/**
+ * The camera on the phone's own screen: a hardware preview drawn by the camera itself, so it's smooth and costs the
+ * processor nothing. The stream to the PC carries on with or without it. Tap to focus and meter there.
+ */
+@Composable
+private fun LivePreview() {
+    val view = remember { mutableStateOf<PreviewView?>(null) }
+    DisposableEffect(Unit) { onDispose { Live.previewSurface.value = null } }
+    AndroidView(factory = { c ->
+        PreviewView(c).apply {
+            implementationMode = PreviewView.ImplementationMode.COMPATIBLE
+            scaleType = PreviewView.ScaleType.FILL_CENTER
+            view.value = this
+            Live.previewSurface.value = surfaceProvider
+        }
+    }, modifier = Modifier.fillMaxSize().pointerInput(Unit) {
+        detectTapGestures { o -> view.value?.meteringPointFactory?.createPoint(o.x, o.y)?.let { Live.meteringTap.tryEmit(it) } }
+    })
 }
 
 @Composable

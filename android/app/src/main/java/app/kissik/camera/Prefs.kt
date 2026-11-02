@@ -33,7 +33,10 @@ object Live {
     val saver = MutableStateFlow(true)
     /** True while the saver has dropped quality to 480p (hot phone or low battery). */
     val saving = MutableStateFlow(false)
-    val preview = MutableStateFlow<android.graphics.Bitmap?>(null)
+    /** Where the phone's own screen shows the camera (a hardware preview), while the app is open. */
+    val previewSurface = MutableStateFlow<androidx.camera.core.Preview.SurfaceProvider?>(null)
+    /** A tap on the phone's preview, already turned into a camera metering point. */
+    val meteringTap = MutableSharedFlow<androidx.camera.core.MeteringPoint>(extraBufferCapacity = 1)
     val frameSize = MutableStateFlow(0 to 0)
     val running = MutableStateFlow(false)
 

@@ -10,30 +10,36 @@ import java.nio.ByteOrder
 import kotlin.concurrent.thread
 
 /**
- * Hardware H.264 encoder fed with full-resolution camera frames (the camera's preview stream is capped near screen
- * size, so it can't reach 4K). The phone only copies pixels; the video chip does the compression. Each output is
- * sent as one video packet:
+ * Hardware H.264 encoder. With [surfaceInput] the camera draws straight into the encoder (zero copy: the main
+ * processor never touches a pixel, so 4K stays smooth and cool). Without it, frames are copied in with [encode],
+ * a slower fallback. Each output is sent as one video packet:
  *
  *   'V' | flags (1 = keyframe) | uint64 LE presentation time in µs | H.264 Annex-B bytes
  *
  * Keyframes carry SPS/PPS in front, so the PC can start decoding at any keyframe.
  */
-class H264Encoder(val width: Int, val height: Int, fps: Int, private val onPacket: (ByteArray, Boolean) -> Unit) {
+class H264Encoder(val width: Int, val height: Int, fps: Int, surfaceInput: Boolean = false,
+                  private val onPacket: (ByteArray, Boolean) -> Unit) {
     private val codec = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC)
     private var config: ByteArray? = null
+    /** Where the camera draws, in zero-copy mode. */
+    val surface: android.view.Surface?
     @Volatile private var running = true
     private var bitrate = bitrate(width, height, fps)
     val maxBitrate = bitrate
 
     init {
         val format = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, width, height).apply {
-            setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible)
+            setInteger(MediaFormat.KEY_COLOR_FORMAT,
+                if (surfaceInput) MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface else MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible)
+            if (surfaceInput) setLong(MediaFormat.KEY_REPEAT_PREVIOUS_FRAME_AFTER, 100_000) // a still scene keeps sending frames
             setInteger(MediaFormat.KEY_BIT_RATE, bitrate)
             setInteger(MediaFormat.KEY_FRAME_RATE, fps)
             setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 2)
             setInteger(MediaFormat.KEY_PRIORITY, 0) // real-time
         }
         codec.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
+        surface = if (surfaceInput) codec.createInputSurface() else null
         codec.start()
         thread(name = "kissik-h264-out", isDaemon = true) { drain() }
     }
@@ -105,7 +111,7 @@ class H264Encoder(val width: Int, val height: Int, fps: Int, private val onPacke
 
     fun release() {
         running = false
-        runCatching { codec.stop() }; runCatching { codec.release() }
+        runCatching { codec.stop() }; runCatching { codec.release() }; surface?.release()
     }
 
     companion object {
