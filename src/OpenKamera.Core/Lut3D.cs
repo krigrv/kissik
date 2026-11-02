@@ -15,6 +15,10 @@ public sealed class Lut3D
         Name = name; Size = size; _data = data; _min = min; _max = max;
     }
 
+    /// <summary>Raw entries (r fastest, 3 floats each) and input domain, for the GPU path.</summary>
+    internal float[] Data => _data;
+    internal (float[] Min, float[] Max) Domain => (_min, _max);
+
     public static Lut3D Load(string path) =>
         Parse(File.ReadAllText(path), Path.GetFileNameWithoutExtension(path));
 

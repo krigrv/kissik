@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
@@ -6,6 +6,10 @@
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="GpuEffects.hlsl" LogicalName="OpenKamera.Core.GpuEffects.hlsl" />
+  </ItemGroup>
 
   <ItemGroup>
     <InternalsVisibleTo Include="OpenKamera.Core.Tests" />
@@ -18,6 +22,9 @@
     <!-- QR codes for the UPI donation link (MIT). -->
     <PackageReference Include="QRCoder" Version="1.6.0" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="9.0.0" />
+    <!-- Direct3D 11 compute for the GPU frame path (MIT). -->
+    <PackageReference Include="Vortice.D3DCompiler" Version="3.8.3" />
+    <PackageReference Include="Vortice.Direct3D11" Version="3.8.3" />
     <PackageReference Include="Vosk" Version="0.3.38" />
   </ItemGroup>
 
