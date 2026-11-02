@@ -14,7 +14,23 @@ public static class VirtualCamera
     public const string Clsid = "{53B8FDEE-DF3B-440D-9C66-399F14BC6C50}";
     public const string FriendlyName = "KISSIK";
     public static string InstallFolder => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "OpenKamera", "VirtualCamera");
-    public static string InstalledDll => Path.Combine(InstallFolder, "OpenKamera.VirtualCamera.dll");
+    /// <summary>The registered copy (its name carries a version, so an update never has to overwrite a file in use).</summary>
+    public static string InstalledDll
+    {
+        get
+        {
+            using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey($@"SOFTWARE\Classes\CLSID\{Clsid}\InprocServer32");
+            return key?.GetValue(null) as string ?? Path.Combine(InstallFolder, "OpenKamera.VirtualCamera.dll");
+        }
+    }
+
+    /// <summary>Where this app's bundled build installs: a new name per build.</summary>
+    private static string NewInstallPath()
+    {
+        using var s = File.OpenRead(BundledDll);
+        string tag = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(s))[..8].ToLowerInvariant();
+        return Path.Combine(InstallFolder, $"OpenKamera.VirtualCamera-{tag}.dll");
+    }
     public static string BundledDll => Path.Combine(AppContext.BaseDirectory, "OpenKamera.VirtualCamera.dll");
 
     private static IMFVirtualCamera? _camera;
@@ -53,12 +69,16 @@ public static class VirtualCamera
     public static async Task<bool> InstallAsync()
     {
         if (!File.Exists(BundledDll)) throw new FileNotFoundException("The virtual camera component is missing from this build.", BundledDll);
+        string target = NewInstallPath();
         string script =
             $"$ErrorActionPreference='Stop'; New-Item -ItemType Directory -Force '{InstallFolder}' | Out-Null; " +
-            $"Copy-Item -Force '{BundledDll}' '{InstalledDll}'; " +
+            $"Copy-Item -Force '{BundledDll}' '{target}'; " +
             // The camera service runs as LOCAL SERVICE: make sure it can read the DLL.
             $"icacls '{InstallFolder}' /grant '*S-1-5-19:(OI)(CI)RX' | Out-Null; " +
-            $"$p = Start-Process regsvr32.exe -ArgumentList '/s','\"{InstalledDll}\"' -Wait -PassThru; exit $p.ExitCode";
+            $"$p = Start-Process regsvr32.exe -ArgumentList '/s','\"{target}\"' -Wait -PassThru; " +
+            // Older copies: removed when nothing has them open (else left for the next update).
+            $"Get-ChildItem '{InstallFolder}' -Filter 'OpenKamera.VirtualCamera*.dll' | Where-Object FullName -ne '{target}' | Remove-Item -ErrorAction SilentlyContinue; " +
+            "exit $p.ExitCode";
         var psi = new ProcessStartInfo("powershell.exe", $"-NoProfile -ExecutionPolicy Bypass -Command \"{script.Replace("\"", "\\\"")}\"")
         {
             UseShellExecute = true, Verb = "runas", WindowStyle = ProcessWindowStyle.Hidden,
