@@ -10,6 +10,7 @@ public sealed partial class MainPage
     /// <summary>The whole camera image (before framing) for the framing minimap.</summary>
     private readonly WriteableBitmap _rawThumb = new(320, 180);
     private byte[]? _rawBuf;
+    private object? _lastRaw;
     private Microsoft.UI.Dispatching.DispatcherQueueTimer? _thumbTimer;
     private bool _thumbsLive, _thumbBusy;
 
@@ -39,15 +40,22 @@ public sealed partial class MainPage
 
     private async Task UpdateMinimapPictureAsync()
     {
-        if (_session?.Latest is not { } raw) return;
-        int w = raw.PixelWidth, h = raw.PixelHeight;
-        try
+        byte[] buf; int w, h;
+        var raw = _session?.Latest;
+        if (raw is not null && !ReferenceEquals(raw, _lastRaw))
         {
-            if (_rawBuf?.Length != w * h * 4) _rawBuf = new byte[w * h * 4];
-            raw.CopyToBuffer(System.Runtime.InteropServices.WindowsRuntime.WindowsRuntimeBufferExtensions.AsBuffer(_rawBuf));
+            _lastRaw = raw; w = raw.PixelWidth; h = raw.PixelHeight;
+            try
+            {
+                if (_rawBuf?.Length != w * h * 4) _rawBuf = new byte[w * h * 4];
+                raw.CopyToBuffer(System.Runtime.InteropServices.WindowsRuntime.WindowsRuntimeBufferExtensions.AsBuffer(_rawBuf));
+            }
+            catch { return; } // the frame was replaced while copying
+            buf = _rawBuf;
         }
-        catch { return; } // the frame was replaced while copying
-        var buf = _rawBuf;
+        // No fresh camera frame (e.g. the phone, whose frames arrive another way): use the latest picture instead.
+        else if (_lastFrame is { } f) { buf = f.Px; w = f.W; h = f.H; }
+        else return;
         var (small, _, _) = await Task.Run(() => OutputFit.Stretch(buf, w, h, 320, 180));
         using (var stream = System.Runtime.InteropServices.WindowsRuntime.WindowsRuntimeBufferExtensions.AsStream(_rawThumb.PixelBuffer))
             await stream.WriteAsync(small.AsMemory(0, Math.Min(small.Length, (int)_rawThumb.PixelBuffer.Capacity)));
