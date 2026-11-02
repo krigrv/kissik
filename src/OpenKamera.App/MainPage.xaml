@@ -289,6 +289,13 @@
                                 <ToggleMenuFlyoutItem x:Name="SmartMirrorToggle" Text="Mirror my preview only (meetings see the true view)" Click="SmartMirror_Click">
                                     <ToggleMenuFlyoutItem.Icon><FontIcon Glyph="&#xE8AB;" /></ToggleMenuFlyoutItem.Icon>
                                 </ToggleMenuFlyoutItem>
+                                <MenuFlyoutSubItem Text="See as a colour-blind viewer">
+                                    <MenuFlyoutSubItem.Icon><FontIcon Glyph="&#xE7B3;" /></MenuFlyoutSubItem.Icon>
+                                    <RadioMenuFlyoutItem Text="Normal" GroupName="Cvd" Tag="Off" Click="Cvd_Click" IsChecked="True" />
+                                    <RadioMenuFlyoutItem Text="Red-green (deuteranopia, most common)" GroupName="Cvd" Tag="Deuteranopia" Click="Cvd_Click" />
+                                    <RadioMenuFlyoutItem Text="Red-green (protanopia)" GroupName="Cvd" Tag="Protanopia" Click="Cvd_Click" />
+                                    <RadioMenuFlyoutItem Text="Blue-yellow (tritanopia)" GroupName="Cvd" Tag="Tritanopia" Click="Cvd_Click" />
+                                </MenuFlyoutSubItem>
                                 <MenuFlyoutSubItem Text="Theme">
                                     <MenuFlyoutSubItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutSubItem.Icon>
                                     <RadioMenuFlyoutItem x:Name="ThemeSystem" Text="Same as Windows" GroupName="Theme" Tag="System" Click="Theme_Click" />

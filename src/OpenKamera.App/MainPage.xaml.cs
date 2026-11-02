@@ -461,6 +461,13 @@ public sealed partial class MainPage : Page
     /// </summary>
     private double _procMs;
     private volatile bool _exposureCheck;
+    private volatile ColourVisionType _cvd;
+
+    private void Cvd_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: string t } && Enum.TryParse<ColourVisionType>(t, out var v)) _cvd = v;
+        Status(_cvd == ColourVisionType.Off ? "Normal colours." : $"Preview shows {_cvd} (only you see this): check your scene text and slides still stand out.");
+    }
     private volatile string _exposureNote = "";
 
     private void ExposureToggle_Click(object sender, RoutedEventArgs e)
@@ -532,10 +539,11 @@ public sealed partial class MainPage : Page
         _updatingPreview = true;
         SoftwareBitmap copy;
         var shown = pixels;
+        if (_cvd != ColourVisionType.Off) { shown = (byte[])pixels.Clone(); ColourVision.Apply(shown, _cvd); }
         if (_exposureCheck)
         {
             // Preview only: the outputs above already have their own copy of the frame.
-            shown = (byte[])pixels.Clone();
+            if (ReferenceEquals(shown, pixels)) shown = (byte[])pixels.Clone();
             var (clip, crush) = ExposureCheck.Apply(shown, w, h, (int)(Environment.TickCount64 / 120 % 12));
             _exposureNote = clip > 0.08 ? "Too bright in places: lower Light or move away from the window."
                           : crush > 0.25 ? "Large dark areas: add light in front of you." : "Exposure looks good.";

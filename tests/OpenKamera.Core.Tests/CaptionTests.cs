@@ -94,3 +94,23 @@ public class ExposureCheckTests
         Assert.Equal(230, px[12 * 4]);    // first stripe on the dark half is blue
     }
 }
+
+public class ColourVisionTests
+{
+    [Fact]
+    public void RedAndGreenLookAlikeForDeuteranopia()
+    {
+        var px = new byte[] { 0, 0, 200, 255, 0, 120, 0, 255 }; // red, green
+        ColourVision.Apply(px, ColourVisionType.Deuteranopia);
+        int dr = Math.Abs(px[2] - px[6]), dg = Math.Abs(px[1] - px[5]);
+        Assert.True(dr + dg < 100, $"{dr} {dg}"); // far closer than the original 200+120 difference
+    }
+
+    [Fact]
+    public void GreyStaysGrey()
+    {
+        var px = new byte[] { 128, 128, 128, 255 };
+        ColourVision.Apply(px, ColourVisionType.Tritanopia);
+        Assert.InRange(px[0], 120, 136); Assert.InRange(px[2], 120, 136);
+    }
+}

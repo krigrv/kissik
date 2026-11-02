@@ -24,7 +24,7 @@ Darkroom Glass verified live 2026-11-02 (window pictures via the in-app "Save a 
 - [x] Profiles menu: Meetings 720p30, Meetings HD 1080p30, Streaming 1080p60, 1440p30, 4K30, Vertical 1280p, Vertical HD 1920p (all unlocked; camera + recording follow it)
 - [x] Gallery window, tabs **Scenes / Backgrounds / Filters**: collections (All, Favourites, categories), create/import/add, per-item "…" menu
 - [x] Filters gallery shows live thumbnails of the current camera through each filter
-- [~] More looks: added Golden hour, Teal & orange, Film print, Punchy, Noir, Pastel. Exposure check (zebras, preview only) done. Still to do: colour-vision simulations
+- [~] More looks: added Golden hour, Teal & orange, Film print, Punchy, Noir, Pastel. Exposure check and colour-blind preview (deuteranopia, protanopia, tritanopia) done
 - [ ] Light + dark theme following Windows (in progress 2026-11-02)
 
 ## 0b. Screen light (user request 2026-11-02) — own names and looks
