@@ -26,7 +26,11 @@ us or to sponsors. Opening a pick takes you to the sponsor's website, which has 
 off any time in Settings and help → Show sponsored picks.
 
 ## Crash reports
-If KISSIK crashes, it saves a report on your PC. It is shared only if you choose to send it, and you can read it first.
+If KISSIK crashes, it saves a report on your PC. After the first crash it asks whether you want reports sent
+automatically. With your yes, each report holds only the error message and the KISSIK and Windows versions, with
+user names, folder names, e-mail addresses and the PC name removed. It never includes video, audio, files or
+settings. Reports go to the developer's crash inbox (Sentry) and are used only to fix bugs. Change your answer any
+time in Settings and help → Send crash reports automatically.
 
 ## Remote control
 "Let AI assistants and Stream Deck control KISSIK" is off by default. When on, it listens only on your own PC
