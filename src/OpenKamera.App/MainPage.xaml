@@ -52,7 +52,8 @@
             <Setter Property="TextWrapping" Value="Wrap" />
         </Style>
         <Style x:Key="CapsuleButton" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
-            <Setter Property="Height" Value="38" />
+            <Setter Property="MinHeight" Value="40" />
+            <Setter Property="MinWidth" Value="40" />
             <Setter Property="Padding" Value="14,0" />
             <Setter Property="CornerRadius" Value="8" />
             <Setter Property="Background" Value="Transparent" />
@@ -61,8 +62,8 @@
         </Style>
         <Style x:Key="IconButton" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
             <Setter Property="Padding" Value="0" />
-            <Setter Property="Width" Value="34" />
-            <Setter Property="Height" Value="32" />
+            <Setter Property="Width" Value="40" />
+            <Setter Property="Height" Value="40" />
             <Setter Property="CornerRadius" Value="10" />
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
@@ -73,7 +74,7 @@
             <Setter Property="CornerRadius" Value="10" />
             <Setter Property="HorizontalAlignment" Value="Stretch" />
             <Setter Property="FontSize" Value="12" />
-            <Setter Property="Height" Value="32" />
+            <Setter Property="MinHeight" Value="40" />
         </Style>
         <!-- Picture tile (Background modes): selected = accent outline. -->
         <Style x:Key="Tile" TargetType="ToggleButton" BasedOn="{StaticResource DefaultToggleButtonStyle}">
@@ -142,7 +143,7 @@
             <TextBlock Foreground="{ThemeResource TextFillColorPrimaryBrush}" FontSize="22" HorizontalAlignment="Center" Text="No camera connected" />
             <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="14" HorizontalAlignment="Center"
                        Text="Pick a device in the Camera panel and press Connect." />
-            <TextBlock x:Name="EmptyBusy" Foreground="#FFFF8A80" FontSize="13" HorizontalAlignment="Center" TextWrapping="Wrap" MaxWidth="420" />
+            <TextBlock x:Name="EmptyBusy" Foreground="{ThemeResource SystemFillColorCriticalBrush}" FontSize="13" HorizontalAlignment="Center" TextWrapping="Wrap" MaxWidth="420" />
             <Button x:Name="EmptyConnectBtn" Content="Connect camera" Click="EmptyConnect_Click" HorizontalAlignment="Center"
                     Style="{StaticResource AccentButtonStyle}" CornerRadius="12" Padding="22,9" FontSize="15"
                     AutomationProperties.Name="Connect camera" />
@@ -150,42 +151,42 @@
 
         <!-- ═══ Top capsule ═══ -->
         <!-- Command bar: docked across the top like a native Windows 11 app. -->
-        <Border Style="{StaticResource Glass}" CornerRadius="8" Height="48" Margin="12,4,12,0" Padding="8,0,8,0"
+        <Border Style="{StaticResource Glass}" CornerRadius="8" MinHeight="48" Margin="12,4,12,0" Padding="8,0,8,0"
                 HorizontalAlignment="Stretch" VerticalAlignment="Top">
             <Grid>
             <StackPanel x:Name="CapsuleRow" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center" HorizontalAlignment="Center">
                 <!-- App name lives in the title bar. -->
                 <Button x:Name="SnapshotBtn" Style="{StaticResource CapsuleButton}" Click="SnapshotBtn_Click" IsEnabled="False"
-                        AutomationProperties.Name="Snapshot" ToolTipService.ToolTip="Save a still image (Ctrl+Shift+S)">
+                        AutomationProperties.Name="Snapshot" ToolTipService.ToolTip="Save a still image (Ctrl+Shift+S)" AutomationProperties.HelpText="Save a still image (Ctrl+Shift+S)">
                     <StackPanel Orientation="Horizontal" Spacing="7">
                         <FontIcon Glyph="&#xE722;" FontSize="14" /><TextBlock Text="Snapshot" />
                     </StackPanel>
                 </Button>
                 <Button x:Name="RecordBtn" Style="{StaticResource CapsuleButton}" Click="RecordBtn_Click" IsEnabled="False"
-                        AutomationProperties.Name="● Record" ToolTipService.ToolTip="Start or stop recording (Ctrl+R)">
+                        AutomationProperties.Name="Record" ToolTipService.ToolTip="Start or stop recording (Ctrl+R)" AutomationProperties.HelpText="Start or stop recording (Ctrl+R)">
                     <StackPanel Orientation="Horizontal" Spacing="7">
                         <FontIcon x:Name="RecordIcon" Glyph="&#xE7C8;" FontSize="14" />
                         <TextBlock x:Name="RecordLabel" Text="Record" FontWeight="SemiBold" />
                     </StackPanel>
                 </Button>
                 <Button x:Name="LiveBtn" Style="{StaticResource CapsuleButton}" Click="LiveBtn_Click" IsEnabled="False"
-                        AutomationProperties.Name="Go live" ToolTipService.ToolTip="Livestream to YouTube, Twitch, Facebook or any RTMP server">
+                        AutomationProperties.Name="Go live" ToolTipService.ToolTip="Livestream to YouTube, Twitch, Facebook or any RTMP server" AutomationProperties.HelpText="Livestream to YouTube, Twitch, Facebook or any RTMP server">
                     <StackPanel Orientation="Horizontal" Spacing="7">
                         <FontIcon Glyph="&#xE93E;" FontSize="14" />
                         <TextBlock x:Name="LiveLabel" Text="Go live" />
                     </StackPanel>
                 </Button>
                 <Button x:Name="PauseBtn" Style="{StaticResource CapsuleButton}" Click="PauseBtn_Click" Visibility="Collapsed"
-                        AutomationProperties.Name="Pause recording" ToolTipService.ToolTip="Pause or resume recording (Ctrl+Shift+R)">
+                        AutomationProperties.Name="Pause recording" ToolTipService.ToolTip="Pause or resume recording (Ctrl+Shift+R)" AutomationProperties.HelpText="Pause or resume recording (Ctrl+Shift+R)">
                     <StackPanel Orientation="Horizontal" Spacing="7">
                         <FontIcon x:Name="PauseIcon" Glyph="&#xE769;" FontSize="14" />
                         <TextBlock x:Name="PauseLabel" Text="Pause" />
                     </StackPanel>
                 </Button>
-                <DropDownButton x:Name="MeetCamBtn" Height="38" CornerRadius="19" Padding="14,0,10,0" Background="Transparent" BorderThickness="0"
-                                AutomationProperties.Name="Meeting camera" ToolTipService.ToolTip="Use KISSIK as the camera in Zoom, Teams, Meet, Discord or OBS">
+                <DropDownButton x:Name="MeetCamBtn" MinHeight="40" CornerRadius="8" Padding="14,0,10,0" Background="Transparent" BorderThickness="0"
+                                AutomationProperties.Name="Meeting camera" ToolTipService.ToolTip="Use KISSIK as the camera in Zoom, Teams, Meet, Discord or OBS" AutomationProperties.HelpText="Use KISSIK as the camera in Zoom, Teams, Meet, Discord or OBS">
                     <StackPanel Orientation="Horizontal" Spacing="7">
-                        <Ellipse x:Name="MeetCamDot" Width="8" Height="8" Fill="#66FFFFFF" VerticalAlignment="Center" />
+                        <Ellipse x:Name="MeetCamDot" AutomationProperties.AccessibilityView="Raw" Width="8" Height="8" Fill="{ThemeResource ControlStrongStrokeColorDefaultBrush}" VerticalAlignment="Center" />
                         <TextBlock Text="Meeting camera" />
                     </StackPanel>
                     <DropDownButton.Flyout>
@@ -193,9 +194,9 @@
                             <StackPanel Width="320" Spacing="10">
                                 <TextBlock Text="Meeting camera" FontSize="16" FontWeight="SemiBold" />
                                 <TextBlock x:Name="MeetCamStatus" TextWrapping="Wrap" FontSize="13" />
-                                <TextBlock x:Name="MeetCamLive" TextWrapping="Wrap" FontSize="12" Foreground="#FFFF8A80" />
+                                <TextBlock x:Name="MeetCamLive" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource SystemFillColorCriticalBrush}" />
                                 <Button Content="Check my setup" Click="MeetingCheck_Click" HorizontalAlignment="Stretch"
-                                        ToolTipService.ToolTip="Tests camera, framing, light, microphone and the meeting camera" />
+                                        ToolTipService.ToolTip="Tests camera, framing, light, microphone and the meeting camera" AutomationProperties.HelpText="Tests camera, framing, light, microphone and the meeting camera" />
                                 <Button x:Name="MeetCamInstallBtn" Content="Install the KISSIK camera" Click="MeetCamInstall_Click"
                                         Style="{StaticResource AccentButtonStyle}" HorizontalAlignment="Stretch" />
                                 <Button x:Name="MeetCamOnBtn" Content="Make sure it's listed" Click="MeetCamOn_Click" HorizontalAlignment="Stretch" />
@@ -207,7 +208,7 @@
                     </DropDownButton.Flyout>
                 </DropDownButton>
                 <DropDownButton x:Name="ShutterBtn" Style="{StaticResource CapsuleButton}" AutomationProperties.Name="Privacy shutter"
-                                ToolTipService.ToolTip="Hide yourself from the meeting and recording (Ctrl+Shift+H)">
+                                ToolTipService.ToolTip="Hide yourself from the meeting and recording (Ctrl+Shift+H)" AutomationProperties.HelpText="Hide yourself from the meeting and recording (Ctrl+Shift+H)">
                     <StackPanel Orientation="Horizontal" Spacing="7">
                         <FontIcon x:Name="ShutterIcon" Glyph="&#xE7B3;" FontSize="14" /><TextBlock x:Name="ShutterText" Text="Visible" />
                     </StackPanel>
@@ -224,7 +225,7 @@
                     </DropDownButton.Flyout>
                 </DropDownButton>
                 <Button x:Name="LightBtn" Style="{StaticResource CapsuleButton}" Click="LightBtn_Click"
-                        AutomationProperties.Name="Screen light" ToolTipService.ToolTip="Use your screen as a soft key light">
+                        AutomationProperties.Name="Screen light" ToolTipService.ToolTip="Use your screen as a soft key light" AutomationProperties.HelpText="Use your screen as a soft key light">
                     <StackPanel Orientation="Horizontal" Spacing="7">
                         <FontIcon x:Name="LightBtnIcon" Glyph="&#xEA80;" FontSize="14" /><TextBlock Text="Light" />
                     </StackPanel>
@@ -232,9 +233,9 @@
             </StackPanel>
             <!-- Secondary actions sit on the right, like a Windows 11 command bar. -->
             <StackPanel x:Name="CapsuleRight" Orientation="Horizontal" Spacing="4" HorizontalAlignment="Right" VerticalAlignment="Center">
-                <DropDownButton x:Name="ProfileButton" Height="38" CornerRadius="8" Padding="14,0,10,0"
+                <DropDownButton x:Name="ProfileButton" MinHeight="40" CornerRadius="8" Padding="14,0,10,0"
                                 Background="{ThemeResource ControlFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
-                                AutomationProperties.Name="Output profile" ToolTipService.ToolTip="Output resolution and frame rate">
+                                AutomationProperties.Name="Output profile" ToolTipService.ToolTip="Output resolution and frame rate" AutomationProperties.HelpText="Output resolution and frame rate">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <TextBlock x:Name="ProfileName" Text="Meetings" FontWeight="Medium" VerticalAlignment="Center" />
                         <TextBlock VerticalAlignment="Center" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}">
@@ -246,16 +247,16 @@
                         <MenuFlyout x:Name="ProfileMenu" Placement="Bottom" />
                     </DropDownButton.Flyout>
                 </DropDownButton>
-                <Button x:Name="DonateBtn" Click="DonateBtn_Click" Visibility="Collapsed" Height="34" CornerRadius="8" Padding="12,0"
+                <Button x:Name="DonateBtn" Click="DonateBtn_Click" Visibility="Collapsed" MinHeight="40" CornerRadius="8" Padding="12,0"
                         Background="Transparent" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
-                        AutomationProperties.Name="Support KISSIK" ToolTipService.ToolTip="KISSIK is free and open source. Support it with PayPal or UPI.">
+                        AutomationProperties.Name="Support KISSIK" ToolTipService.ToolTip="KISSIK is free and open source. Support it with PayPal or UPI." AutomationProperties.HelpText="KISSIK is free and open source. Support it with PayPal or UPI.">
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <TextBlock Text="🙏" FontFamily="Segoe UI Emoji" FontSize="13" VerticalAlignment="Center" />
                         <TextBlock Text="Support" FontSize="13" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" VerticalAlignment="Center" />
                     </StackPanel>
                 </Button>
-                <DropDownButton Height="38" Width="44" CornerRadius="8" Padding="0" Background="Transparent" BorderThickness="0"
-                                AutomationProperties.Name="View options" ToolTipService.ToolTip="View options">
+                <DropDownButton MinHeight="40" Width="44" CornerRadius="8" Padding="0" Background="Transparent" BorderThickness="0"
+                                AutomationProperties.Name="View options" ToolTipService.ToolTip="View options" AutomationProperties.HelpText="View options">
                     <FontIcon Glyph="&#xE713;" FontSize="15" />
                     <DropDownButton.Flyout>
                         <MenuFlyout Placement="BottomEdgeAlignedRight">
@@ -275,11 +276,24 @@
                                 <ToggleMenuFlyoutItem.Icon><FontIcon Glyph="&#xED1E;" /></ToggleMenuFlyoutItem.Icon>
                             </ToggleMenuFlyoutItem>
                             <MenuFlyoutSeparator />
+                            <ToggleMenuFlyoutItem x:Name="ReplayToggle" Text="Replay buffer (keeps the last 30 seconds)" Click="ReplayToggle_Click">
+                                <ToggleMenuFlyoutItem.Icon><FontIcon Glyph="&#xE81C;" /></ToggleMenuFlyoutItem.Icon>
+                            </ToggleMenuFlyoutItem>
+                            <MenuFlyoutItem x:Name="SaveReplayItem" Text="Save the last 30 seconds" Click="SaveReplay_Click" IsEnabled="False">
+                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE74E;" /></MenuFlyoutItem.Icon>
+                                <MenuFlyoutItem.KeyboardAccelerators><KeyboardAccelerator Modifiers="Control,Menu" Key="S" /></MenuFlyoutItem.KeyboardAccelerators>
+                            </MenuFlyoutItem>
                             <MenuFlyoutItem x:Name="UpdateItem" Text="Check for updates" Click="UpdateItem_Click">
                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE895;" /></MenuFlyoutItem.Icon>
                             </MenuFlyoutItem>
                             <MenuFlyoutSubItem Text="View">
                                 <MenuFlyoutSubItem.Icon><FontIcon Glyph="&#xE890;" /></MenuFlyoutSubItem.Icon>
+                                <RadioMenuFlyoutItem x:Name="ModeSimpleItem" Text="Simple: five big buttons" GroupName="UiMode" Tag="Simple" Click="UiMode_Click" />
+                                <RadioMenuFlyoutItem x:Name="ModeStudioItem" Text="Studio: every control" GroupName="UiMode" Tag="Studio" Click="UiMode_Click" />
+                                <ToggleMenuFlyoutItem x:Name="LargeControlsToggle" Text="Large controls" Click="LargeControls_Click">
+                                    <ToggleMenuFlyoutItem.Icon><FontIcon Glyph="&#xE8E8;" /></ToggleMenuFlyoutItem.Icon>
+                                </ToggleMenuFlyoutItem>
+                                <MenuFlyoutSeparator />
                                 <MenuFlyoutItem x:Name="LeftPaneToggle" Text="Show or hide the control panel" Click="LeftPaneToggle_Click">
                                     <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE89F;" /></MenuFlyoutItem.Icon>
                                 </MenuFlyoutItem>
@@ -298,6 +312,13 @@
                                     <RadioMenuFlyoutItem Text="Red-green (deuteranopia, most common)" GroupName="Cvd" Tag="Deuteranopia" Click="Cvd_Click" />
                                     <RadioMenuFlyoutItem Text="Red-green (protanopia)" GroupName="Cvd" Tag="Protanopia" Click="Cvd_Click" />
                                     <RadioMenuFlyoutItem Text="Blue-yellow (tritanopia)" GroupName="Cvd" Tag="Tritanopia" Click="Cvd_Click" />
+                                </MenuFlyoutSubItem>
+                                <MenuFlyoutSubItem Text="Scene transition">
+                                    <MenuFlyoutSubItem.Icon><FontIcon Glyph="&#xE8AB;" /></MenuFlyoutSubItem.Icon>
+                                    <RadioMenuFlyoutItem x:Name="TrFade" Text="Fade" GroupName="Transition" Tag="Fade" Click="Transition_Click" />
+                                    <RadioMenuFlyoutItem x:Name="TrSlide" Text="Slide" GroupName="Transition" Tag="Slide" Click="Transition_Click" />
+                                    <RadioMenuFlyoutItem x:Name="TrZoom" Text="Zoom" GroupName="Transition" Tag="Zoom" Click="Transition_Click" />
+                                    <RadioMenuFlyoutItem x:Name="TrCut" Text="Cut (instant)" GroupName="Transition" Tag="Cut" Click="Transition_Click" />
                                 </MenuFlyoutSubItem>
                                 <MenuFlyoutSubItem Text="Theme">
                                     <MenuFlyoutSubItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutSubItem.Icon>
@@ -335,7 +356,7 @@
         <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" VerticalAlignment="Top"
                     Margin="0,90,272,0" IsHitTestVisible="False">
             <Border x:Name="RecPill" Background="{StaticResource DgRecBrush}" CornerRadius="14" Padding="10,5" Visibility="Collapsed">
-                <TextBlock x:Name="RecPillText" Text="● REC" FontSize="12" FontWeight="SemiBold" Foreground="White" />
+                <TextBlock x:Name="RecPillText" AutomationProperties.LiveSetting="Polite" Text="● REC" FontSize="12" FontWeight="SemiBold" Foreground="White" />
             </Border>
             <Border Background="#88000000" CornerRadius="14" Padding="10,5">
                 <TextBlock x:Name="HudText" FontSize="12" Foreground="White" Text="No device open" />
@@ -352,9 +373,9 @@
                 </Grid.RowDefinitions>
                 <Border Background="{ThemeResource ControlFillColorDefaultBrush}" CornerRadius="12" Padding="3">
                     <SelectorBar x:Name="SidebarTabs" SelectionChanged="SidebarTabs_SelectionChanged" HorizontalAlignment="Stretch">
-                        <SelectorBarItem x:Name="TabCamera" Text="Camera" IsSelected="True" ToolTipService.ToolTip="Camera, background, look" />
-                        <SelectorBarItem x:Name="TabAudio" Text="Audio" ToolTipService.ToolTip="Microphones and audio effects" />
-                        <SelectorBarItem x:Name="TabLayers" Text="Layers" ToolTipService.ToolTip="Scene layers" />
+                        <SelectorBarItem x:Name="TabCamera" Text="Camera" IsSelected="True" ToolTipService.ToolTip="Camera, background, look" AutomationProperties.HelpText="Camera, background, look" />
+                        <SelectorBarItem x:Name="TabAudio" Text="Audio" ToolTipService.ToolTip="Microphones and audio effects" AutomationProperties.HelpText="Microphones and audio effects" />
+                        <SelectorBarItem x:Name="TabLayers" Text="Layers" ToolTipService.ToolTip="Scene layers" AutomationProperties.HelpText="Scene layers" />
                     </SelectorBar>
                 </Border>
 
@@ -370,7 +391,7 @@
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <Ellipse x:Name="SourceDot" Width="8" Height="8" Fill="#66FFFFFF" VerticalAlignment="Center" />
+                                <Ellipse x:Name="SourceDot" AutomationProperties.AccessibilityView="Raw" Width="8" Height="8" Fill="{ThemeResource ControlStrongStrokeColorDefaultBrush}" VerticalAlignment="Center" />
                                 <ComboBox x:Name="DeviceBox" Grid.Column="1" PlaceholderText="Select camera" HorizontalAlignment="Stretch"
                                           BorderThickness="0" Background="Transparent"
                                           SelectionChanged="DeviceBox_SelectionChanged" AutomationProperties.Name="Camera device" />
@@ -380,21 +401,21 @@
                         <!-- Phone remote: shown while the phone is the camera. -->
                         <Grid x:Name="PhoneControls" Visibility="Collapsed" Margin="0,8,0,0" ColumnSpacing="6">
                             <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                            <Button x:Name="PhoneFlipBtn" Click="PhoneFlip_Click" AutomationProperties.Name="Switch the phone's front and back camera" ToolTipService.ToolTip="Front / back camera">
+                            <Button x:Name="PhoneFlipBtn" Click="PhoneFlip_Click" AutomationProperties.Name="Switch the phone's front and back camera" ToolTipService.ToolTip="Front / back camera" AutomationProperties.HelpText="Front / back camera">
                                 <StackPanel Orientation="Horizontal" Spacing="6"><FontIcon Glyph="&#xE89E;" FontSize="14" /><TextBlock Text="Flip" /></StackPanel>
                             </Button>
                             <ToggleButton x:Name="PhoneTorchBtn" Grid.Column="1" Click="PhoneTorch_Click" IsEnabled="False"
-                                          AutomationProperties.Name="Phone torch" ToolTipService.ToolTip="Phone torch (back camera)">
+                                          AutomationProperties.Name="Phone torch" ToolTipService.ToolTip="Phone torch (back camera)" AutomationProperties.HelpText="Phone torch (back camera)">
                                 <StackPanel Orientation="Horizontal" Spacing="6"><FontIcon Glyph="&#xE754;" FontSize="14" /><TextBlock Text="Torch" /></StackPanel>
                             </ToggleButton>
                             <Slider x:Name="PhoneZoom" Grid.Column="2" Minimum="1" Maximum="1" StepFrequency="0.1" Value="1" IsEnabled="False"
-                                    ValueChanged="PhoneZoom_ValueChanged" AutomationProperties.Name="Phone zoom" ToolTipService.ToolTip="Phone zoom" VerticalAlignment="Center" />
+                                    ValueChanged="PhoneZoom_ValueChanged" AutomationProperties.Name="Phone zoom" ToolTipService.ToolTip="Phone zoom" AutomationProperties.HelpText="Phone zoom" VerticalAlignment="Center" />
                         </Grid>
                         <Grid Margin="0,8,0,0">
                             <TextBlock Text="Focus" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
                             <SelectorBar x:Name="FocusMode" SelectionChanged="FocusMode_SelectionChanged" IsEnabled="False" HorizontalAlignment="Right">
-                                <SelectorBarItem x:Name="FocusAuto" Text="AF" IsSelected="True" ToolTipService.ToolTip="Autofocus" />
-                                <SelectorBarItem x:Name="FocusManual" Text="MF" ToolTipService.ToolTip="Manual focus (Focus slider under Camera hardware)" />
+                                <SelectorBarItem x:Name="FocusAuto" Text="AF" IsSelected="True" ToolTipService.ToolTip="Autofocus" AutomationProperties.HelpText="Autofocus" />
+                                <SelectorBarItem x:Name="FocusManual" Text="MF" ToolTipService.ToolTip="Manual focus (Focus slider under Camera hardware)" AutomationProperties.HelpText="Manual focus (Focus slider under Camera hardware)" />
                             </SelectorBar>
                         </Grid>
 
@@ -414,15 +435,15 @@
                                 <ColumnDefinition /><ColumnDefinition /><ColumnDefinition /><ColumnDefinition />
                             </Grid.ColumnDefinitions>
                             <ToggleButton x:Name="TileOff" Style="{StaticResource Tile}" Tag="off" Click="BgTile_Click"
-                                          AutomationProperties.Name="Background off" ToolTipService.ToolTip="Show the room as it is">
+                                          AutomationProperties.Name="Background off" ToolTipService.ToolTip="Show the room as it is" AutomationProperties.HelpText="Show the room as it is">
                                 <StackPanel Spacing="4"><FontIcon Glyph="&#xE77B;" FontSize="18" /><TextBlock Text="Off" FontSize="12" HorizontalAlignment="Center" /></StackPanel>
                             </ToggleButton>
                             <ToggleButton x:Name="TileBlur" Grid.Column="1" Style="{StaticResource Tile}" Tag="blur" Click="BgTile_Click"
-                                          AutomationProperties.Name="Blur background" ToolTipService.ToolTip="Blur the room behind you">
+                                          AutomationProperties.Name="Blur background" ToolTipService.ToolTip="Blur the room behind you" AutomationProperties.HelpText="Blur the room behind you">
                                 <StackPanel Spacing="4"><FontIcon Glyph="&#xE7B3;" FontSize="18" /><TextBlock Text="Blur" FontSize="12" HorizontalAlignment="Center" /></StackPanel>
                             </ToggleButton>
                             <ToggleButton x:Name="TileReplace" Grid.Column="2" Style="{StaticResource Tile}" Tag="replace" Click="BgTile_Click"
-                                          AutomationProperties.Name="Replace background" ToolTipService.ToolTip="Put a background image behind you">
+                                          AutomationProperties.Name="Replace background" ToolTipService.ToolTip="Put a background image behind you" AutomationProperties.HelpText="Put a background image behind you">
                                 <StackPanel Spacing="4">
                                     <Border Width="26" Height="18" CornerRadius="5" HorizontalAlignment="Center">
                                         <Border.Background>
@@ -435,7 +456,7 @@
                                 </StackPanel>
                             </ToggleButton>
                             <ToggleButton x:Name="TileRemove" Grid.Column="3" Style="{StaticResource Tile}" Tag="remove" Click="BgTile_Click"
-                                          AutomationProperties.Name="Remove background" ToolTipService.ToolTip="Transparent background">
+                                          AutomationProperties.Name="Remove background" ToolTipService.ToolTip="Transparent background" AutomationProperties.HelpText="Transparent background">
                                 <StackPanel Spacing="4">
                                     <Grid Width="24" Height="18" HorizontalAlignment="Center">
                                         <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition /><ColumnDefinition /><ColumnDefinition /></Grid.ColumnDefinitions>
@@ -450,7 +471,7 @@
                         </Grid>
                         <Slider x:Name="BgBlurStrength" Minimum="0" Maximum="100" Value="45" Visibility="Collapsed" Margin="0,6,0,0"
                                 ValueChanged="Background_ValueChanged" AutomationProperties.Name="Blur strength (portrait to privacy)"
-                                ToolTipService.ToolTip="Left: portrait softness. Right: privacy blur." />
+                                ToolTipService.ToolTip="Left: portrait softness. Right: privacy blur." AutomationProperties.HelpText="Left: portrait softness. Right: privacy blur." />
                         <Grid x:Name="BgPickerRow" ColumnSpacing="6" Margin="0,8,0,0" Visibility="Collapsed">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" />
@@ -458,15 +479,15 @@
                             <ComboBox x:Name="BgPicker" HorizontalAlignment="Stretch" SelectionChanged="BgPicker_SelectionChanged"
                                       CornerRadius="10" AutomationProperties.Name="Background image" />
                             <Button x:Name="BgImportBtn" Grid.Column="1" Style="{StaticResource IconButton}" Click="BgImportBtn_Click"
-                                    ToolTipService.ToolTip="Add your own background image" AutomationProperties.Name="Add background">
+                                    ToolTipService.ToolTip="Add your own background image" AutomationProperties.HelpText="Add your own background image" AutomationProperties.Name="Add background">
                                 <FontIcon Glyph="&#xE710;" FontSize="14" />
                             </Button>
                         </Grid>
                         <Grid Margin="0,8,0,0">
                             <TextBlock Text="Edge quality" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
                             <SelectorBar x:Name="BgQuality" HorizontalAlignment="Right" SelectionChanged="BgQuality_SelectionChanged">
-                                <SelectorBarItem x:Name="BgQualityFast" Text="Fast" IsSelected="True" ToolTipService.ToolTip="Lightest on the GPU" />
-                                <SelectorBarItem x:Name="BgQualityHigh" Text="High" ToolTipService.ToolTip="Cleaner hair and edges" />
+                                <SelectorBarItem x:Name="BgQualityFast" Text="Fast" IsSelected="True" ToolTipService.ToolTip="Lightest on the GPU" AutomationProperties.HelpText="Lightest on the GPU" />
+                                <SelectorBarItem x:Name="BgQualityHigh" Text="High" ToolTipService.ToolTip="Cleaner hair and edges" AutomationProperties.HelpText="Cleaner hair and edges" />
                             </SelectorBar>
                         </Grid>
 
@@ -509,6 +530,11 @@
                                 ValueChanged="Background_ValueChanged" AutomationProperties.Name="Retouch amount" />
 
                         <Rectangle Height="1" Fill="{ThemeResource CardStrokeColorDefaultBrush}" Margin="0,10,0,0" />
+                        <Button x:Name="AutoBestBtn" Click="AutoBest_Click" HorizontalAlignment="Stretch" Margin="0,10,0,0" Height="40" CornerRadius="8"
+                                Style="{StaticResource AccentButtonStyle}" AutomationProperties.Name="Auto best picture"
+                                ToolTipService.ToolTip="Fixes brightness, colour cast and flat light in one press">
+                            <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE9F5;" FontSize="14" /><TextBlock Text="Auto best picture" /></StackPanel>
+                        </Button>
                         <Expander x:Name="AdjustmentsExpander" AutomationProperties.Name="Picture adjustments" Margin="0,6,0,0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
                                   Background="Transparent" BorderThickness="0">
                             <Expander.Header>
@@ -517,7 +543,7 @@
                                         <Run Text="Adjustments" FontSize="14" />
                                     </TextBlock>
                                     <Button x:Name="EnhanceReset" HorizontalAlignment="Right" Style="{StaticResource IconButton}"
-                                            Click="EnhanceReset_Click" ToolTipService.ToolTip="Reset adjustments and look"
+                                            Click="EnhanceReset_Click" ToolTipService.ToolTip="Reset adjustments and look" AutomationProperties.HelpText="Reset adjustments and look"
                                             AutomationProperties.Name="Reset adjustments">
                                         <FontIcon Glyph="&#xE72C;" FontSize="13" />
                                     </Button>
@@ -545,15 +571,15 @@
                             <ComboBox x:Name="PresetBox" HorizontalAlignment="Stretch" PlaceholderText="Pick a saved look" CornerRadius="8"
                                       SelectionChanged="PresetBox_SelectionChanged" AutomationProperties.Name="Preset" />
                             <Button x:Name="SavePresetBtn" Grid.Column="1" Style="{StaticResource IconButton}" Click="SavePresetBtn_Click"
-                                    ToolTipService.ToolTip="Save this whole look as a preset" AutomationProperties.Name="Save preset">
+                                    ToolTipService.ToolTip="Save this whole look as a preset" AutomationProperties.HelpText="Save this whole look as a preset" AutomationProperties.Name="Save preset">
                                 <FontIcon Glyph="&#xE74E;" FontSize="14" />
                             </Button>
                             <Button x:Name="DeletePresetBtn" Grid.Column="2" Style="{StaticResource IconButton}" Click="DeletePresetBtn_Click"
-                                    ToolTipService.ToolTip="Delete this preset" AutomationProperties.Name="Delete preset">
+                                    ToolTipService.ToolTip="Delete this preset" AutomationProperties.HelpText="Delete this preset" AutomationProperties.Name="Delete preset">
                                 <FontIcon Glyph="&#xE74D;" FontSize="14" />
                             </Button>
                             <Button x:Name="LinkPresetBtn" Grid.Column="3" Style="{StaticResource IconButton}" Click="LinkPresetBtn_Click"
-                                    ToolTipService.ToolTip="Use this preset automatically for an app (Zoom, Teams…)" AutomationProperties.Name="Link preset to an app">
+                                    ToolTipService.ToolTip="Use this preset automatically for an app (Zoom, Teams…)" AutomationProperties.HelpText="Use this preset automatically for an app (Zoom, Teams…)" AutomationProperties.Name="Link preset to an app">
                                 <FontIcon Glyph="&#xE71B;" FontSize="14" />
                             </Button>
                         </Grid>
@@ -574,16 +600,16 @@
                             <ComboBox x:Name="LutBox" Grid.Column="1" HorizontalAlignment="Stretch" PlaceholderText="None" CornerRadius="10"
                                       SelectionChanged="LutBox_SelectionChanged" AutomationProperties.Name="LUT" />
                             <Button x:Name="ImportLutBtn" Grid.Column="2" Style="{StaticResource IconButton}" Click="ImportLutBtn_Click"
-                                    ToolTipService.ToolTip="Import a .cube LUT" AutomationProperties.Name="Import LUT">
+                                    ToolTipService.ToolTip="Import a .cube LUT" AutomationProperties.HelpText="Import a .cube LUT" AutomationProperties.Name="Import LUT">
                                 <FontIcon Glyph="&#xE8B5;" FontSize="14" />
                             </Button>
                             <Button x:Name="ClearLutBtn" Grid.Column="3" Style="{StaticResource IconButton}" Click="ClearLutBtn_Click"
-                                    ToolTipService.ToolTip="Remove the LUT" AutomationProperties.Name="Clear LUT">
+                                    ToolTipService.ToolTip="Remove the LUT" AutomationProperties.HelpText="Remove the LUT" AutomationProperties.Name="Clear LUT">
                                 <FontIcon Glyph="&#xE711;" FontSize="14" />
                             </Button>
                         </Grid>
                         <Slider x:Name="LutStrength" Minimum="0" Maximum="100" Value="100" ValueChanged="Enhance_ValueChanged"
-                                AutomationProperties.Name="LUT strength" ToolTipService.ToolTip="LUT strength" />
+                                AutomationProperties.Name="LUT strength" ToolTipService.ToolTip="LUT strength" AutomationProperties.HelpText="LUT strength" />
 
                         <Expander Margin="0,6,0,0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
                                   Background="Transparent" BorderThickness="0">
@@ -635,7 +661,7 @@
                             <TextBlock Text="Microphone" Style="{StaticResource SectionLabel}" />
                             <ToggleSwitch x:Name="AudioOnToggle" HorizontalAlignment="Right" MinWidth="0" OffContent="" OnContent="" Margin="0,8,0,0"
                                           Toggled="AudioOnToggle_Toggled" AutomationProperties.Name="Microphone audio on"
-                                          ToolTipService.ToolTip="Capture microphone audio (meters and sound in recordings)" />
+                                          ToolTipService.ToolTip="Capture microphone audio (meters and sound in recordings)" AutomationProperties.HelpText="Capture microphone audio (meters and sound in recordings)" />
                         </Grid>
                         <Border Padding="12" CornerRadius="12" Background="{ThemeResource ControlFillColorDefaultBrush}">
                             <StackPanel Spacing="6">
@@ -729,7 +755,7 @@
                             <TextBox x:Name="SceneNameBox" FontWeight="SemiBold" AutomationProperties.Name="Scene name" CornerRadius="10"
                                      LostFocus="SceneNameBox_LostFocus" KeyDown="SceneNameBox_KeyDown" />
                             <DropDownButton Grid.Column="1" Padding="6,4" CornerRadius="10" AutomationProperties.Name="Scene actions"
-                                            ToolTipService.ToolTip="Scene actions">
+                                            ToolTipService.ToolTip="Scene actions" AutomationProperties.HelpText="Scene actions">
                                 <FontIcon Glyph="&#xE712;" FontSize="13" />
                                 <DropDownButton.Flyout>
                                     <MenuFlyout Placement="BottomEdgeAlignedRight">
@@ -753,15 +779,15 @@
                             </Grid.ColumnDefinitions>
                             <TextBlock Text="Background" VerticalAlignment="Center" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Margin="0,0,6,0" />
                             <DropDownButton x:Name="SceneBg1Btn" Grid.Column="1" Padding="4" AutomationProperties.Name="Background top colour"
-                                            ToolTipService.ToolTip="Background colour (top)" />
+                                            ToolTipService.ToolTip="Background colour (top)" AutomationProperties.HelpText="Background colour (top)" />
                             <DropDownButton x:Name="SceneBg2Btn" Grid.Column="2" Padding="4" HorizontalAlignment="Left" Margin="6,0,0,0"
-                                            AutomationProperties.Name="Background bottom colour" ToolTipService.ToolTip="Background colour (bottom)" />
+                                            AutomationProperties.Name="Background bottom colour" ToolTipService.ToolTip="Background colour (bottom)" AutomationProperties.HelpText="Background colour (bottom)" />
                         </Grid>
 
                         <Grid Margin="0,12,0,4">
                             <TextBlock Text="Layers" VerticalAlignment="Center" FontSize="14" />
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="2">
-                                <DropDownButton x:Name="AddLayerBtn" Padding="6,4" CornerRadius="10" AutomationProperties.Name="Add layer" ToolTipService.ToolTip="Add a layer">
+                                <DropDownButton x:Name="AddLayerBtn" Padding="6,4" CornerRadius="10" AutomationProperties.Name="Add layer" ToolTipService.ToolTip="Add a layer" AutomationProperties.HelpText="Add a layer">
                                     <FontIcon Glyph="&#xE710;" FontSize="13" />
                                     <DropDownButton.Flyout>
                                         <MenuFlyout Placement="BottomEdgeAlignedRight">
@@ -793,11 +819,11 @@
                                     </DropDownButton.Flyout>
                                 </DropDownButton>
                                 <Button x:Name="UndoBtn" Style="{StaticResource IconButton}" Click="Undo_Click" IsEnabled="False"
-                                        ToolTipService.ToolTip="Undo (Ctrl+Z)" AutomationProperties.Name="Undo">
+                                        ToolTipService.ToolTip="Undo (Ctrl+Z)" AutomationProperties.HelpText="Undo (Ctrl+Z)" AutomationProperties.Name="Undo">
                                     <FontIcon Glyph="&#xE7A7;" FontSize="13" />
                                 </Button>
                                 <Button x:Name="RedoBtn" Style="{StaticResource IconButton}" Click="Redo_Click" IsEnabled="False"
-                                        ToolTipService.ToolTip="Redo (Ctrl+Y)" AutomationProperties.Name="Redo">
+                                        ToolTipService.ToolTip="Redo (Ctrl+Y)" AutomationProperties.HelpText="Redo (Ctrl+Y)" AutomationProperties.Name="Redo">
                                     <FontIcon Glyph="&#xE7A6;" FontSize="13" />
                                 </Button>
                             </StackPanel>
@@ -814,7 +840,7 @@
                                         <TextBlock Grid.Column="1" Text="{x:Bind DisplayName}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                                         <Button Grid.Column="2" Tag="{x:Bind Id}" Click="LayerEye_Click" Padding="6,2"
                                                 Background="Transparent" BorderThickness="0"
-                                                ToolTipService.ToolTip="Show or hide" AutomationProperties.Name="Show or hide layer">
+                                                ToolTipService.ToolTip="Show or hide" AutomationProperties.HelpText="Show or hide" AutomationProperties.Name="Show or hide layer">
                                             <FontIcon Glyph="{x:Bind EyeGlyph}" FontSize="13" />
                                         </Button>
                                     </Grid>
@@ -873,32 +899,32 @@
                 </Border>
                 <TextBlock Text="Zoom" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Margin="0,0,0,-8" />
                 <Slider x:Name="FrZoom" Minimum="100" Maximum="400" Value="100" ValueChanged="Framing_ValueChanged"
-                        AutomationProperties.Name="Zoom" ToolTipService.ToolTip="Zoom" />
+                        AutomationProperties.Name="Zoom" ToolTipService.ToolTip="Zoom" AutomationProperties.HelpText="Zoom" />
                 <TextBlock Text="Left · right" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Margin="0,0,0,-8" />
                 <Slider x:Name="FrPanX" Minimum="-100" Maximum="100" Value="0" ValueChanged="Framing_ValueChanged"
-                        AutomationProperties.Name="Pan horizontal" ToolTipService.ToolTip="Pan left and right" />
+                        AutomationProperties.Name="Pan horizontal" ToolTipService.ToolTip="Pan left and right" AutomationProperties.HelpText="Pan left and right" />
                 <TextBlock Text="Up · down" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Margin="0,0,0,-8" />
                 <Slider x:Name="FrPanY" Minimum="-100" Maximum="100" Value="0" ValueChanged="Framing_ValueChanged"
-                        AutomationProperties.Name="Pan vertical" ToolTipService.ToolTip="Pan up and down" />
+                        AutomationProperties.Name="Pan vertical" ToolTipService.ToolTip="Pan up and down" AutomationProperties.HelpText="Pan up and down" />
                 <SelectorBar x:Name="FramingModeBar" HorizontalAlignment="Center" SelectionChanged="FramingMode_SelectionChanged">
                     <SelectorBarItem x:Name="FramingManual" Text="Manual" IsSelected="True" />
-                    <SelectorBarItem x:Name="FramingAuto" Text="Auto" ToolTipService.ToolTip="Follows your face and keeps head and shoulders in shot" />
-                    <SelectorBarItem x:Name="FramingSmart" Text="Smart" ToolTipService.ToolTip="Smart zoom: moves in close and keeps your face centred" />
+                    <SelectorBarItem x:Name="FramingAuto" Text="Auto" ToolTipService.ToolTip="Follows your face and keeps head and shoulders in shot" AutomationProperties.HelpText="Follows your face and keeps head and shoulders in shot" />
+                    <SelectorBarItem x:Name="FramingSmart" Text="Smart" ToolTipService.ToolTip="Smart zoom: moves in close and keeps your face centred" AutomationProperties.HelpText="Smart zoom: moves in close and keeps your face centred" />
                 </SelectorBar>
                 <Grid ColumnSpacing="6">
                     <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition /><ColumnDefinition /></Grid.ColumnDefinitions>
                     <ToggleButton x:Name="MirrorToggle" HorizontalAlignment="Stretch" Click="Framing_Changed" CornerRadius="10" FontSize="12"
-                                  Content="Mirror" ToolTipService.ToolTip="Mirror horizontally" AutomationProperties.Name="Mirror" />
+                                  Content="Mirror" ToolTipService.ToolTip="Mirror horizontally" AutomationProperties.HelpText="Mirror horizontally" AutomationProperties.Name="Mirror" />
                     <Button x:Name="RotateBtn" Grid.Column="1" Style="{StaticResource WellButton}" Click="RotateBtn_Click"
-                            Content="Rotate" ToolTipService.ToolTip="Rotate 90°" AutomationProperties.Name="Rotate 90°" />
+                            Content="Rotate" ToolTipService.ToolTip="Rotate 90°" AutomationProperties.HelpText="Rotate 90°" AutomationProperties.Name="Rotate 90°" />
                     <Button x:Name="FramingReset" Grid.Column="2" Style="{StaticResource WellButton}" Click="FramingReset_Click"
-                            Content="Reset" ToolTipService.ToolTip="Reset framing" AutomationProperties.Name="Reset framing" />
+                            Content="Reset" ToolTipService.ToolTip="Reset framing" AutomationProperties.HelpText="Reset framing" AutomationProperties.Name="Reset framing" />
                 </Grid>
             
                 <Grid>
                     <TextBlock Text="Steady picture" FontSize="14" VerticalAlignment="Center" />
                     <ToggleSwitch x:Name="StabiliseSwitch" HorizontalAlignment="Right" MinWidth="0" OffContent="" OnContent="" Toggled="StabiliseToggle_Toggled"
-                              ToolTipService.ToolTip="Smooths out shake from a phone or wobbly stand (crops 5 % at each edge)"
+                              ToolTipService.ToolTip="Smooths out shake from a phone or wobbly stand (crops 5 % at each edge)" AutomationProperties.HelpText="Smooths out shake from a phone or wobbly stand (crops 5 % at each edge)"
                               AutomationProperties.Name="Stabilisation" />
                 </Grid>
             </StackPanel>
@@ -914,7 +940,7 @@
                 <StackPanel VerticalAlignment="Center" Spacing="6">
                     <ComboBox x:Name="SceneCategory" Width="44" SelectedIndex="0" CornerRadius="10" Padding="8,4"
                               SelectionChanged="SceneCategory_SelectionChanged" AutomationProperties.Name="Scene category"
-                              ToolTipService.ToolTip="Show scenes: all, favourites or a category">
+                              ToolTipService.ToolTip="Show scenes: all, favourites or a category" AutomationProperties.HelpText="Show scenes: all, favourites or a category">
                         <ComboBoxItem Content="All scenes" Tag="" />
                         <ComboBoxItem Content="Favourites" Tag="*fav" />
                         <ComboBoxItem Content="Professional" Tag="Professional" />
@@ -931,7 +957,7 @@
                     </ComboBox>
                     <Button x:Name="SceneSearchBtn" Style="{StaticResource IconButton}" Width="44"
                             Background="{ThemeResource ControlFillColorDefaultBrush}"
-                            ToolTipService.ToolTip="Find a scene by name" AutomationProperties.Name="Find a scene">
+                            ToolTipService.ToolTip="Find a scene by name" AutomationProperties.HelpText="Find a scene by name" AutomationProperties.Name="Find a scene">
                         <FontIcon Glyph="&#xE721;" FontSize="14" />
                         <Button.Flyout>
                             <Flyout Placement="Top">
@@ -942,7 +968,7 @@
                     </Button>
                     <Button x:Name="GalleryBtn" Style="{StaticResource IconButton}" Width="44" Click="GalleryBtn_Click"
                             Background="{ThemeResource ControlFillColorDefaultBrush}"
-                            ToolTipService.ToolTip="Open the gallery (scenes, backgrounds, filters)" AutomationProperties.Name="Open gallery">
+                            ToolTipService.ToolTip="Open the gallery (scenes, backgrounds, filters)" AutomationProperties.HelpText="Open the gallery (scenes, backgrounds, filters)" AutomationProperties.Name="Open gallery">
                         <FontIcon Glyph="&#xF0E2;" FontSize="14" />
                     </Button>
                 </StackPanel>
@@ -987,7 +1013,7 @@
                 </ListView>
                 <Button x:Name="NewSceneBtn" Grid.Column="2" Width="64" Height="96" CornerRadius="13" Click="NewSceneBtn_Click"
                         Background="Transparent" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1.5"
-                        ToolTipService.ToolTip="Create a new scene" AutomationProperties.Name="New scene">
+                        ToolTipService.ToolTip="Create a new scene" AutomationProperties.HelpText="Create a new scene" AutomationProperties.Name="New scene">
                     <FontIcon Glyph="&#xE710;" FontSize="20" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                 </Button>
             </Grid>
@@ -1001,10 +1027,10 @@
                 <Grid>
                     <TextBlock Text="Screen light" FontSize="20" FontWeight="SemiBold" VerticalAlignment="Center" />
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
-                        <Button x:Name="LightMaxBtn" Height="38" CornerRadius="19" Padding="16,0" Click="LightMax_Click"
+                        <Button x:Name="LightMaxBtn" MinHeight="40" CornerRadius="8" Padding="16,0" Click="LightMax_Click"
                                 Background="{ThemeResource AccentFillColorDefaultBrush}" Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" FontWeight="SemiBold"
                                 AutomationProperties.Name="Max brightness"
-                                ToolTipService.ToolTip="Brightest possible light: pure white, a big thick ring, monitor at 100%, window maximised">
+                                ToolTipService.ToolTip="Brightest possible light: pure white, a big thick ring, monitor at 100%, window maximised" AutomationProperties.HelpText="Brightest possible light: pure white, a big thick ring, monitor at 100%, window maximised">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <FontIcon Glyph="&#xE945;" FontSize="14" /><TextBlock Text="Max brightness" />
                             </StackPanel>
@@ -1017,7 +1043,7 @@
                             </StackPanel>
                         </Border>
                         <Button Style="{StaticResource IconButton}" Click="LightClose_Click" AutomationProperties.Name="Close screen light panel"
-                                ToolTipService.ToolTip="Close (the light stays as it is)">
+                                ToolTipService.ToolTip="Close (the light stays as it is)" AutomationProperties.HelpText="Close (the light stays as it is)">
                             <FontIcon Glyph="&#xE711;" FontSize="14" />
                         </Button>
                     </StackPanel>
@@ -1037,7 +1063,7 @@
                             <Grid>
                                 <TextBlock Text="Details" FontSize="14" VerticalAlignment="Center" />
                                 <Button HorizontalAlignment="Right" Click="LightReset_Click" Background="Transparent" BorderThickness="0"
-                                        AutomationProperties.Name="Reset the look" ToolTipService.ToolTip="Reset this look to its defaults">
+                                        AutomationProperties.Name="Reset the look" ToolTipService.ToolTip="Reset this look to its defaults" AutomationProperties.HelpText="Reset this look to its defaults">
                                     <StackPanel Orientation="Horizontal" Spacing="6">
                                         <FontIcon Glyph="&#xE72C;" FontSize="13" /><TextBlock Text="Reset" FontSize="13" />
                                     </StackPanel>
@@ -1060,7 +1086,7 @@
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition /></Grid.ColumnDefinitions>
                                 <TextBlock Text="Temperature" FontSize="14" VerticalAlignment="Center" />
                                 <DropDownButton x:Name="LightColorBtn" Grid.Column="1" Padding="4" AutomationProperties.Name="Custom light colour"
-                                                ToolTipService.ToolTip="Pick a custom colour instead of a temperature" />
+                                                ToolTipService.ToolTip="Pick a custom colour instead of a temperature" AutomationProperties.HelpText="Pick a custom colour instead of a temperature" />
                                 <TextBlock x:Name="LightKelvinValue" Grid.Column="2" HorizontalAlignment="Right" FontSize="14" VerticalAlignment="Center" />
                             </Grid>
                             <Grid>
@@ -1083,24 +1109,24 @@
                                 <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition /></Grid.ColumnDefinitions>
                                 <Grid.RowDefinitions><RowDefinition /><RowDefinition /></Grid.RowDefinitions>
                                 <ToggleButton x:Name="LightShapeSide" Style="{StaticResource Tile}" Height="56" Tag="SideBars" Click="LightShape_Click"
-                                              AutomationProperties.Name="Side bars" ToolTipService.ToolTip="Bars down both sides">
+                                              AutomationProperties.Name="Side bars" ToolTipService.ToolTip="Bars down both sides" AutomationProperties.HelpText="Bars down both sides">
                                     <Grid Width="64" Height="36">
                                         <Rectangle Width="10" HorizontalAlignment="Left" Fill="#CCFFFFFF" RadiusX="2" RadiusY="2" />
                                         <Rectangle Width="10" HorizontalAlignment="Right" Fill="#CCFFFFFF" RadiusX="2" RadiusY="2" />
                                     </Grid>
                                 </ToggleButton>
                                 <ToggleButton x:Name="LightShapeTop" Grid.Column="1" Style="{StaticResource Tile}" Height="56" Tag="TopBar" Click="LightShape_Click"
-                                              AutomationProperties.Name="Top bar" ToolTipService.ToolTip="A band across the top">
+                                              AutomationProperties.Name="Top bar" ToolTipService.ToolTip="A band across the top" AutomationProperties.HelpText="A band across the top">
                                     <Grid Width="64" Height="36">
                                         <Rectangle Height="12" VerticalAlignment="Top" Fill="#CCFFFFFF" RadiusX="2" RadiusY="2" />
                                     </Grid>
                                 </ToggleButton>
                                 <ToggleButton x:Name="LightShapeFrame" Grid.Row="1" Style="{StaticResource Tile}" Height="56" Tag="Frame" Click="LightShape_Click"
-                                              AutomationProperties.Name="Frame" ToolTipService.ToolTip="All four edges">
+                                              AutomationProperties.Name="Frame" ToolTipService.ToolTip="All four edges" AutomationProperties.HelpText="All four edges">
                                     <Border Width="64" Height="36" BorderBrush="#CCFFFFFF" BorderThickness="7" CornerRadius="3" />
                                 </ToggleButton>
                                 <ToggleButton x:Name="LightShapeRing" Grid.Row="1" Grid.Column="1" Style="{StaticResource Tile}" Height="56" Tag="Ring" Click="LightShape_Click"
-                                              AutomationProperties.Name="Ring" ToolTipService.ToolTip="A ring light in the middle of the screen">
+                                              AutomationProperties.Name="Ring" ToolTipService.ToolTip="A ring light in the middle of the screen" AutomationProperties.HelpText="A ring light in the middle of the screen">
                                     <Ellipse Width="36" Height="36" Stroke="#CCFFFFFF" StrokeThickness="7" />
                                 </ToggleButton>
                             </Grid>
@@ -1150,11 +1176,11 @@
                             <TextBlock Text="Ring light" FontSize="14" />
                             <TextBlock Text="Type" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                             <SelectorBar x:Name="RingTypeBar" SelectionChanged="RingTypeBar_SelectionChanged">
-                                <SelectorBarItem Text="Classic" Tag="Classic" ToolTipService.ToolTip="A solid band" />
-                                <SelectorBarItem Text="Soft" Tag="Soft" ToolTipService.ToolTip="A band with feathered, glowing edges" />
-                                <SelectorBarItem Text="Halo" Tag="Halo" ToolTipService.ToolTip="A glowing disc that fades out from the centre" />
-                                <SelectorBarItem Text="Double" Tag="Double" ToolTipService.ToolTip="Two thin rings" />
-                                <SelectorBarItem Text="LED" Tag="Led" ToolTipService.ToolTip="A ring of separate LED dots" />
+                                <SelectorBarItem Text="Classic" Tag="Classic" ToolTipService.ToolTip="A solid band" AutomationProperties.HelpText="A solid band" />
+                                <SelectorBarItem Text="Soft" Tag="Soft" ToolTipService.ToolTip="A band with feathered, glowing edges" AutomationProperties.HelpText="A band with feathered, glowing edges" />
+                                <SelectorBarItem Text="Halo" Tag="Halo" ToolTipService.ToolTip="A glowing disc that fades out from the centre" AutomationProperties.HelpText="A glowing disc that fades out from the centre" />
+                                <SelectorBarItem Text="Double" Tag="Double" ToolTipService.ToolTip="Two thin rings" AutomationProperties.HelpText="Two thin rings" />
+                                <SelectorBarItem Text="LED" Tag="Led" ToolTipService.ToolTip="A ring of separate LED dots" AutomationProperties.HelpText="A ring of separate LED dots" />
                             </SelectorBar>
                             <TextBlock Text="Light from" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Margin="0,6,0,0" />
                             <Grid x:Name="RingDirections" ColumnSpacing="6" RowSpacing="6">
@@ -1166,11 +1192,11 @@
                                 <ToggleButton Grid.Column="3" Tag="Top" Content="↑ Top" Click="RingDirection_Click" HorizontalAlignment="Stretch" CornerRadius="10" FontSize="12" />
                                 <ToggleButton Grid.Row="1" Tag="Bottom" Content="↓ Bottom" Click="RingDirection_Click" HorizontalAlignment="Stretch" CornerRadius="10" FontSize="12" />
                                 <ToggleButton Grid.Row="1" Grid.Column="1" Tag="KeyLeft" Content="↖ Key left" Click="RingDirection_Click" HorizontalAlignment="Stretch" CornerRadius="10" FontSize="12"
-                                              ToolTipService.ToolTip="Classic key light from the upper left" />
+                                              ToolTipService.ToolTip="Classic key light from the upper left" AutomationProperties.HelpText="Classic key light from the upper left" />
                                 <ToggleButton Grid.Row="1" Grid.Column="2" Tag="KeyRight" Content="Key right ↗" Click="RingDirection_Click" HorizontalAlignment="Stretch" CornerRadius="10" FontSize="12"
-                                              ToolTipService.ToolTip="Classic key light from the upper right" />
+                                              ToolTipService.ToolTip="Classic key light from the upper right" AutomationProperties.HelpText="Classic key light from the upper right" />
                                 <ToggleButton Grid.Row="1" Grid.Column="3" Tag="Custom" Content="Custom" Click="RingDirection_Click" HorizontalAlignment="Stretch" CornerRadius="10" FontSize="12"
-                                              ToolTipService.ToolTip="Set the arc and rotation yourself" />
+                                              ToolTipService.ToolTip="Set the arc and rotation yourself" AutomationProperties.HelpText="Set the arc and rotation yourself" />
                             </Grid>
                             <Grid Margin="0,6,0,0">
                                 <TextBlock Text="Arc" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
@@ -1200,9 +1226,9 @@
                                         AutomationProperties.Name="Centre the ring" />
                             </Grid>
                             <Slider x:Name="RingX" StepFrequency="1" ValueChanged="Ring_ValueChanged" AutomationProperties.Name="Ring position left to right"
-                                    ToolTipService.ToolTip="Left to right" />
+                                    ToolTipService.ToolTip="Left to right" AutomationProperties.HelpText="Left to right" />
                             <Slider x:Name="RingY" StepFrequency="1" ValueChanged="Ring_ValueChanged" AutomationProperties.Name="Ring position top to bottom"
-                                    ToolTipService.ToolTip="Top to bottom" />
+                                    ToolTipService.ToolTip="Top to bottom" AutomationProperties.HelpText="Top to bottom" />
                             <TextBlock Style="{StaticResource HintText}"
                                        Text="Tip: Size sets the thickness of the ring. A key light from the upper left or right gives the most natural, flattering shadows." />
                         </StackPanel>
@@ -1212,10 +1238,36 @@
           </ScrollViewer>
         </Border>
 
+        <!-- ═══ Simple mode: five big centred buttons (View → Simple). The video stays visible above them. ═══ -->
+        <Border x:Name="SimplePanel" Visibility="Collapsed" Style="{StaticResource Glass}" Padding="12" VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="12,0,12,24">
+            <StackPanel x:Name="SimpleRow" Orientation="Horizontal" Spacing="12" HorizontalAlignment="Center" AutomationProperties.Name="Main actions">
+                <Button x:Name="SimpleCameraBtn" Click="SimpleCamera_Click" Style="{StaticResource AccentButtonStyle}" MinWidth="148" MinHeight="96" CornerRadius="8"
+                        AutomationProperties.Name="Camera on" AutomationProperties.HelpText="Turn your camera on or off" ToolTipService.ToolTip="Turn your camera on or off">
+                    <StackPanel Spacing="8"><FontIcon Glyph="&#xE714;" FontSize="28" /><TextBlock x:Name="SimpleCameraLabel" Text="Camera on" FontSize="16" HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center" /></StackPanel>
+                </Button>
+                <Button x:Name="SimpleBgBtn" Click="SimpleBackground_Click" MinWidth="148" MinHeight="96" CornerRadius="8"
+                        AutomationProperties.Name="Background" AutomationProperties.HelpText="Switch between no effect, blur, and a background picture" ToolTipService.ToolTip="Off, blur or a picture behind you">
+                    <StackPanel Spacing="8"><FontIcon Glyph="&#xE7B3;" FontSize="28" /><TextBlock x:Name="SimpleBgLabel" Text="Background" FontSize="16" HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center" /></StackPanel>
+                </Button>
+                <Button x:Name="SimpleRecordBtn" Click="SimpleRecord_Click" MinWidth="148" MinHeight="96" CornerRadius="8"
+                        AutomationProperties.Name="Record" AutomationProperties.HelpText="Start or stop recording a video" ToolTipService.ToolTip="Start or stop recording (Ctrl+R)">
+                    <StackPanel Spacing="8"><FontIcon Glyph="&#xE7C8;" FontSize="28" /><TextBlock x:Name="SimpleRecordLabel" Text="Record" FontSize="16" HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center" /></StackPanel>
+                </Button>
+                <Button x:Name="SimpleMeetBtn" Click="SimpleMeet_Click" MinWidth="148" MinHeight="96" CornerRadius="8"
+                        AutomationProperties.Name="Meeting camera" AutomationProperties.HelpText="Use KISSIK as the camera in your meeting app" ToolTipService.ToolTip="Use KISSIK in Zoom, Teams or Meet">
+                    <StackPanel Spacing="8"><FontIcon Glyph="&#xE8AA;" FontSize="28" /><TextBlock Text="Meeting camera" FontSize="16" HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center" /></StackPanel>
+                </Button>
+                <Button x:Name="SimpleHideBtn" Click="SimpleHide_Click" MinWidth="148" MinHeight="96" CornerRadius="8"
+                        AutomationProperties.Name="Hide me" AutomationProperties.HelpText="Show a be right back card and mute your mic, or come back" ToolTipService.ToolTip="Hide yourself from the meeting (Ctrl+Shift+H)">
+                    <StackPanel Spacing="8"><FontIcon Glyph="&#xE7B3;" FontSize="28" /><TextBlock x:Name="SimpleHideLabel" Text="Hide me" FontSize="16" HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center" /></StackPanel>
+                </Button>
+            </StackPanel>
+        </Border>
+
         <!-- ═══ Status toast (bottom-right) ═══ -->
         <Border Background="{ThemeResource SolidBackgroundFillColorQuarternaryBrush}" CornerRadius="12" Padding="12,6" Margin="0,0,12,12" MaxWidth="320"
                 HorizontalAlignment="Right" VerticalAlignment="Bottom" IsHitTestVisible="False">
-            <TextBlock x:Name="StatusText" Text="Ready." FontSize="12" Foreground="{ThemeResource TextFillColorPrimaryBrush}" TextWrapping="Wrap" MaxLines="3" TextTrimming="CharacterEllipsis" />
+            <TextBlock x:Name="StatusText" Text="Ready." AutomationProperties.LiveSetting="Polite" FontSize="12" Foreground="{ThemeResource TextFillColorPrimaryBrush}" TextWrapping="Wrap" MaxLines="3" TextTrimming="CharacterEllipsis" />
         </Border>
     </Grid>
 </Page>

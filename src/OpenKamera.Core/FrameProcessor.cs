@@ -8,7 +8,7 @@ namespace OpenKamera.Core;
 public sealed record FrameRecipe(
     ImageFilters.Adjustments Adjustments, FrameTransform Transform,
     BackgroundSettings Background, int? OutputWidth = null, int? OutputHeight = null,
-    SceneDocument? Scene = null, byte[]? Overlay = null, byte[]? BehindOverlay = null)
+    SceneDocument? Scene = null, byte[]? Overlay = null, byte[]? BehindOverlay = null, byte[]? UnderOverlay = null)
 {
     public static readonly FrameRecipe Passthrough = new(ImageFilters.Adjustments.Neutral, FrameTransform.Identity, BackgroundSettings.Off);
 }
@@ -49,7 +49,7 @@ public static class FrameProcessor
     /// </summary>
     public static FrameOutput Process(SoftwareBitmap frame, FrameRecipe r, BackgroundPipeline? background, OutputBake? bake)
     {
-        if (UseGpu && !r.Background.GreenScreen && YuvConvert.IsYuv(frame) && GpuEffects.Shared is { } g && g.ProcessCamera(frame, r, background, bake) is { } fast)
+        if (UseGpu && !r.Background.GreenScreen && r.UnderOverlay is null && YuvConvert.IsYuv(frame) && GpuEffects.Shared is { } g && g.ProcessCamera(frame, r, background, bake) is { } fast)
             return fast;
         var bgra = frame.BitmapPixelFormat == BitmapPixelFormat.Bgra8
             ? frame
@@ -59,7 +59,7 @@ public static class FrameProcessor
             int w = bgra.PixelWidth, h = bgra.PixelHeight;
             var pixels = new byte[w * h * 4];
             bgra.CopyToBuffer(pixels.AsBuffer());
-            if (UseGpu && !r.Background.GreenScreen && GpuEffects.Shared is { } gpu && gpu.ProcessOutput(pixels, w, h, r, background, bake) is { } done)
+            if (UseGpu && !r.Background.GreenScreen && r.UnderOverlay is null && GpuEffects.Shared is { } gpu && gpu.ProcessOutput(pixels, w, h, r, background, bake) is { } done)
                 return done;
             (pixels, w, h) = r.Transform.Apply(pixels, w, h);
             // Fit before the expensive steps so they run at output size, not camera size.
@@ -74,7 +74,7 @@ public static class FrameProcessor
                 SceneCompositor.BlendBehind(pixels, bo, alpha);
             }
             ImageFilters.Apply(pixels, w, h, r.Adjustments); // camera only: overlays keep their true colours
-            if (r.Scene is { } scene) pixels = SceneCompositor.Compose(pixels, w, h, scene, r.Overlay);
+            if (r.Scene is { } scene) pixels = SceneCompositor.Compose(pixels, w, h, scene, r.Overlay, r.UnderOverlay);
             return new FrameOutput(pixels, w, h, null);
         }
         finally { if (!ReferenceEquals(bgra, frame)) bgra.Dispose(); }

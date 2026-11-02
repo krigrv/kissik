@@ -53,6 +53,7 @@ public sealed partial class MainPage : Page
         try { InitFraming(); } catch { }
         try { InitGuardAndMirror(); } catch { }
         try { InitTheme(); } catch { }
+        try { InitAccess(); } catch { }
         try { InitSystemSound(); } catch { }
         try { InitAudio(); } catch (Exception ex) { Status("Audio unavailable: " + ex.Message); }
         try { InitScreenLight(); } catch (Exception ex) { Status("Screen light unavailable: " + ex.Message); LightBtn.IsEnabled = false; }
@@ -63,12 +64,13 @@ public sealed partial class MainPage : Page
         StartConnectWatch();
         StartSceneThumbs();
         StartAudioWatchdog();
-        _ = ShowWelcomeOnceAsync().ContinueWith(_ => DispatcherQueue.TryEnqueue(() => _ = OfferCrashReportAsync()), TaskScheduler.Default);
+        _ = ShowWelcomeAndModeAsync().ContinueWith(_ => DispatcherQueue.TryEnqueue(() => _ = OfferCrashReportAsync()), TaskScheduler.Default);
         ResumePairedPhone();
         try { InitVertical(); } catch { }
         try { InitTray(); } catch (Exception ex) { Status("Tray icon unavailable: " + ex.Message); }
         _ = CheckForUpdateAsync(quiet: true);
         _ = InitSponsorsAsync();
+        InitTransitions();
         try { InitControl(); } catch (Exception ex) { Status("Remote control unavailable: " + ex.Message); }
         Unloaded += async (_, _) => { if (_control is { } c) await c.DisposeAsync(); };
         try { InitGlobalHotkeys(); } catch (Exception ex) { Status("Global shortcuts unavailable: " + ex.Message); }
@@ -159,7 +161,8 @@ public sealed partial class MainPage : Page
     private void UpdateStageMargin()
     {
         bool left = LeftPane.Visibility == Visibility.Visible, right = RightPane.Visibility == Visibility.Visible;
-        StageViewbox.Margin = new Thickness(left ? 340 : 12, 60, right ? 260 : 12, right ? 142 : 12);
+        StageViewbox.Margin = SimplePanel.Visibility == Visibility.Visible ? new Thickness(12, 60, 12, 150)
+            : new Thickness(left ? 340 : 12, 60, right ? 260 : 12, right ? 142 : 12);
         Filmstrip.Margin = new Thickness(left ? 340 : 12, 0, right ? 260 : 12, 12);
     }
 
@@ -339,7 +342,7 @@ public sealed partial class MainPage : Page
         catch (Exception ex) { Status("Camera enumeration failed: " + ex.Message); }
     }
 
-    private void Status(string msg) => StatusText.Text = msg;
+    private void Status(string msg) { StatusText.Text = msg; Announce(msg); SyncSimple(); }
 
     private void DeviceBox_SelectionChanged(object sender, SelectionChangedEventArgs e) { }
 
@@ -358,7 +361,7 @@ public sealed partial class MainPage : Page
             await _session.DisposeAsync();
             _session = null; _controller = null;
             ConnectBtn.Content = "Connect";
-            SourceDot.Fill = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(102, 255, 255, 255));
+            SourceDot.Fill = Token("ControlStrongStrokeColorDefaultBrush");
             SourceInfo.Text = "";
             SnapshotBtn.IsEnabled = RecordBtn.IsEnabled = false;
             if (_live is not null) await StopLiveAsync();
@@ -394,7 +397,7 @@ public sealed partial class MainPage : Page
             if (focus is not null) { _restoring = true; FocusMode.SelectedItem = focus.Auto ? FocusAuto : FocusManual; _restoring = false; }
             CameraPanel.ChangeView(null, 0, null, disableAnimation: true);
             ConnectBtn.Content = "Disconnect";
-            SourceDot.Fill = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 91, 255, 143));
+            SourceDot.Fill = Token("SystemFillColorSuccessBrush");
             SnapshotBtn.IsEnabled = RecordBtn.IsEnabled = LiveBtn.IsEnabled = true;
             EmptyText.Visibility = Visibility.Collapsed;
             EmptyBusy.Text = "";
@@ -434,15 +437,21 @@ public sealed partial class MainPage : Page
     }
 
     /// <summary>The "behind me" layers at the size frames are processed at (smooth-first may halve it), cached per size.</summary>
-    private byte[]? BehindAt(int w, int h)
+    private byte[]? BehindAt(int w, int h) => ScaledLayers(_overlayBehind, w, h, ref _behindCache);
+
+    /// <summary>The "under the camera" layers at processing size, cached per size.</summary>
+    private byte[]? UnderAt(int w, int h) => ScaledLayers(_overlayUnder, w, h, ref _underCache);
+    private (byte[] Src, int W, int H, byte[] Scaled)? _underCache;
+
+    private byte[]? ScaledLayers(byte[]? src, int w, int h, ref (byte[] Src, int W, int H, byte[] Scaled)? cache)
     {
-        if (_overlayBehind is not { } src) return null;
+        if (src is null) return null;
         if (src.Length == w * h * 4) return src;
-        if (_behindCache is { } c && ReferenceEquals(c.Src, src) && c.W == w && c.H == h) return c.Scaled;
+        if (cache is { } c && ReferenceEquals(c.Src, src) && c.W == w && c.H == h) return c.Scaled;
         var p = _profile;
         if (src.Length != p.Width * p.Height * 4) return null;
         var scaled = OutputFit.Stretch(src, p.Width, p.Height, w, h).Pixels;
-        _behindCache = (src, w, h, scaled);
+        cache = (src, w, h, scaled);
         return scaled;
     }
 
@@ -458,7 +467,7 @@ public sealed partial class MainPage : Page
         int ow = half ? (p.Width / 2) & ~1 : p.Width, oh = half ? (p.Height / 2) & ~1 : p.Height;
         return new FrameRecipe(_adj, steady ? _stabilizer.Apply(_transform) : _transform, bg, ow, oh, _sceneSnapshot,
             withOverlay && overlay is { Width: var vw, Height: var vh } && vw == ow && vh == oh ? overlay.Pixels : null,
-            BehindAt(ow, oh));
+            BehindAt(ow, oh), UnderAt(ow, oh));
     }
 
     /// <summary>
@@ -540,9 +549,9 @@ public sealed partial class MainPage : Page
             // Scene switch: cross-fade from the last frame of the old scene.
             if (_fadeFrom is { } from && from.Length == baked.Length)
             {
-                double t = (DateTime.UtcNow - _fadeStart).TotalSeconds / 0.4;
-                if (t >= 1) _fadeFrom = null;
-                else { if (ReferenceEquals(baked, pixels)) baked = (byte[])pixels.Clone(); SceneCompositor.CrossFade(baked, from, t); }
+                double t = (DateTime.UtcNow - _fadeStart) / SceneTransitions.Duration;
+                if (t >= 1 || _settings.Transition == SceneTransition.Cut) _fadeFrom = null;
+                else { if (ReferenceEquals(baked, pixels)) baked = (byte[])pixels.Clone(); SceneTransitions.Apply(baked, from, w, h, t, _settings.Transition); }
             }
             _lastBaked = baked;
             baked = BurnCaptions(baked, w, h);
@@ -556,6 +565,7 @@ public sealed partial class MainPage : Page
             // Recording gets the scene layers baked in; the preview shows them as live XAML instead.
             if (!_recPaused) { var b = Baked(); rec.Push(b, w, h, _recordClock.Elapsed); PushVertical(b, w, h); }
         }
+        _replay?.Push(Baked(), w, h, _replayClock.Elapsed);
         Volatile.Write(ref _processing, 0);
 
         if (_updatingPreview) return;
@@ -721,6 +731,28 @@ public sealed partial class MainPage : Page
         LutStrength.Value = 100;
         _restoring = false;
         UpdateAdjustments(); SaveLook();
+    }
+
+    /// <summary>One press: neutral adjustments, measure the live picture, then fix exposure, colour cast and flat light.</summary>
+    private async void AutoBest_Click(object sender, RoutedEventArgs e)
+    {
+        if (_session is null || _lastFrame is null) { Status("Connect a camera first."); return; }
+        AutoBestBtn.IsEnabled = false;
+        try
+        {
+            EnhanceReset_Click(sender, e);
+            await Task.Delay(450); // let a frame through with neutral adjustments
+            if (_lastFrame is not { } f) return;
+            var r = await Task.Run(() => AutoPicture.Analyze(f.Px, f.W, f.H));
+            _restoring = true;
+            EnhGamma.Value = r.Gamma * 100; EnhContrast.Value = r.Contrast * 100;
+            EnhTemperature.Value = r.Temperature * 100; EnhTint.Value = r.Tint * 100;
+            EnhSharpness.Value = r.Sharpness * 100; EnhVibrance.Value = r.Vibrance * 100;
+            _restoring = false;
+            UpdateAdjustments(); SaveLook();
+            Status(r.Summary + " Fine-tune under Adjustments, or reset with the arrow.");
+        }
+        finally { _restoring = false; AutoBestBtn.IsEnabled = true; }
     }
 
     private async void ImportLutBtn_Click(object sender, RoutedEventArgs e) => await ImportLutCoreAsync();

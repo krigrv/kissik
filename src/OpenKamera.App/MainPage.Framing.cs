@@ -26,7 +26,7 @@ public sealed partial class MainPage
         var item = sender.SelectedItem;
         _framingMode = item == FramingAuto ? FramingMode.Auto : item == FramingSmart ? FramingMode.Smart : FramingMode.Manual;
         // Auto keeps head and shoulders; Smart moves in closer and follows a little quicker.
-        (_framer.TargetFaceShare, _framer.MaxZoom, _framer.Follow) = _framingMode == FramingMode.Smart ? (0.42, 3.0, 0.18) : (0.30, 2.0, 0.12);
+        (_framer.TargetFaceShare, _framer.MaxZoom, _framer.Follow) = _framingMode == FramingMode.Smart ? (0.42, 3.0, 5.0) : (0.30, 2.0, 3.5);
         bool manual = _framingMode == FramingMode.Manual;
         FrZoom.IsEnabled = FrPanX.IsEnabled = FrPanY.IsEnabled = manual;
         if (manual) { _framer.Reset(); UpdateTransform(); }
@@ -38,6 +38,12 @@ public sealed partial class MainPage
     {
         if (_framingMode == FramingMode.Manual && !_guardOn) return;
         var now = DateTime.UtcNow;
+        // Glide every frame toward the latest target, so the frame moves smoothly between detections.
+        if (_framingMode != FramingMode.Manual)
+        {
+            var (z0, x0, y0) = _framer.Step(now);
+            _transform = _transform with { Zoom = z0, PanX = x0, PanY = y0 };
+        }
         if (now - _lastDetect < TimeSpan.FromMilliseconds(160) || Interlocked.Exchange(ref _detecting, 1) == 1) return;
         _lastDetect = now;
         SoftwareBitmap copy;
@@ -48,16 +54,14 @@ public sealed partial class MainPage
             try
             {
                 _faceTracker ??= new FaceTracker();
-                var face = await _faceTracker.DetectAsync(copy);
+                var faces = await _faceTracker.DetectAllAsync(copy);
                 if (_guardOn) GuardUpdate(_faceTracker.LastCount);
-                var t = _transform;
-                // Face and crop are both in raw camera coordinates, so mirroring needs no correction.
-                var (zoom, px, py) = _framer.Update(face, DateTime.UtcNow);
                 if (_framingMode == FramingMode.Manual) return;
-                _transform = t with { Zoom = zoom, PanX = px, PanY = py };
+                // Faces and crop are both in raw camera coordinates, so mirroring needs no correction.
+                _framer.SetFaces(faces, DateTime.UtcNow);
                 DispatcherQueue.TryEnqueue(() =>
                 {
-                    ZoomLabel.Text = $"{zoom:0.0}×";
+                    ZoomLabel.Text = $"{_framer.Zoom:0.0}×";
                     UpdateMinimap();
                 });
             }

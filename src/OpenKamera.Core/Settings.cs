@@ -27,6 +27,7 @@ public sealed class AppSettings
     public bool PrivacyGuard { get; set; }
     /// <summary>Show one small, labelled sponsored pick in the Camera panel (never in the video).</summary>
     public bool SponsoredPicks { get; set; } = true;
+    public SceneTransition Transition { get; set; } = SceneTransition.Fade;
     public List<string> DismissedSponsors { get; set; } = [];
     public BackgroundSettings Background { get; set; } = BackgroundSettings.Off;
     /// <summary>Gallery favourites: "scene:id", "bg:id", "filter:Name", "lut:Name".</summary>
@@ -43,6 +44,10 @@ public sealed class AppSettings
     public string Theme { get; set; } = "System";
     /// <summary>The one-time welcome has been shown.</summary>
     public bool SeenWelcome { get; set; }
+    /// <summary>"Simple" (five big buttons) or "Studio" (the full window). Empty until the user picks on first run.</summary>
+    public string UiMode { get; set; } = "";
+    /// <summary>Bigger buttons and text everywhere (View → Large controls).</summary>
+    public bool LargeControls { get; set; }
     /// <summary>Offline caption model language code (e.g. "en-us").</summary>
     public string CaptionLanguage { get; set; } = "en-us";
     /// <summary>Local control API / MCP server (localhost + token). Off until turned on.</summary>

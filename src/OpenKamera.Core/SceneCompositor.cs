@@ -27,14 +27,26 @@ public static class ColorHex
 /// </summary>
 public static class SceneCompositor
 {
+    /// <summary>Ids of visible layers listed before the camera, which belong under the video (empty when the camera fills the canvas).</summary>
+    public static HashSet<string> UnderCameraIds(SceneDocument scene)
+    {
+        int cam = scene.Layers.FindIndex(l => l.Kind == "camera");
+        if (cam <= 0 || CameraFillsCanvas(scene)) return [];
+        return scene.Layers.Take(cam).Where(l => l.Visible && !l.Behind).Select(l => l.Id).ToHashSet();
+    }
+
     public static bool CameraFillsCanvas(SceneDocument scene)
     {
         var c = scene.Camera;
         return c.Visible && c.X <= 0 && c.Y <= 0 && c.W >= 1 && c.H >= 1 && c.Shape != "ellipse" && c.CornerRadius <= 0;
     }
 
-    /// <summary>Composes in place into <paramref name="camera"/> when the camera fills the canvas, else into a new buffer.</summary>
-    public static byte[] Compose(byte[] camera, int w, int h, SceneDocument scene, byte[]? overlay)
+    /// <summary>
+    /// Composes in place into <paramref name="camera"/> when the camera fills the canvas, else into a new buffer.
+    /// <paramref name="under"/> holds the layers listed before the camera (a photo print, a card): drawn on the
+    /// background, then the camera on top of them, then <paramref name="overlay"/> over everything.
+    /// </summary>
+    public static byte[] Compose(byte[] camera, int w, int h, SceneDocument scene, byte[]? overlay, byte[]? under = null)
     {
         byte[] output;
         if (CameraFillsCanvas(scene))
@@ -46,6 +58,7 @@ public static class SceneCompositor
         {
             output = new byte[w * h * 4];
             FillBackground(output, w, h, scene);
+            if (under is not null && under.Length == output.Length) BlendOver(output, under);
             if (scene.Camera.Visible) PlaceCamera(output, camera, w, h, scene.Camera);
         }
         if (overlay is not null && overlay.Length == output.Length) BlendOver(output, overlay);

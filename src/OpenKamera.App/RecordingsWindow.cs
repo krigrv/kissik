@@ -35,6 +35,8 @@ public sealed class RecordingsWindow : Window
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         root.RowDefinitions.Add(new RowDefinition());
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        AutomationProperties.SetLiveSetting(_status, Microsoft.UI.Xaml.Automation.Peers.AutomationLiveSetting.Polite);
+        AutomationProperties.SetName(_grid, "Recordings and snapshots");
         Grid.SetRow(_grid, 1); Grid.SetRow(_empty, 1); Grid.SetRow(_status, 2);
         root.Children.Add(bar); root.Children.Add(_grid); root.Children.Add(_empty); root.Children.Add(_status);
         Content = root;

@@ -125,6 +125,7 @@ public sealed partial class MainPage
     }
 
     private volatile byte[]? _overlayBehind;
+    private volatile byte[]? _overlayUnder;
 
     /// <summary>Renders the overlay canvas with the elements matching <paramref name="hide"/> hidden, at output size.</summary>
     private async Task<byte[]> CaptureLayersAsync(Func<FrameworkElement, bool> hide, OutputProfile p)
@@ -152,7 +153,7 @@ public sealed partial class MainPage
         {
             var p = _profile;
             if (!_scene.Overlays.Any(l => l.Visible) && !(_scene.Camera.Visible && !string.IsNullOrEmpty(_scene.Camera.Stroke)))
-            { _overlay = null; _overlayBehind = null; return; }
+            { _overlay = null; _overlayBehind = null; _overlayUnder = null; return; }
             // Render at the canvas's natural size (its pixel size includes display scaling), then resample
             // to the output. Asking RenderTargetBitmap for the output size directly mixes in the DPI factor
             // and the overlay comes out oversized.
@@ -161,12 +162,15 @@ public sealed partial class MainPage
             { Rect = new Windows.Foundation.Rect(0, 0, OverlayCanvas.ActualWidth, OverlayCanvas.ActualHeight) };
             var behindIds = _scene.Layers.Where(l => l.Visible && l.Behind).Select(l => l.Id).ToHashSet();
             // Front layers go over the finished picture; "behind me" layers are blended under the person.
-            var pixels = await CaptureLayersAsync(el => el.Tag is string id && behindIds.Contains(id), p);
+            // Layers listed before the camera (a photo print, a card) sit under the video, not over it.
+            var underIds = SceneCompositor.UnderCameraIds(_scene);
+            var pixels = await CaptureLayersAsync(el => el.Tag is string id && (behindIds.Contains(id) || underIds.Contains(id)), p);
             _overlayBehind = behindIds.Count > 0 ? await CaptureLayersAsync(el => !(el.Tag is string id && behindIds.Contains(id)), p) : null;
+            _overlayUnder = underIds.Count > 0 ? await CaptureLayersAsync(el => !(el.Tag is string id && underIds.Contains(id)), p) : null;
             _overlay = new OverlayImage(pixels, p.Width, p.Height);
             // In the preview the behind layers are drawn by the video itself, so hide their live copies.
             foreach (var el in OverlayCanvas.Children.OfType<FrameworkElement>())
-                if (el.Tag is string id && behindIds.Contains(id)) el.Opacity = 0;
+                if (el.Tag is string id && (behindIds.Contains(id) || underIds.Contains(id))) el.Opacity = 0;
         }
         catch (Exception ex) { Status("Scene capture failed: " + ex.Message); }
     }
@@ -377,6 +381,7 @@ public sealed partial class MainPage
         _selectedLayerId = null;
         Commit();
         RefreshLayersTab();
+        Announce($"{(l.Name.Length > 0 ? l.Name : l.Kind)} layer deleted. Ctrl+Z brings it back.");
     }
 
     private void MoveSelected(int delta)

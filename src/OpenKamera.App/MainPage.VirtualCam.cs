@@ -1,4 +1,5 @@
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using OpenKamera.Core;
 
@@ -25,9 +26,9 @@ public sealed partial class MainPage
         MeetCamInstallBtn.Visibility = supported && !installed ? Visibility.Visible : Visibility.Collapsed;
         MeetCamOnBtn.Visibility = installed ? Visibility.Visible : Visibility.Collapsed;
         MeetCamUninstallBtn.Visibility = installed ? Visibility.Visible : Visibility.Collapsed;
-        MeetCamDot.Fill = new Microsoft.UI.Xaml.Media.SolidColorBrush(installed
-            ? (_vcam.HasClients ? Microsoft.UI.ColorHelper.FromArgb(255, 0xD3, 0x2F, 0x26) : Microsoft.UI.ColorHelper.FromArgb(255, 91, 255, 143))
-            : Microsoft.UI.ColorHelper.FromArgb(102, 255, 255, 255));
+        // Theme colours (3:1 or better on light and dark); the state is in the button's name too, not colour alone.
+        MeetCamDot.Fill = Token(installed ? (_vcam.HasClients ? "SystemFillColorCriticalBrush" : "SystemFillColorSuccessBrush") : "ControlStrongStrokeColorDefaultBrush");
+        AutomationProperties.SetName(MeetCamBtn, !installed ? "Meeting camera, not installed" : _vcam.HasClients ? "Meeting camera, in use by a meeting" : "Meeting camera, ready");
         if (!supported) MeetCamStatus.Text = "The meeting camera needs Windows 11.";
         else if (!installed) MeetCamStatus.Text = "Install once (asks for admin permission). Then pick \"OpenKamera\" as the camera in Zoom, Teams, Meet, Discord or OBS.";
         var cam = DeviceUsage.InUseBy(PrivacyDevice.Camera).Distinct().ToList();
