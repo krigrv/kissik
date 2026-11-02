@@ -88,6 +88,7 @@ public sealed partial class MainPage
             string battery = st.Battery is { } b ? $" · battery {b:P0}{(st.Charging == true ? " charging" : "")}" : "";
             HudText.Text = $"Phone {st.Facing} camera {st.Width}×{st.Height}{battery}";
             if (st.Width > 0) SourceInfo.Text = $"{st.Width}×{st.Height} · phone";
+            if (st.MaxLongSide is { } max && max != _phoneMaxShown) { _phoneMaxShown = max; BuildProfileMenu(); MatchPhoneQuality(); Status($"Your phone camera can do up to {PhoneMaxLabel(max)}."); }
             UpdatePhoneControls(st);
             if (st.Height > 0 && st.Height < _profile.Height && _phoneLimitShown != st.Height)
             {
@@ -220,6 +221,20 @@ public sealed partial class MainPage
     private async void PhoneFlip_Click(object sender, RoutedEventArgs e)
     {
         if (_phone is { } p) await p.SendAsync(p.LastStatus?.Facing == "front" ? "back" : "front");
+    }
+
+    private int _phoneMaxShown;
+
+    private static string PhoneMaxLabel(int longSide) => longSide switch { >= 3840 => "4K", >= 2560 => "1440p", >= 1920 => "1080p", >= 1280 => "720p", _ => $"{longSide} px wide" };
+
+    /// <summary>Asks the phone for the picture size the current profile needs, but never more than it can give.</summary>
+    private void MatchPhoneQuality()
+    {
+        if (_phone is not { } ph || DeviceBox.SelectedItem != PhoneDevice) return;
+        var p = _profile;
+        int shortSide = Math.Min(p.Width, p.Height);
+        if (ph.LastStatus?.MaxLongSide is { } max) shortSide = Math.Min(shortSide, max * 9 / 16);
+        _ = ph.SendAsync("q:" + shortSide);
     }
 
     private bool _phoneZoomLoading;

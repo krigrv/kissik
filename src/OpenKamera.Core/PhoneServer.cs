@@ -12,7 +12,11 @@ namespace OpenKamera.Core;
 
 /// <summary>Status the phone page reports alongside its frames.</summary>
 public sealed record PhoneStatus(string? Device, int Width, int Height, double? Battery, bool? Charging, string? Facing,
-    bool? Torch = null, double? ZoomMax = null, double? Zoom = null);
+    bool? Torch = null, double? ZoomMax = null, double? Zoom = null, int? MaxWidth = null, int? MaxHeight = null, double? MaxFps = null)
+{
+    /// <summary>The longest side the phone camera can deliver (either orientation), or null if it didn't say.</summary>
+    public int? MaxLongSide => MaxWidth is { } w && MaxHeight is { } h ? Math.Max(w, h) : null;
+}
 
 /// <summary>
 /// Phone as camera, no app needed: a tiny HTTPS + WebSocket server on the local network. The phone opens the pairing
@@ -211,7 +215,7 @@ public sealed class PhoneServer : IAsyncDisposable
             bool? B(string n) => r.TryGetProperty(n, out var v) && v.ValueKind is JsonValueKind.True or JsonValueKind.False ? v.GetBoolean() : null;
             string? S(string n) => r.TryGetProperty(n, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
             return new PhoneStatus(S("device"), (int)(D("w") ?? 0), (int)(D("h") ?? 0), D("battery"), B("charging"), S("facing"),
-                B("torch"), D("zoomMax"), D("zoom"));
+                B("torch"), D("zoomMax"), D("zoom"), (int?)D("maxW"), (int?)D("maxH"), D("maxFps"));
         }
         catch { return null; }
     }
