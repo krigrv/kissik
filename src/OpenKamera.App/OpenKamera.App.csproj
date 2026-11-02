@@ -25,6 +25,7 @@
     <Content Include="Assets\Square44x44Logo.targetsize-48_altform-lightunplated.png" />
     <Content Include="Assets\StoreLogo.png" />
     <Content Include="Assets\AppIcon.ico" />
+    <Content Include="Assets\Backgrounds\*.jpg" />
     <Content Include="Assets\Wide310x150Logo.scale-200.png" />
     <!-- Donation links; forks edit this file, not code. -->
     <Content Include="donate.json" CopyToOutputDirectory="PreserveNewest" />

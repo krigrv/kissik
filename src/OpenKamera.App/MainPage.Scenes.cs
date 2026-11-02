@@ -291,6 +291,8 @@ public sealed partial class MainPage
     {
         if (sender is not MenuFlyoutItem { Tag: string kind }) return;
         if (kind == "camera2") { await AddSecondCameraAsync(); return; }
+        string? galleryPick = null;
+        if (kind == "gallery") { galleryPick = await PickGalleryBackgroundAsync(); if (galleryPick is null) return; kind = "bg"; }
         SceneLayer layer = kind switch
         {
             "text" => new SceneLayer { Kind = "text", Text = "New text", X = 0.1, Y = 0.1, W = 0.4, H = 0.09, FontSize = 0.06, Bold = true },
@@ -302,7 +304,13 @@ public sealed partial class MainPage
             _ => new SceneLayer { Kind = "image", X = 0.75, Y = 0.05, W = 0.2, H = 0.2 },
         };
         bool replacing = kind == "bg" && _scene.Layers.Contains(layer);
-        if (kind is "image" or "bg")
+        if (galleryPick is not null)
+        {
+            SceneLibrary.Save(_scene);
+            layer.Source = SceneLibrary.AddAsset(_scene, galleryPick);
+            layer.Name = "Background: " + Path.GetFileNameWithoutExtension(galleryPick);
+        }
+        else if (kind is "image" or "bg")
         {
             var picker = new Windows.Storage.Pickers.FileOpenPicker();
             foreach (var ext in new[] { ".png", ".jpg", ".jpeg", ".gif", ".bmp" }) picker.FileTypeFilter.Add(ext);
@@ -321,6 +329,44 @@ public sealed partial class MainPage
         _selectedLayerId = layer.Id;
         Commit();
         RefreshLayersTab();
+    }
+
+    /// <summary>Built-in backgrounds (Assets\Backgrounds), grouped by profession, with a search box.</summary>
+    private async Task<string?> PickGalleryBackgroundAsync()
+    {
+        string dir = Path.Combine(AppContext.BaseDirectory, "Assets", "Backgrounds");
+        var all = Directory.Exists(dir) ? Directory.GetFiles(dir, "*.jpg").OrderBy(f => f).ToList() : [];
+        if (all.Count == 0) { Status("No built-in backgrounds found."); return null; }
+        var grid = new GridView { SelectionMode = ListViewSelectionMode.Single, MaxHeight = 460 };
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(grid, "Backgrounds");
+        void Fill(string q)
+        {
+            grid.Items.Clear();
+            foreach (var f in all.Where(f => q.Length == 0 || Path.GetFileNameWithoutExtension(f).Contains(q, StringComparison.OrdinalIgnoreCase)))
+            {
+                var cell = new StackPanel { Width = 176, Spacing = 4, Tag = f };
+                cell.Children.Add(new Image { Source = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri(f)) { DecodePixelWidth = 176 }, Width = 176, Height = 99, Stretch = Microsoft.UI.Xaml.Media.Stretch.UniformToFill });
+                cell.Children.Add(new TextBlock { Text = Path.GetFileNameWithoutExtension(f), FontSize = 12, TextTrimming = TextTrimming.CharacterEllipsis });
+                Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(cell, Path.GetFileNameWithoutExtension(f));
+                grid.Items.Add(cell);
+            }
+        }
+        var search = new TextBox { PlaceholderText = "Search: doctor, chef, gaming…" };
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(search, "Search backgrounds");
+        search.TextChanged += (_, _) => Fill(search.Text.Trim());
+        Fill("");
+        var body = new StackPanel { Spacing = 10, Width = 600 };
+        body.Children.Add(search); body.Children.Add(grid);
+        var dlg = new ContentDialog
+        {
+            XamlRoot = XamlRoot, Title = "Choose a background", Content = body,
+            PrimaryButtonText = "Use background", CloseButtonText = "Cancel", DefaultButton = ContentDialogButton.Primary,
+        };
+        dlg.Resources["ContentDialogMaxWidth"] = 680.0;
+        bool picked = false;
+        grid.DoubleTapped += (_, _) => { if (grid.SelectedItem is not null) { picked = true; dlg.Hide(); } };
+        var res = await dlg.ShowAsync();
+        return (grid.SelectedItem as FrameworkElement)?.Tag as string is { } pick && (res == ContentDialogResult.Primary || picked) ? pick : null;
     }
 
     private void DeleteSelectedLayer()
