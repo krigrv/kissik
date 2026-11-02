@@ -305,6 +305,9 @@ public sealed partial class MainPage : Page
     {
         FilterPreset.None => "No filter",
         FilterPreset.BlackAndWhite => "Black & white",
+        FilterPreset.GoldenHour => "Golden hour",
+        FilterPreset.TealOrange => "Teal & orange",
+        FilterPreset.FilmPrint => "Film print",
         _ => f.ToString(),
     };
 

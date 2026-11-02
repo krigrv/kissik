@@ -24,7 +24,7 @@ Darkroom Glass verified live 2026-11-02 (window pictures via the in-app "Save a 
 - [x] Profiles menu: Meetings 720p30, Meetings HD 1080p30, Streaming 1080p60, 1440p30, 4K30, Vertical 1280p, Vertical HD 1920p (all unlocked; camera + recording follow it)
 - [x] Gallery window, tabs **Scenes / Backgrounds / Filters**: collections (All, Favourites, categories), create/import/add, per-item "…" menu
 - [x] Filters gallery shows live thumbnails of the current camera through each filter
-- [ ] More looks, our own designs and names: muted background, punchy colour, golden warmth, neutral/no-correction, two-tone, retro film, film print, green tint, teal-and-orange, chroma-key helper, colour-vision simulations (deuteranomaly, protanomaly, tritanomaly), exposure false-colour checker
+- [~] More looks: added Golden hour, Teal & orange, Film print, Punchy, Noir, Pastel. Still to do: colour-vision simulations, exposure false-colour checker
 - [ ] Light + dark theme following Windows (in progress 2026-11-02)
 
 ## 0b. Screen light (user request 2026-11-02) — own names and looks
@@ -131,7 +131,7 @@ everything from the PC, switching between paired phones/PCs.
 - [x] P2 Portrait blur ↔ privacy blur (one strength slider), halo-free masked blur
 - [x] P2 Background replace (8 self-generated backgrounds + user import, cover-fit), remove (transparent)
 - [ ] P2 Mask: hair-level refinement (guided filter) and second-person support tuning
-- [ ] P2 Live preview shows transparency as a checkerboard in Remove mode
+- [x] P2 Remove mode: the cut-out shows the scene background (meeting cameras carry no transparency), so no checkerboard is needed
 - [x] P2 Chroma key (green screen) with similarity/smoothness/spill; green or blue, brightness-normalised so shadows key
 - [x] P2 Spotlight (dims room, lifts person; % slider)
 - [x] P2 Retouch (edge-aware skin smoothing on the person only; slider; light-to-dark skin tones tested)
