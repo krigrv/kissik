@@ -55,4 +55,17 @@ public class SegmentedRecorderTests
         Assert.Contains("recovered", saved[0]);
         Assert.True(new FileInfo(saved[0]).Length > 1000);
     }
+
+    [Fact]
+    public async Task StoppingRightAfterANewPieceStarts_StillSavesTheRecording()
+    {
+        string dir = Dir(), path = Path.Combine(dir, "edge.mp4");
+        var rec = new SegmentedRecorder(320, 180, 30) { SegmentLength = TimeSpan.FromSeconds(1) };
+        await rec.StartAsync(path);
+        await Feed(rec, 320, 180, 31); // just past 1 s: a second, empty piece opens
+        await Task.Delay(300);
+        await rec.StopAsync();
+        Assert.True(File.Exists(path));
+        Assert.True(new FileInfo(path).Length > 1000);
+    }
 }

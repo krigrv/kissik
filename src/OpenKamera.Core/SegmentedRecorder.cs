@@ -77,8 +77,14 @@ public sealed class SegmentedRecorder : IAsyncDisposable
 
     private async Task FinishAsync(CompositeRecorder rec)
     {
+        // A piece that started just before Stop can be empty; its failure must never lose the pieces before it.
         try { await rec.StopAsync(); }
-        finally { FramesWritten += rec.FramesWritten; FramesDropped += rec.FramesDropped; await rec.DisposeAsync(); }
+        catch { try { if (new FileInfo(rec.Path) is { Exists: true, Length: < 1024 } f) f.Delete(); } catch { } }
+        finally
+        {
+            FramesWritten += rec.FramesWritten; FramesDropped += rec.FramesDropped;
+            try { await rec.DisposeAsync(); } catch { }
+        }
     }
 
     /// <summary>Finishes the last piece and joins all pieces into <see cref="Path"/>. Pieces are kept if joining fails.</summary>
@@ -89,7 +95,8 @@ public sealed class SegmentedRecorder : IAsyncDisposable
         if (last is not null) lock (_finishing) _finishing.Add(FinishAsync(last));
         Task[] all; lock (_finishing) all = [.. _finishing];
         await Task.WhenAll(all);
-        await JoinAsync(_partsDir, Path, _w & ~1, _h & ~1, _fps);
+        if (!await JoinAsync(_partsDir, Path, _w & ~1, _h & ~1, _fps))
+            throw new InvalidOperationException("Nothing was recorded.");
     }
 
     /// <summary>Joins the playable pieces in <paramref name="partsDir"/> into <paramref name="output"/>, then deletes them.</summary>
