@@ -297,9 +297,12 @@ public sealed partial class MainPage
             "rect" => new SceneLayer { Kind = "shape", X = 0.1, Y = 0.1, W = 0.25, H = 0.2, Color = "#CC2EA3F2", CornerRadius = 0.015 },
             "ellipse" => new SceneLayer { Kind = "shape", Shape = "ellipse", X = 0.1, Y = 0.1, W = 0.1125, H = 0.2, Color = "#CC2EA3F2" },
             "camera" => new SceneLayer { Kind = "camera", Name = "Video source", X = 0.6, Y = 0.45, W = 0.3, H = 0.45, CornerRadius = 0.02 },
+            "bg" => _scene.Layers.FirstOrDefault(x => x.Kind == "image" && x.Behind && x.W >= 0.99 && x.H >= 0.99)
+                    ?? new SceneLayer { Kind = "image", X = 0, Y = 0, W = 1, H = 1, Behind = true },
             _ => new SceneLayer { Kind = "image", X = 0.75, Y = 0.05, W = 0.2, H = 0.2 },
         };
-        if (kind == "image")
+        bool replacing = kind == "bg" && _scene.Layers.Contains(layer);
+        if (kind is "image" or "bg")
         {
             var picker = new Windows.Storage.Pickers.FileOpenPicker();
             foreach (var ext in new[] { ".png", ".jpg", ".jpeg", ".gif", ".bmp" }) picker.FileTypeFilter.Add(ext);
@@ -308,10 +311,12 @@ public sealed partial class MainPage
             if (file is null) return;
             SceneLibrary.Save(_scene);
             layer.Source = SceneLibrary.AddAsset(_scene, file.Path);
-            layer.Name = Path.GetFileNameWithoutExtension(file.Name);
+            layer.Name = kind == "bg" ? "Background: " + Path.GetFileNameWithoutExtension(file.Name) : Path.GetFileNameWithoutExtension(file.Name);
         }
         BeginEdit();
-        if (kind == "camera") _scene.Layers.Insert(0, layer); // video sits under the other layers
+        if (kind == "bg" && BgMode.SelectedItem == BgOff) { BgMode.SelectedItem = BgRemove; UpdateBackground(); } // the picture shows where your real room was
+        if (replacing) { }
+        else if (kind is "camera" or "bg") _scene.Layers.Insert(0, layer); // video sits under the other layers
         else _scene.Layers.Add(layer);
         _selectedLayerId = layer.Id;
         Commit();
