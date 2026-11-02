@@ -63,7 +63,7 @@ public sealed partial class MainPage : Page
         StartConnectWatch();
         StartSceneThumbs();
         StartAudioWatchdog();
-        _ = ShowWelcomeOnceAsync();
+        _ = ShowWelcomeOnceAsync().ContinueWith(_ => DispatcherQueue.TryEnqueue(() => _ = OfferCrashReportAsync()), TaskScheduler.Default);
         ResumePairedPhone();
         try { InitVertical(); } catch { }
         try { InitTray(); } catch (Exception ex) { Status("Tray icon unavailable: " + ex.Message); }
