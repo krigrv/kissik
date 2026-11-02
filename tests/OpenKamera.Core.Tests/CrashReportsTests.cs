@@ -39,9 +39,15 @@ public class CrashReportsTests
     }
 
     [Fact]
-    public async Task NothingIsSentWhileNotSetUp()
+    public void InboxIsSetUp() => Assert.True(CrashReports.IsConfigured);
+
+    /// <summary>Sends one real test report to the Sentry inbox. Opt-in: set KISSIK_SENTRY_SMOKE=1 (so CI never posts).</summary>
+    [Fact]
+    public async Task SmokeReportReachesTheInbox()
     {
-        Assert.False(CrashReports.IsConfigured);
-        Assert.False(await CrashReports.SendAsync("anything", "1.0.0"));
+        if (Environment.GetEnvironmentVariable("KISSIK_SENTRY_SMOKE") != "1") return;
+        Assert.True(await CrashReports.SendAsync(
+            $"{DateTime.Now:O} System.InvalidOperationException: KISSIK crash-report smoke test (safe to ignore)" + "\n   at KISSIK.Tests.Smoke()",
+            "0.0.0-test"));
     }
 }

@@ -15,7 +15,7 @@ public static class CrashReports
     /// The Sentry project DSN (Settings → Client Keys in Sentry). Empty = not set up yet: nothing is ever sent and the
     /// app falls back to "copy the report".
     /// </summary>
-    public const string Dsn = "";
+    public const string Dsn = "https://a8a20e3e7d86bf3fd8363ab4b1eaeb74@o4512361962340352.ingest.de.sentry.io/4512361969877072";
 
     public static bool IsConfigured => TryParseDsn(Dsn, out _, out _, out _);
 
