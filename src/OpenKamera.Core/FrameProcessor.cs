@@ -13,6 +13,17 @@ public sealed record FrameRecipe(
     public static readonly FrameRecipe Passthrough = new(ImageFilters.Adjustments.Neutral, FrameTransform.Identity, BackgroundSettings.Off);
 }
 
+/// <summary>
+/// What the outputs (meeting camera, stream, recording) get on top of the processed frame: the front overlay at a
+/// given size, the scene cross-fade position (0..1, null when not fading), burned-in captions and the privacy shutter.
+/// </summary>
+public sealed record OutputBake(
+    Func<int, int, byte[]?>? Front = null, double? FadeT = null,
+    byte[]? Caption = null, int CaptionWidth = 0, int CaptionHeight = 0, ShutterMode Shutter = ShutterMode.Off);
+
+/// <summary>A processed frame; Baked is the output bake, or null when it wasn't asked for or the CPU path ran.</summary>
+public sealed record FrameOutput(byte[] Pixels, int Width, int Height, byte[]? Baked);
+
 /// <summary>Runs framing → output fit → background → Enhance → scene. Used for preview, snapshots and recording.</summary>
 public static class FrameProcessor
 {
@@ -28,6 +39,18 @@ public static class FrameProcessor
     /// <summary>Processes a frame into BGRA pixels at the output size.</summary>
     public static (byte[] Pixels, int Width, int Height) ProcessPixels(SoftwareBitmap frame, FrameRecipe r, BackgroundPipeline? background)
     {
+        var o = Process(frame, r, background, null);
+        return (o.Pixels, o.Width, o.Height);
+    }
+
+    /// <summary>
+    /// Processes a frame and, on the GPU, also bakes the outputs' layers (<paramref name="bake"/>) before reading back.
+    /// NV12 / YUY2 camera frames go to the GPU as they are; the CPU path converts them first.
+    /// </summary>
+    public static FrameOutput Process(SoftwareBitmap frame, FrameRecipe r, BackgroundPipeline? background, OutputBake? bake)
+    {
+        if (UseGpu && !r.Background.GreenScreen && YuvConvert.IsYuv(frame) && GpuEffects.Shared is { } g && g.ProcessCamera(frame, r, background, bake) is { } fast)
+            return fast;
         var bgra = frame.BitmapPixelFormat == BitmapPixelFormat.Bgra8
             ? frame
             : SoftwareBitmap.Convert(frame, BitmapPixelFormat.Bgra8, BitmapAlphaMode.Premultiplied);
@@ -36,7 +59,7 @@ public static class FrameProcessor
             int w = bgra.PixelWidth, h = bgra.PixelHeight;
             var pixels = new byte[w * h * 4];
             bgra.CopyToBuffer(pixels.AsBuffer());
-            if (UseGpu && !r.Background.GreenScreen && GpuEffects.Shared is { } gpu && gpu.ProcessFrame(pixels, w, h, r, background) is { } done)
+            if (UseGpu && !r.Background.GreenScreen && GpuEffects.Shared is { } gpu && gpu.ProcessOutput(pixels, w, h, r, background, bake) is { } done)
                 return done;
             (pixels, w, h) = r.Transform.Apply(pixels, w, h);
             // Fit before the expensive steps so they run at output size, not camera size.
@@ -52,7 +75,7 @@ public static class FrameProcessor
             }
             ImageFilters.Apply(pixels, w, h, r.Adjustments); // camera only: overlays keep their true colours
             if (r.Scene is { } scene) pixels = SceneCompositor.Compose(pixels, w, h, scene, r.Overlay);
-            return (pixels, w, h);
+            return new FrameOutput(pixels, w, h, null);
         }
         finally { if (!ReferenceEquals(bgra, frame)) bgra.Dispose(); }
     }
@@ -60,8 +83,8 @@ public static class FrameProcessor
     /// <summary>Returns a new Bgra8/Premultiplied bitmap; the caller owns (and disposes) it.</summary>
     public static SoftwareBitmap Process(SoftwareBitmap frame, FrameRecipe r, BackgroundPipeline? background)
     {
-        var (pixels, w, h) = ProcessPixels(frame, r, background);
-        return ToBitmap(pixels, w, h);
+        var o = Process(frame, r, background, null);
+        return ToBitmap(o.Pixels, o.Width, o.Height);
     }
 
     public static SoftwareBitmap ToBitmap(byte[] pixels, int w, int h) =>

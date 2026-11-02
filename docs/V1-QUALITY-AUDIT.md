@@ -107,11 +107,16 @@ Still to test by hand before v1 (needs a person at the PC):
   as the fallback (no GPU, green screen, or `KISSIK_CPU_EFFECTS=1`). Tests hold each step to within 1 level per
   channel of the CPU (framing and fit match exactly), and the whole path with real segmentation to a thin band at
   the person's outline. About 90 fps at 4K with blur.
+- **Now (capture and output):** the camera's NV12 / YUY2 frames go to the GPU as they arrive (no CPU colour
+  conversion, 1.5 or 2 bytes a pixel instead of 4) and become BGRA in a kernel that matches `YuvConvert` exactly.
+  What the meeting camera, stream and recording add on top (front overlay, scene cross-fade, burned-in captions,
+  privacy shutter) is baked on the GPU too, and only runs while one of them is on. Tests hold each new kernel to
+  an exact match with the CPU code, and the YUV conversion to within 3 levels of Windows' own.
 - **Best:** frames stay on the GPU from capture to output, zero copies to the CPU.
-- **Upgrade:** take camera frames as Direct3D surfaces and hand textures to the virtual camera, recorder (hardware
-  encoder) and preview, so the upload and readback go away. Measured at 4K with blur, per frame: upload 1.6 ms,
-  segmentation 3.9 ms (DirectML, every other frame), effects and readback 4.7 ms. Overlapping the readback with
-  the next frame would save about 3 ms but add a frame of delay, which isn't worth it at 90 fps.
+- **Upgrade (still to do):** hand textures to the virtual camera, a hardware encoder (Media Foundation with a DXGI
+  device manager) and the preview (SwapChainPanel), so the two readbacks (preview frame and baked output) go away.
+  MediaCapture picks its own Direct3D device and its textures aren't shareable, so taking capture textures
+  directly needs Media Foundation's source reader on our device.
 
 Frame-path benchmark (`dotnet run -c Release --project tests/OpenKamera.Bench`): a synthetic frame through
 `FrameProcessor` with Fast segmentation on DirectML, RTX 4080 SUPER, frames per second. The effects step only;
@@ -128,6 +133,26 @@ code); the machine was shared with other builds, so treat the numbers as ±15%.
 | 4K | Blur + framing (mirror, 1.5x zoom) | 28 | 89 |
 | 4K | Replace | 66 | 91 |
 | 4K | Look + sharpen | 32 | 109 |
+
+Camera input and output bake (same bench, GPU, blur, 2 November 2026; the "BGRA" rows are the path above,
+measured in the same run for comparison). The bake is a translucent front overlay plus a burned-in caption.
+
+| Frame | Path | fps |
+| --- | --- | --- |
+| 1080p | BGRA in | 214 |
+| 1080p | NV12 in | 335 |
+| 1080p | BGRA in + bake | 179 |
+| 1080p | NV12 in + bake | 247 |
+| 1080p | NV12 in + bake + privacy shutter | 241 |
+| 4K | BGRA in | 85 |
+| 4K | NV12 in | 147 |
+| 4K | BGRA in + bake | 53 |
+| 4K | NV12 in + bake | 99 |
+| 4K | NV12 in + bake + privacy shutter | 83 |
+
+The same bake with the shutter costs 2.9 ms (1080p) and 10.8 ms (4K) a frame on the CPU, on top of the frame
+path; on the GPU it adds about 3 ms at 4K, most of it the second readback. Not yet measured in the running app:
+its frame counter sits in the window, which these test runs don't bring forward.
 
 ## Order of work
 1. Hand tests above (blocker for v1).

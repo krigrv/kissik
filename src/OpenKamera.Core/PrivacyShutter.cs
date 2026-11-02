@@ -39,7 +39,7 @@ public static class PrivacyShutter
     }
 
     /// <summary>Two rounded-ish white bars in the middle: the universal "paused" sign.</summary>
-    private static void DrawPause(byte[] px, int w, int h)
+    internal static void DrawPause(byte[] px, int w, int h)
     {
         int bh = h / 6, bw = Math.Max(4, bh / 4), gap = bw, cx = w / 2, cy = h / 2;
         foreach (int left in new[] { cx - gap / 2 - bw, cx + gap / 2 })

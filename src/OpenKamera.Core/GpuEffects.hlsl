@@ -541,3 +541,94 @@ void Scene(uint3 id : SV_DispatchThreadID)
     if (sf & S_OVERLAY) o = Over(o, (uint4)Unpack(Aux[p]));
     Dst[p] = Pack(o);
 }
+
+// ---- Camera input: YUV straight from the camera, converted here (mirrors YuvConvert) ----
+// Src holds the raw bytes packed four to a word. I0: w, h, chroma offset (NV12), row stride.
+uint ByteAt(uint k) { return (Src[k >> 2] >> ((k & 3) * 8)) & 255; }
+uint Yuv(int y, int u, int v)
+{
+    int c = 298 * (y - 16), d = u - 128, e = v - 128;
+    return Pack(uint4(clamp((c + 516 * d + 128) >> 8, 0, 255), clamp((c - 100 * d - 208 * e + 128) >> 8, 0, 255),
+        clamp((c + 409 * e + 128) >> 8, 0, 255), 255));
+}
+
+[numthreads(256, 1, 1)]
+void Nv12(uint3 id : SV_DispatchThreadID)
+{
+    uint p = Index(id);
+    if (p >= (uint)(W * H)) return;
+    uint x = p % (uint)W, y = p / (uint)W, s = (uint)I0.w;
+    uint uv = (uint)I0.z + (y >> 1) * s + (x & ~1u);
+    Dst[p] = Yuv(ByteAt(y * s + x), ByteAt(uv), ByteAt(uv + 1));
+}
+
+[numthreads(256, 1, 1)]
+void Yuy2(uint3 id : SV_DispatchThreadID)
+{
+    uint p = Index(id);
+    if (p >= (uint)(W * H)) return;
+    uint x = p % (uint)W, y = p / (uint)W, b = y * (uint)I0.w + (x >> 1) * 4;
+    Dst[p] = Yuv(ByteAt(b + (x & 1) * 2), ByteAt(b + 1), ByteAt(b + 3));
+}
+
+// ---- Output bake: front overlay, scene cross-fade, burned-in captions, privacy shutter ----
+uint4 UnpackU(uint p) { return uint4(p & 255, (p >> 8) & 255, (p >> 16) & 255, p >> 24); }
+
+// SceneCompositor.BlendOver: Aux (premultiplied) over Src.
+[numthreads(256, 1, 1)]
+void Over(uint3 id : SV_DispatchThreadID)
+{
+    uint p = Index(id);
+    if (p >= (uint)(W * H)) return;
+    uint4 d = UnpackU(Src[p]), s = UnpackU(Aux[p]);
+    if (s.w == 0) { Dst[p] = Src[p]; return; }
+    if (s.w == 255) { Dst[p] = Pack(uint4(s.xyz, 255)); return; }
+    Dst[p] = Pack(min(255, s + d * (255 - s.w) / 255));
+}
+
+// SceneCompositor.CrossFade from Aux; I1.x is the new frame's weight out of 256.
+[numthreads(256, 1, 1)]
+void Fade(uint3 id : SV_DispatchThreadID)
+{
+    uint p = Index(id);
+    if (p >= (uint)(W * H)) return;
+    uint k = (uint)I1.x;
+    Dst[p] = Pack((UnpackU(Aux[p]) * (256 - k) + UnpackU(Src[p]) * k) >> 8);
+}
+
+// CaptionBurn.Blend: the caption (Aux, I1.x by I1.y) with its top-left at I1.zw.
+[numthreads(256, 1, 1)]
+void Caption(uint3 id : SV_DispatchThreadID)
+{
+    uint p = Index(id);
+    if (p >= (uint)(W * H)) return;
+    int x = (int)(p % (uint)W) - I1.z, y = (int)(p / (uint)W) - I1.w;
+    if (x < 0 || y < 0 || x >= I1.x || y >= I1.y) { Dst[p] = Src[p]; return; }
+    uint4 s = UnpackU(Aux[y * I1.x + x]), d = UnpackU(Src[p]);
+    if (s.w == 0) { Dst[p] = Src[p]; return; }
+    uint3 o = (s.xyz + d.xyz * (255 - s.w) / 255) & 255;
+    Dst[p] = Pack(uint4(o, d.w));
+}
+
+// PrivacyShutter.Pixelate, one thread per block: I1 = block, blocks across, blocks down, 1 to dim (Away).
+[numthreads(256, 1, 1)]
+void PixBlock(uint3 id : SV_DispatchThreadID)
+{
+    uint q = id.x;
+    if (q >= (uint)(I1.y * I1.z)) return;
+    int x0 = (int)(q % (uint)I1.y) * I1.x, y0 = (int)(q / (uint)I1.y) * I1.x;
+    int x1 = min(W, x0 + I1.x), y1 = min(H, y0 + I1.x);
+    uint3 sum = 0; uint n = 0;
+    for (int y = y0; y < y1; y += 2) for (int x = x0; x < x1; x += 2) { sum += UnpackU(Src[y * W + x]).xyz; n++; }
+    uint3 c = sum / n;
+    if (I1.w != 0) c = c / 4 + uint3(10, 10, 12);
+    Dst[q] = Pack(uint4(c, 255));
+}
+
+[numthreads(256, 1, 1)]
+void PixFill(uint3 id : SV_DispatchThreadID)
+{
+    uint p = Index(id);
+    if (p >= (uint)(W * H)) return;
+    Dst[p] = Aux[(p / (uint)W / (uint)I1.x) * (uint)I1.y + (p % (uint)W) / (uint)I1.x];
+}
