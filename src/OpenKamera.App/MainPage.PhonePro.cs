@@ -266,7 +266,9 @@ public sealed partial class MainPage
             double s = (now - _h264RateAt).TotalSeconds; _h264RateAt = now;
             _h264InRate = (int)(Interlocked.Exchange(ref _h264In, 0) / s); _h264OutRate = (int)(Interlocked.Exchange(ref _h264Out, 0) / s);
         }
-        return $" · phone {_h264InRate} in / {_h264OutRate} decoded · network +{_netExtraMs:0} ms · decode {_decodeMs:0} ms · to screen {_phoneScreenMs:0} ms";
+        var st = _phone?.LastStatus;
+        string phoneSide = st?.CapEncMs is { } ce ? $" · on phone {ce:0} ms" : "";
+        return $" · phone {_h264InRate} in / {_h264OutRate} decoded{phoneSide} · network +{_netExtraMs:0} ms · decode {_decodeMs:0} ms · to screen {_phoneScreenMs:0} ms";
     }
     private bool _h264Failed;      // gave up for this run: stay on JPEG
     private bool _h264Asked;       // codec:h264 sent on this connection
