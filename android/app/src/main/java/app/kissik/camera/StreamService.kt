@@ -85,7 +85,8 @@ class StreamService : LifecycleService() {
         if (intent?.action == STOP) { stopSelf(); return START_NOT_STICKY }
         startForegroundNow()
         if (!started) { started = true; begin() } else if (intent?.action == RECONNECT) attempt?.cancel()
-        return START_STICKY
+        // Not sticky: Android 14+ forbids a camera service restarting itself from the background. The app resumes on open.
+        return START_NOT_STICKY
     }
 
     private fun startForegroundNow() {
