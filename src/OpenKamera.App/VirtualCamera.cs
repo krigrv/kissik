@@ -61,9 +61,12 @@ public static class VirtualCamera
                 using var sa = a.OpenRead(); using var sb = b.OpenRead();
                 return !System.Security.Cryptography.SHA256.HashData(sa).AsSpan().SequenceEqual(System.Security.Cryptography.SHA256.HashData(sb));
             }
-            catch { return false; }
+            catch (Exception ex) { LastCheckError = ex.GetType().Name + ": " + ex.Message; return false; }
         }
     }
+
+    /// <summary>Why the last update check could not compare the copies (shown in the camera menu), or null.</summary>
+    public static string? LastCheckError { get; private set; }
 
     /// <summary>Runs the one-time install elevated (UAC). Returns false if the user declined or it failed.</summary>
     public static async Task<bool> InstallAsync()

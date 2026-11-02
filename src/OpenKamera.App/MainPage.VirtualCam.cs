@@ -31,6 +31,7 @@ public sealed partial class MainPage
         MeetCamDot.Fill = Token(installed ? (_vcam.HasClients ? "SystemFillColorCriticalBrush" : "SystemFillColorSuccessBrush") : "ControlStrongStrokeColorDefaultBrush");
         AutomationProperties.SetName(MeetCamBtn, !installed ? "Meeting camera, not installed" : _vcam.HasClients ? "Meeting camera, in use by a meeting" : "Meeting camera, ready");
         if (!supported) MeetCamStatus.Text = "The meeting camera needs Windows 11.";
+        else if (VirtualCamera.LastCheckError is { } err) MeetCamStatus.Text = "Couldn't check the installed camera: " + err;
         else if (outdated) MeetCamStatus.Text = "This KISSIK has a fixed meeting camera. Update it once (asks for admin permission) so meeting apps can see it.";
         else if (!installed) MeetCamStatus.Text = $"Install once (asks for admin permission). Then pick \"{VirtualCamera.FriendlyName}\" as the camera in Zoom, Teams, Meet, Discord or OBS.";
         var cam = DeviceUsage.InUseBy(PrivacyDevice.Camera).Distinct().ToList();
