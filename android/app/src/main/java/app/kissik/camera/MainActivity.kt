@@ -108,6 +108,8 @@ private fun App(incoming: MutableState<String?>) {
     LaunchedEffect(Unit) {
         if (incoming.value == null && pairing != null && hasCamera(ctx) && !Live.running.value && prefs.getBoolean("onboarded", false)) StreamService.start(ctx)
     }
+    // The service saves the certificate pin on first connect; re-read so screens show the current pairing.
+    LaunchedEffect(screen) { pairing = Pairing.load(ctx) }
     BackHandler(screen == Screen.Scan || screen == Screen.Settings) { screen = Screen.Home }
 
     when (screen) {
