@@ -24,14 +24,13 @@ public sealed class BackgroundPipeline : IDisposable
             if (_lastAlpha is { } a && _lastW == w && _lastH == h) return a;
             if (!_segmenters.TryGetValue(s.Quality, out var seg)) _segmenters[s.Quality] = seg = new PersonSegmenter(s.Quality);
             var alpha = s.GreenScreen ? ChromaKey.Mask((byte[])px.Clone(), w, h, s.KeyColor, s.Similarity, s.Smoothness, 0)
-                                      : Refined(MaskOps.Upsample(seg.Segment(px, w, h), w, h), px, w, h);
+                                      : MaskOps.Matte(seg.Segment(px, w, h), px, w, h);
             (_lastAlpha, _lastW, _lastH) = (alpha, w, h);
             return alpha;
         }
     }
 
-    private static float[] Refined(float[] alpha, byte[] px, int w, int h) { MaskOps.GuidedRefine(alpha, px, w, h, scale: Math.Max(2, w / 480)); return alpha; }
-
+    
     private VideoBackground? _video;
 
     /// <summary>The replacement background for this frame (a picture, or the newest frame of a looping video), or null.</summary>
@@ -110,7 +109,7 @@ public sealed class BackgroundPipeline : IDisposable
                 {
                     if (!_segmenters.TryGetValue(s.Quality, out var seg))
                         _segmenters[s.Quality] = seg = new PersonSegmenter(s.Quality);
-                    alpha = Refined(MaskOps.Upsample(seg.Segment(px, w, h), w, h), px, w, h);
+                    alpha = MaskOps.Matte(seg.Segment(px, w, h), px, w, h);
                     (_reuse, _reuseW, _reuseH) = (alpha, w, h);
                 }
                 (_lastAlpha, _lastW, _lastH) = (alpha, w, h);

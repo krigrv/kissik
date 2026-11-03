@@ -417,13 +417,13 @@ public sealed class GpuEffects : IDisposable
         }
     }
 
-    /// <summary>The segmentation model's input: the frame sampled (nearest) at iw x ih, as PersonSegmenter samples it.</summary>
+    /// <summary>The segmentation model's input: the frame area-averaged to iw x ih, as PersonSegmenter samples it.</summary>
     private byte[] Small(string src, int w, int h, int iw, int ih)
     {
-        // Same float maths as PersonSegmenter.Segment, done here because GPU division is not exact.
-        var map = new uint[iw + ih];
-        for (int x = 0; x < iw; x++) map[x] = (uint)Math.Min(w - 1, (int)((x + 0.5f) * w / iw));
-        for (int y = 0; y < ih; y++) map[iw + y] = (uint)Math.Min(h - 1, (int)((y + 0.5f) * h / ih));
+        // Footprint starts worked out with PersonSegmenter's integer maths: iw + 1 column edges, then ih + 1 row edges.
+        var map = new uint[iw + ih + 2];
+        for (int x = 0; x <= iw; x++) map[x] = (uint)PersonSegmenter.Span(x, w, iw);
+        for (int y = 0; y <= ih; y++) map[iw + 1 + y] = (uint)PersonSegmenter.Span(y, h, ih);
         Upload("map", map, 4);
         SetParams(new Params { I0 = new(w, h, 0, 0), I1 = new(iw, ih, 0, 0) });
         Ensure("small", iw * ih * 4, 4);
@@ -469,18 +469,33 @@ public sealed class GpuEffects : IDisposable
             BackgroundMode.Remove => 3,
             _ => 0,
         };
-        if (mode == 1)
+        if (mode != 0)
         {
+            // BackgroundEffects.MaskedBlur: the nearby room and person colours (to unmix the edge), and for Blur the
+            // blurred room, all from one masked quarter-size downsample.
             int bw = Math.Max(1, w / 4), bh = Math.Max(1, h / 4), q = bw * bh;
-            int radius = 2 + (int)Math.Round(s.BlurStrength * 14);
-            p.I1 = new(bw, bh, radius, 1);
-            SetParams(p);
             Ensure("acc0", q * 16, 16); Ensure("acc1", q * 16, 16);
-            Run("BlurDown", q, srv: [(cur, 0), ("alpha", 1)], uav: [("acc0", 2)]);
+            Ensure("room0", q * 16, 16); Ensure("room1", q * 16, 16);
+            Ensure("pers0", q * 16, 16); Ensure("pers1", q * 16, 16);
+            p.I1 = new(bw, bh, BackgroundEffects.NearRadius, mode);
+            SetParams(p);
+            Run("BlurDown", q, srv: [(cur, 0), ("alpha", 1)], uav: [("acc0", 2), ("pers0", 3)]);
             for (int pass = 0; pass < 3; pass++)
             {
-                Run("BoxH", q, srv: [("acc0", 7)], uav: [("acc1", 2)]);
-                Run("BoxV", q, srv: [("acc1", 7)], uav: [("acc0", 2)]);
+                Run("BoxH", q, srv: [(pass == 0 ? "acc0" : "room0", 7)], uav: [("room1", 2)]);
+                Run("BoxV", q, srv: [("room1", 7)], uav: [("room0", 2)]);
+                Run("BoxH", q, srv: [("pers0", 7)], uav: [("pers1", 2)]);
+                Run("BoxV", q, srv: [("pers1", 7)], uav: [("pers0", 2)]);
+            }
+            if (mode == 1)
+            {
+                p.I1 = new(bw, bh, 2 + (int)Math.Round(s.BlurStrength * 14), mode);
+                SetParams(p);
+                for (int pass = 0; pass < 3; pass++)
+                {
+                    Run("BoxH", q, srv: [("acc0", 7)], uav: [("acc1", 2)]);
+                    Run("BoxV", q, srv: [("acc1", 7)], uav: [("acc0", 2)]);
+                }
             }
         }
         else p.I1 = new(0, 0, 0, mode);
@@ -503,7 +518,10 @@ public sealed class GpuEffects : IDisposable
             SetParams(p);
             string o = Next(); Ensure(o, n * 4, 4);
             Run("Effects", n,
-                srv: [(cur, 0), ("alpha", 1), (mode == 2 ? "replace" : cur, 2), (behind ? "behind" : cur, 3), ("tone", 4), ("lut", 5), (mode == 1 ? "acc0" : "alpha", 7)],
+                srv: mode == 0
+                    ? [(cur, 0), ("alpha", 1), (cur, 2), (behind ? "behind" : cur, 3), ("tone", 4), ("lut", 5), ("alpha", 7)]
+                    : [(cur, 0), ("alpha", 1), (mode == 2 ? "replace" : cur, 2), (behind ? "behind" : cur, 3), ("tone", 4), ("lut", 5),
+                       (mode == 1 ? "acc0" : "alpha", 7), ("room0", 9), ("pers0", 10)],
                 uav: [(o, 0)]);
             cur = o;
         }
@@ -555,23 +573,30 @@ public sealed class GpuEffects : IDisposable
         return cur;
     }
 
-    /// <summary>MaskOps.GuidedRefine on the GPU, with the scale BackgroundPipeline uses.</summary>
+    /// <summary>MaskOps.GuidedRefine (colour guide) on the GPU, with the scale MaskOps.Matte uses.</summary>
     private void GuidedRefine(string frame, int w, int h, ref Params p)
     {
         int n = w * h;
         const int radius = 6;
-        int scale = Math.Max(2, w / 480), gw = Math.Max(1, w / scale), gh = Math.Max(1, h / scale), q = gw * gh;
+        int scale = MaskOps.GuideScale(w), gw = Math.Max(1, w / scale), gh = Math.Max(1, h / scale), q = gw * gh;
         p.I3 = new(gw, gh, scale, radius);
         SetParams(p);
-        Ensure("guide0", q * 16, 16); Ensure("guide1", q * 16, 16);
-        Run("GuideDown", q, srv: [(frame, 0), ("alpha", 1)], uav: [("guide0", 2)]);
-        Run("GuideBoxH", q, srv: [("guide0", 7)], uav: [("guide1", 2)]);
-        Run("GuideBoxV", q, srv: [("guide1", 7)], uav: [("guide0", 2)]);
-        Run("GuideAB", q, srv: [("guide0", 7)], uav: [("guide1", 2)]);
-        Run("GuideBoxH", q, srv: [("guide1", 7)], uav: [("guide0", 2)]);
-        Run("GuideBoxV", q, srv: [("guide0", 7)], uav: [("guide1", 2)]);
-        Run("GuideApply", n, srv: [(frame, 0), ("guide1", 7)], uav: [("alpha", 1)]);
+        string[] planes = ["guide0", "guide1", "guide2", "guide3"];
+        foreach (var g in planes) Ensure(g, q * 16, 16);
+        Ensure("guideT", q * 16, 16);
+        Run("GuideDown", q, srv: [(frame, 0), ("alpha", 1)], uav: [("guide0", 2), ("guide1", 3), ("guide2", 4), ("guide3", 5)]);
+        foreach (var g in planes) Box(g);
+        Run("GuideAB", q, srv: [("guide0", 7), ("guide1", 9), ("guide2", 10), ("guide3", 11)], uav: [("guideT", 2)]);
+        Run("GuideBoxH", q, srv: [("guideT", 7)], uav: [("guide0", 2)]);
+        Run("GuideBoxV", q, srv: [("guide0", 7)], uav: [("guideT", 2)]);
+        Run("GuideApply", n, srv: [(frame, 0), ("guideT", 7)], uav: [("alpha", 1)]);
         p.I3 = default;
+
+        void Box(string g)
+        {
+            Run("GuideBoxH", q, srv: [(g, 7)], uav: [("guideT", 2)]);
+            Run("GuideBoxV", q, srv: [("guideT", 7)], uav: [(g, 2)]);
+        }
     }
 
     private Fx ColourParams(ImageFilters.Adjustments adj, ref Params p)

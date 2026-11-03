@@ -188,8 +188,7 @@ public class GpuEffectsTests(ITestOutputHelper log)
     /// <summary>The CPU path for the same steps as <see cref="GpuEffects.Process"/>, as FrameProcessor runs it.</summary>
     private static byte[] Cpu(byte[] px, FrameRecipe r, PersonMask mask, byte[]? replacement)
     {
-        var alpha = MaskOps.Upsample(mask, W, H);
-        MaskOps.GuidedRefine(alpha, px, W, H, scale: Math.Max(2, W / 480));
+        var alpha = MaskOps.Matte(mask, px, W, H);
         if (r.Background.NeedsMask) BackgroundEffects.Apply(px, W, H, alpha, r.Background, replacement);
         if (r.BehindOverlay is { } bo) SceneCompositor.BlendBehind(px, bo, alpha);
         ImageFilters.Apply(px, W, H, r.Adjustments);

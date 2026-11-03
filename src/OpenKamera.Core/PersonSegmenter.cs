@@ -22,7 +22,7 @@ public sealed class PersonSegmenter : IDisposable
     private float[]? _previous;             // temporal smoothing state
 
     public SegmentationQuality Quality { get; }
-    /// <summary>The model's input size; frames are sampled (nearest) to this before inference.</summary>
+    /// <summary>The model's input size; frames are area-averaged to this before inference.</summary>
     public int InputWidth => _inW;
     public int InputHeight => _inH;
     public bool UsesGpu { get; }
@@ -69,18 +69,22 @@ public sealed class PersonSegmenter : IDisposable
         var buf = input.Buffer.Span;
         int plane = _inW * _inH;
 
-        // Sample at model resolution (nearest is enough here and much faster than bilinear).
+        // Average each model pixel's footprint in the frame: nearest sampling passed webcam noise and aliasing
+        // straight to the model, which made the edge shimmer from frame to frame.
         var r = new byte[plane]; var g = new byte[plane]; var b = new byte[plane];
-        for (int y = 0; y < _inH; y++)
+        Parallel.For(0, _inH, y =>
         {
-            int sy = Math.Min(height - 1, (int)((y + 0.5f) * height / _inH));
+            int ya = Span(y, height, _inH), yb = Math.Max(ya + 1, Span(y + 1, height, _inH));
             for (int x = 0; x < _inW; x++)
             {
-                int sx = Math.Min(width - 1, (int)((x + 0.5f) * width / _inW));
-                int si = (sy * width + sx) * 4, di = y * _inW + x;
-                r[di] = bgra[si + 2]; g[di] = bgra[si + 1]; b[di] = bgra[si];
+                int xa = Span(x, width, _inW), xb = Math.Max(xa + 1, Span(x + 1, width, _inW));
+                int sb = 0, sg = 0, sr = 0, n = (yb - ya) * (xb - xa);
+                for (int sy = ya; sy < yb; sy++)
+                    for (int si = (sy * width + xa) * 4, end = si + (xb - xa) * 4; si < end; si += 4) { sb += bgra[si]; sg += bgra[si + 1]; sr += bgra[si + 2]; }
+                int di = y * _inW + x;
+                r[di] = (byte)((sr + n / 2) / n); g[di] = (byte)((sg + n / 2) / n); b[di] = (byte)((sb + n / 2) / n);
             }
-        }
+        });
 
         // Models are trained on well-lit photos; stretch dark or flat frames so they can see the person.
         var curve = AutoLevels ? ExposureCurve(r, g, b) : null;
@@ -105,12 +109,17 @@ public sealed class PersonSegmenter : IDisposable
             for (int j = 0; j < plane; j++)
             {
                 float d = Math.Abs(alpha[j] - prev[j]);
-                float keep = d < 0.12f ? Math.Min(0.8f, Smoothing * 2f) : d < 0.35f ? Smoothing * 0.5f : 0f;
+                // Hold strongly through noise-sized changes, let go smoothly as the change grows (no step to ripple on).
+                float t = Math.Clamp((d - 0.04f) / 0.26f, 0, 1);
+                float keep = Math.Min(0.85f, Smoothing * 2.4f) * (1 - t * t * (3 - 2 * t));
                 alpha[j] = alpha[j] * (1 - keep) + prev[j] * keep;
             }
         _previous = alpha;
         return new PersonMask(alpha, _inW, _inH);
     }
+
+    /// <summary>First frame row/column covered by model pixel <paramref name="i"/> of <paramref name="n"/> (integer, so the GPU agrees).</summary>
+    internal static int Span(int i, int size, int n) => (int)((long)i * size / n);
 
     /// <summary>Normalise exposure of the model's input (not the video) so dark rooms still segment.</summary>
     public bool AutoLevels { get; set; } = true;
@@ -152,6 +161,18 @@ public sealed class PersonSegmenter : IDisposable
 
 public static class MaskOps
 {
+    /// <summary>The full-size person matte for a frame: the model mask upsampled, then snapped to the picture's edges.</summary>
+    public static float[] Matte(PersonMask m, byte[] bgra, int w, int h)
+    {
+        // A wide soft ramp keeps faint hair in play; the colour guide then decides what is person.
+        var alpha = Upsample(m, w, h, 0.1f, 0.9f);
+        GuidedRefine(alpha, bgra, w, h, scale: GuideScale(w));
+        return alpha;
+    }
+
+    /// <summary>The guide's downscale for a frame width: half size at 1080p, so single strands still register.</summary>
+    public static int GuideScale(int w) => Math.Max(2, w / 960);
+
     /// <summary>
     /// Labels 4-connected regions of the mask (alpha &gt; 0.15) and clears every region smaller than
     /// <paramref name="minShare"/> × the largest region.
@@ -190,34 +211,41 @@ public static class MaskOps
     }
 
     /// <summary>
-    /// Fast guided filter (He et al.): snaps the upsampled mask to the real edges in the full-resolution picture,
-    /// so hair and shoulders follow the image instead of the blocky model grid. Works at 1/scale size, then applies
-    /// the per-pixel linear model at full size, only on edge pixels.
+    /// Fast colour guided filter (He et al.): snaps the upsampled mask to the real edges in the full-resolution
+    /// picture, so hair and shoulders follow the image instead of the blocky model grid. Guided by colour, not just
+    /// brightness, so a room with the hair's brightness but another colour does not stick to the outline. Works at
+    /// 1/scale size, then applies the per-pixel linear model at full size, only on edge pixels.
     /// </summary>
-    public static void GuidedRefine(float[] alpha, byte[] bgra, int w, int h, int scale = 4, int radius = 6, float eps = 0.002f)
+    public static void GuidedRefine(float[] alpha, byte[] bgra, int w, int h, int scale = 4, int radius = 6, float eps = 0.001f)
     {
         int sw = Math.Max(1, w / scale), sh = Math.Max(1, h / scale), n = sw * sh;
-        var I = new float[n]; var p = new float[n];
+        // Guide planes: r, g, b, p, then r·p, g·p, b·p, then rr, rg, rb, gg, gb, bb.
+        var ch = new float[13][];
+        for (int c = 0; c < 13; c++) ch[c] = new float[n];
         Parallel.For(0, sh, y =>
         {
             int sy = Math.Min(h - 1, y * scale + scale / 2);
             for (int x = 0; x < sw; x++)
             {
-                int sx = Math.Min(w - 1, x * scale + scale / 2), i = (sy * w + sx) * 4;
-                I[y * sw + x] = (bgra[i] * 0.114f + bgra[i + 1] * 0.587f + bgra[i + 2] * 0.299f) / 255f;
-                p[y * sw + x] = alpha[sy * w + sx];
+                int sx = Math.Min(w - 1, x * scale + scale / 2), i = (sy * w + sx) * 4, k = y * sw + x;
+                float r = bgra[i + 2] / 255f, g = bgra[i + 1] / 255f, b = bgra[i] / 255f, q = alpha[sy * w + sx];
+                ch[0][k] = r; ch[1][k] = g; ch[2][k] = b; ch[3][k] = q;
+                ch[4][k] = r * q; ch[5][k] = g * q; ch[6][k] = b * q;
+                ch[7][k] = r * r; ch[8][k] = r * g; ch[9][k] = r * b; ch[10][k] = g * g; ch[11][k] = g * b; ch[12][k] = b * b;
             }
         });
-        var Ip = new float[n]; var II = new float[n];
-        for (int i = 0; i < n; i++) { Ip[i] = I[i] * p[i]; II[i] = I[i] * I[i]; }
-        var mI = Box(I, sw, sh, radius); var mp = Box(p, sw, sh, radius); var mIp = Box(Ip, sw, sh, radius); var mII = Box(II, sw, sh, radius);
-        var a = new float[n]; var b = new float[n];
-        for (int i = 0; i < n; i++)
+        var m = new float[13][];
+        Parallel.For(0, 13, c => m[c] = Box(ch[c], sw, sh, radius));
+        var ab = new float[4][];
+        for (int c = 0; c < 4; c++) ab[c] = new float[n];
+        Parallel.For(0, n, k =>
         {
-            float cov = mIp[i] - mI[i] * mp[i], vr = mII[i] - mI[i] * mI[i];
-            a[i] = cov / (vr + eps); b[i] = mp[i] - a[i] * mI[i];
-        }
-        var ma = Box(a, sw, sh, radius); var mb = Box(b, sw, sh, radius);
+            var (ar, ag, ab_, bb) = Solve(m[0][k], m[1][k], m[2][k], m[3][k], m[4][k], m[5][k], m[6][k],
+                m[7][k], m[8][k], m[9][k], m[10][k], m[11][k], m[12][k], eps);
+            ab[0][k] = ar; ab[1][k] = ag; ab[2][k] = ab_; ab[3][k] = bb;
+        });
+        var mab = new float[4][];
+        Parallel.For(0, 4, c => mab[c] = Box(ab[c], sw, sh, radius));
         float fx = (float)sw / w, fy = (float)sh / h;
         Parallel.For(0, h, y =>
         {
@@ -228,13 +256,35 @@ public static class MaskOps
                 float o = alpha[k];
                 if (o <= 0.001f || o >= 0.999f) continue; // solid inside or outside: nothing to refine
                 float gx = Math.Clamp((x + 0.5f) * fx - 0.5f, 0, sw - 1); int x0 = (int)gx, x1 = Math.Min(x0 + 1, sw - 1); float dx = gx - x0;
-                float A = Lerp2(ma, sw, x0, x1, y0, y1, dx, dy), B = Lerp2(mb, sw, x0, x1, y0, y1, dx, dy);
                 int i = k * 4;
-                float lum = (bgra[i] * 0.114f + bgra[i + 1] * 0.587f + bgra[i + 2] * 0.299f) / 255f;
-                float v = Math.Clamp((A * lum + B - 0.15f) / 0.7f, 0, 1); // crisp the soft band (smoothstep 0.15..0.85)
+                float v = Lerp2(mab[0], sw, x0, x1, y0, y1, dx, dy) * (bgra[i + 2] / 255f)
+                        + Lerp2(mab[1], sw, x0, x1, y0, y1, dx, dy) * (bgra[i + 1] / 255f)
+                        + Lerp2(mab[2], sw, x0, x1, y0, y1, dx, dy) * (bgra[i] / 255f)
+                        + Lerp2(mab[3], sw, x0, x1, y0, y1, dx, dy);
+                v = Math.Clamp((v - 0.05f) / 0.9f, 0, 1); // firm up the soft band a little (smoothstep 0.05..0.95)
                 alpha[k] = v * v * (3 - 2 * v);
             }
         });
+    }
+
+    /// <summary>
+    /// Per-window colour model alpha ≈ a·(r, g, b) + b from the window means: a = (Σ + eps·I)⁻¹ · cov(I, p).
+    /// The GPU's GuideAB does the same sums in the same order.
+    /// </summary>
+    internal static (float Ar, float Ag, float Ab, float B) Solve(float mr, float mg, float mb, float mp,
+        float mrp, float mgp, float mbp, float rr, float rg, float rb, float gg, float gb, float bb, float eps)
+    {
+        float crr = rr - mr * mr + eps, crg = rg - mr * mg, crb = rb - mr * mb;
+        float cgg = gg - mg * mg + eps, cgb = gb - mg * mb, cbb = bb - mb * mb + eps;
+        float pr = mrp - mr * mp, pg = mgp - mg * mp, pb = mbp - mb * mp;
+        // Inverse of the symmetric 3×3 via cofactors.
+        float i00 = cgg * cbb - cgb * cgb, i01 = crb * cgb - crg * cbb, i02 = crg * cgb - crb * cgg;
+        float i11 = crr * cbb - crb * crb, i12 = crb * crg - crr * cgb, i22 = crr * cgg - crg * crg;
+        float det = crr * i00 + crg * i01 + crb * i02;
+        float ar = (i00 * pr + i01 * pg + i02 * pb) / det;
+        float ag = (i01 * pr + i11 * pg + i12 * pb) / det;
+        float ab = (i02 * pr + i12 * pg + i22 * pb) / det;
+        return (ar, ag, ab, mp - ar * mr - ag * mg - ab * mb);
     }
 
     private static float Lerp2(float[] g, int gw, int x0, int x1, int y0, int y1, float dx, float dy)

@@ -50,10 +50,17 @@ StructuredBuffer<float4> Acc : register(t7);
 // Nearest-sample positions worked out on the CPU with the CPU's exact maths (GPU division is approximate,
 // and a one-pixel slip in nearest sampling is a visible difference): I1.x entries for one axis, then the other.
 StructuredBuffer<uint> Map : register(t8);
+// More float4 planes: the colour guide's sums, or the nearby room / person colours for unmixing the edge.
+StructuredBuffer<float4> Acc2 : register(t9);
+StructuredBuffer<float4> Acc3 : register(t10);
+StructuredBuffer<float4> Acc4 : register(t11);
 
 RWStructuredBuffer<uint> Dst : register(u0);
 RWStructuredBuffer<float> AlphaOut : register(u1);
 RWStructuredBuffer<float4> AccOut : register(u2);
+RWStructuredBuffer<float4> Acc2Out : register(u3);
+RWStructuredBuffer<float4> Acc3Out : register(u4);
+RWStructuredBuffer<float4> Acc4Out : register(u5);
 
 #define LIGHT_WRAP 0.35f // BackgroundEffects.LightWrap
 #define W I0.x
@@ -136,7 +143,8 @@ void Fit(uint3 id : SV_DispatchThreadID)
     Dst[p] = Pack((uint4)RoundEven(top + (bot - top) * dy));
 }
 
-// PersonSegmenter's input sampling (nearest) at I1.x x I1.y, so only this small image goes back to the CPU.
+// PersonSegmenter's input sampling (area average) at I1.x x I1.y, so only this small image goes back to the CPU.
+// Map holds the footprint edges: I1.x + 1 columns, then I1.y + 1 rows.
 [numthreads(256, 1, 1)]
 void Small(uint3 id : SV_DispatchThreadID)
 {
@@ -144,7 +152,12 @@ void Small(uint3 id : SV_DispatchThreadID)
     int iw = I1.x, ih = I1.y;
     if (q >= (uint)(iw * ih)) return;
     int x = q % iw, y = q / iw;
-    Dst[q] = Src[Map[iw + y] * W + Map[x]];
+    int xa = Map[x], xb = max(xa + 1, (int)Map[x + 1]), ya = Map[iw + 1 + y], yb = max(ya + 1, (int)Map[iw + 2 + y]);
+    uint3 sum = 0;
+    for (int sy = ya; sy < yb; sy++)
+        for (int sx = xa; sx < xb; sx++) sum += Unpack(Src[sy * W + sx]).xyz;
+    uint n = (yb - ya) * (xb - xa);
+    Dst[q] = Pack(uint4((sum + n / 2) / n, 255));
 }
 
 [numthreads(256, 1, 1)]
@@ -161,16 +174,16 @@ void Upsample(uint3 id : SV_DispatchThreadID)
     float a = MaskLow[y0 * mw + x0] * (1 - dx) + MaskLow[y0 * mw + x1] * dx;
     float b = MaskLow[y1 * mw + x0] * (1 - dx) + MaskLow[y1 * mw + x1] * dx;
     float v = a * (1 - dy) + b * dy;
-    v = clamp((v - 0.25f) / 0.5f, 0, 1);
+    v = clamp((v - 0.1f) / 0.8f, 0, 1);
     AlphaOut[p] = v * v * (3 - 2 * v);
 }
 
-// MaskOps.GuidedRefine: a fast guided filter that snaps the upsampled mask to edges in the picture.
+// MaskOps.GuidedRefine: a fast colour guided filter that snaps the upsampled mask to edges in the picture.
 #define GW I3.x
 #define GH I3.y
-float Lum(uint p) { float4 c = Unpack(p); return (c.x * 0.114f + c.y * 0.587f + c.z * 0.299f) / 255; }
+float3 Rgb01(uint p) { float4 c = Unpack(p); return float3(c.z / 255, c.y / 255, c.x / 255); }
 
-// Guide image and mask at 1/scale: (I, p, I·p, I²).
+// Guide image and mask at 1/scale, in four planes: (r, g, b, p), (rp, gp, bp, rr), (rg, rb, gg, gb), (bb, 0, 0, 0).
 [numthreads(256, 1, 1)]
 void GuideDown(uint3 id : SV_DispatchThreadID)
 {
@@ -178,8 +191,11 @@ void GuideDown(uint3 id : SV_DispatchThreadID)
     if (q >= (uint)(GW * GH)) return;
     int x = q % GW, y = q / GW, s = I3.z;
     int sy = min(H - 1, y * s + s / 2), sx = min(W - 1, x * s + s / 2);
-    float i = Lum(Src[sy * W + sx]), p = Alpha[sy * W + sx];
-    AccOut[q] = float4(i, p, i * p, i * i);
+    float3 c = Rgb01(Src[sy * W + sx]); float p = Alpha[sy * W + sx];
+    AccOut[q] = float4(c, p);
+    Acc2Out[q] = float4(c * p, c.x * c.x);
+    Acc3Out[q] = float4(c.x * c.y, c.x * c.z, c.y * c.y, c.y * c.z);
+    Acc4Out[q] = float4(c.z * c.z, 0, 0, 0);
 }
 
 // Mean over the part of the (2r+1) window inside the image, one direction at a time.
@@ -205,19 +221,27 @@ void GuideBoxV(uint3 id : SV_DispatchThreadID)
     AccOut[q] = sum / (b - a + 1);
 }
 
-// Per-window linear model alpha ≈ a·I + b.
+// Per-window colour model alpha = a.(r, g, b) + b, a = (cov(I) + eps)^-1 cov(I, p): MaskOps.Solve, same order.
 [numthreads(256, 1, 1)]
 void GuideAB(uint3 id : SV_DispatchThreadID)
 {
     uint q = Index(id);
     if (q >= (uint)(GW * GH)) return;
-    float4 m = Acc[q];
-    float cov = m.z - m.x * m.y, vr = m.w - m.x * m.x;
-    float a = cov / (vr + 0.002f);
-    AccOut[q] = float4(a, m.y - a * m.x, 0, 0);
+    float4 m0 = Acc[q], m1 = Acc2[q], m2 = Acc3[q], m3 = Acc4[q];
+    float mr = m0.x, mg = m0.y, mb = m0.z, mp = m0.w, eps = 0.001f;
+    float crr = m1.w - mr * mr + eps, crg = m2.x - mr * mg, crb = m2.y - mr * mb;
+    float cgg = m2.z - mg * mg + eps, cgb = m2.w - mg * mb, cbb = m3.x - mb * mb + eps;
+    float pr = m1.x - mr * mp, pg = m1.y - mg * mp, pb = m1.z - mb * mp;
+    float i00 = cgg * cbb - cgb * cgb, i01 = crb * cgb - crg * cbb, i02 = crg * cgb - crb * cgg;
+    float i11 = crr * cbb - crb * crb, i12 = crb * crg - crr * cgb, i22 = crr * cgg - crg * crg;
+    float det = crr * i00 + crg * i01 + crb * i02;
+    float ar = (i00 * pr + i01 * pg + i02 * pb) / det;
+    float ag = (i01 * pr + i11 * pg + i12 * pb) / det;
+    float ab = (i02 * pr + i12 * pg + i22 * pb) / det;
+    AccOut[q] = float4(ar, ag, ab, mp - ar * mr - ag * mg - ab * mb);
 }
 
-// Applies the smoothed model at full size on edge pixels only, then crisps the band (smoothstep 0.15..0.85).
+// Applies the smoothed model at full size on edge pixels only, then firms up the band (smoothstep 0.05..0.95).
 [numthreads(256, 1, 1)]
 void GuideApply(uint3 id : SV_DispatchThreadID)
 {
@@ -230,10 +254,12 @@ void GuideApply(uint3 id : SV_DispatchThreadID)
     int y0 = (int)gy, y1 = min(y0 + 1, GH - 1); float dy = gy - y0;
     float gx = clamp((x + 0.5f) * ((float)GW / W) - 0.5f, 0, GW - 1);
     int x0 = (int)gx, x1 = min(x0 + 1, GW - 1); float dx = gx - x0;
-    float2 t = Acc[y0 * GW + x0].xy + (Acc[y0 * GW + x1].xy - Acc[y0 * GW + x0].xy) * dx;
-    float2 u = Acc[y1 * GW + x0].xy + (Acc[y1 * GW + x1].xy - Acc[y1 * GW + x0].xy) * dx;
-    float2 ab = t + (u - t) * dy;
-    float v = clamp((ab.x * Lum(Src[k]) + ab.y - 0.15f) / 0.7f, 0, 1);
+    float4 t = Acc[y0 * GW + x0] + (Acc[y0 * GW + x1] - Acc[y0 * GW + x0]) * dx;
+    float4 u = Acc[y1 * GW + x0] + (Acc[y1 * GW + x1] - Acc[y1 * GW + x0]) * dx;
+    float4 ab = t + (u - t) * dy;
+    float3 c = Rgb01(Src[k]);
+    float v = ab.x * c.x + ab.y * c.y + ab.z * c.z + ab.w;
+    v = clamp((v - 0.05f) / 0.9f, 0, 1);
     AlphaOut[k] = v * v * (3 - 2 * v);
 }
 
@@ -279,18 +305,21 @@ void BlurDown(uint3 id : SV_DispatchThreadID)
     int bw = I1.x, bh = I1.y;
     if (q >= (uint)(bw * bh)) return;
     int x = q % bw, y = q / bw;
-    float4 acc = 0;
+    float4 acc = 0, fg = 0;
     for (int yy = 0; yy < 4; yy++)
     {
         int sy = min(H - 1, y * 4 + yy);
         for (int xx = 0; xx < 4; xx++)
         {
             int sx = min(W - 1, x * 4 + xx);
-            float wt = 1 - Alpha[sy * W + sx] + 0.02f;
-            acc += float4(Unpack(Src[sy * W + sx]).xyz * wt, wt);
+            float3 c = Unpack(Src[sy * W + sx]).xyz;
+            float wt = 1 - Alpha[sy * W + sx] + 0.02f, pt = Alpha[sy * W + sx] + 0.02f;
+            acc += float4(c * wt, wt);
+            fg += float4(c * pt, pt);
         }
     }
-    AccOut[q] = acc;
+    AccOut[q] = acc;  // room: the blur and the nearby room
+    Acc2Out[q] = fg;  // person: the nearby person colour
 }
 
 [numthreads(256, 1, 1)]
@@ -318,6 +347,13 @@ void BoxV(uint3 id : SV_DispatchThreadID)
 }
 
 float3 Blurred(int q) { float4 a = Acc[q]; return a.xyz / max(1e-4f, a.w); }
+float3 NearRoom(int q) { float4 a = Acc2[q]; return a.xyz / max(1e-4f, a.w); }
+float3 NearPerson(int q) { float4 a = Acc3[q]; return a.xyz / max(1e-4f, a.w); }
+float3 Bilerp3(float3 p00, float3 p01, float3 p10, float3 p11, float dx, float dy)
+{
+    float3 top = p00 + (p01 - p00) * dx, bot = p10 + (p11 - p10) * dx;
+    return top + (bot - top) * dy;
+}
 
 float Curve(float v, float c) { return (v - 0.5f) * c + 0.5f; }
 
@@ -417,29 +453,28 @@ void Effects(uint3 id : SV_DispatchThreadID)
     float a = mode != 0 || (flags & (F_SPOT | F_BEHIND)) ? Alpha[p] : 1;
     float ia = 1 - a;
 
-    if (mode == 1 && a < 0.999f)
+    if (mode != 0 && a < 0.999f)
     {
+        // BackgroundEffects.Composite: unmix the old room out of the edge (blur-fusion), then lay the person over.
         int bw = I1.x, bh = I1.y;
         float fy = clamp((y + 0.5f) * ((float)bh / H) - 0.5f, 0, bh - 1);
         int y0 = (int)fy, y1 = min(y0 + 1, bh - 1); float dy = fy - y0;
         float fx = clamp((x + 0.5f) * ((float)bw / W) - 0.5f, 0, bw - 1);
         int x0 = (int)fx, x1 = min(x0 + 1, bw - 1); float dx = fx - x0;
-        float3 p00 = Blurred(y0 * bw + x0), p01 = Blurred(y0 * bw + x1), p10 = Blurred(y1 * bw + x0), p11 = Blurred(y1 * bw + x1);
-        float3 top = p00 + (p01 - p00) * dx, bot = p10 + (p11 - p10) * dx;
-        float3 bl = top + (bot - top) * dy;
-        float3 fg = c.xyz + (bl - c.xyz) * LIGHT_WRAP * ia; // room light spills onto the edge
-        c = float4(Sat3(fg * a + bl * ia), 255);
+        int q00 = y0 * bw + x0, q01 = y0 * bw + x1, q10 = y1 * bw + x0, q11 = y1 * bw + x1;
+        float3 f = Bilerp3(NearPerson(q00), NearPerson(q01), NearPerson(q10), NearPerson(q11), dx, dy);
+        float3 rm = Bilerp3(NearRoom(q00), NearRoom(q01), NearRoom(q10), NearRoom(q11), dx, dy);
+        f += a * (c.xyz - a * f - ia * rm);
+        float3 aF = a * clamp(f, 0, 255);
+        if (mode == 3) c = float4((uint3)aF, (uint)(a * 255));
+        else
+        {
+            float3 b = mode == 2 ? Unpack(Aux[p]).xyz : Bilerp3(Blurred(q00), Blurred(q01), Blurred(q10), Blurred(q11), dx, dy);
+            float3 fg = aF + (a * b - aF) * LIGHT_WRAP * ia; // room light spills onto the edge
+            c = float4(Sat3(fg + b * ia), 255);
+        }
     }
-    else if (mode == 2 && a < 0.999f)
-    {
-        float3 bg = Unpack(Aux[p]).xyz;
-        float3 fg = c.xyz + (bg - c.xyz) * (LIGHT_WRAP * ia);
-        c = float4((uint3)(fg * a + bg * ia), 255);
-    }
-    else if (mode == 3)
-    {
-        c = float4((uint3)(c.xyz * a), (uint)(a * 255));
-    }
+    else if (mode == 3) c.w = 255;
 
     if (flags & F_SPOT)
     {
