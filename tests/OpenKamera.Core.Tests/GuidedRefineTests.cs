@@ -43,6 +43,7 @@ public class GuidedRefineTests
         Assert.All(alpha, v => Assert.Equal(1f, v));
     }
 
+    [Trait("Category", "Hardware")] // speed depends on the machine; cloud machines are much slower
     [Fact]
     public void FastEnoughAt1080p()
     {
