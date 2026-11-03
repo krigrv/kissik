@@ -278,12 +278,100 @@ footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
   .freelist{grid-template-columns:1fr}
 }
 @media (max-width:600px){.feats{grid-template-columns:1fr}}
+
+/* ===== Cinematic pass: one dark look for the whole page, matching the hero ===== */
+:root,:root[data-theme="light"],:root[data-theme="dark"]{--bg:#07070a;--bg-2:#101014;--line:rgba(255,255,255,.09);--text:#f4f4f6;--muted:rgba(244,244,246,.62);--o-text:#ff9a3c;--card:rgba(255,255,255,.035);--card-hi:rgba(255,255,255,.06);color-scheme:dark}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#07070a;--bg-2:#101014;--line:rgba(255,255,255,.09);--text:#f4f4f6;--muted:rgba(244,244,246,.62)}}
+body{background:#07070a}
+main{position:relative;overflow:clip}
+section{padding-block:clamp(64px,10vw,140px);position:relative}
+section+section{border-top:1px solid rgba(255,255,255,.05)}
+h2{font-size:clamp(32px,5vw,64px);line-height:1.04;letter-spacing:-.035em}
+.lead{color:var(--muted)}
+.kick{display:inline-flex;align-items:center;gap:8px;padding:6px 14px;border-radius:999px;background:rgba(255,138,61,.1);border:1px solid rgba(255,138,61,.28);color:#ffb27a;font:600 13px var(--font);letter-spacing:.02em;margin-bottom:18px}
+.kick::before{content:"";width:6px;height:6px;border-radius:3px;background:#ff8a3d;box-shadow:0 0 10px #ff8a3d}
+.btn{border-color:rgba(255,255,255,.28);color:#fff}
+.btn:hover{background:rgba(255,255,255,.06)}
+.btn.o{background:linear-gradient(135deg,#ff8a3d,#e8551a);border-color:transparent;box-shadow:0 10px 30px rgba(232,85,26,.35)}
+.btn.o:hover{filter:brightness(1.1);box-shadow:0 14px 40px rgba(232,85,26,.5)}
+#cameras::before,#app::before,#features::before,#compare::before,#android::before{content:"";position:absolute;z-index:-1;width:min(900px,120vw);height:min(900px,120vw);border-radius:50%;filter:blur(90px);opacity:.5;pointer-events:none}
+#cameras::before{left:-30%;top:0;background:radial-gradient(closest-side,rgba(255,138,61,.35),transparent)}
+#app::before{right:-30%;top:10%;background:radial-gradient(closest-side,rgba(124,92,255,.35),transparent)}
+#android::before{left:-25%;top:20%;background:radial-gradient(closest-side,rgba(61,220,132,.22),transparent)}
+#features::before{left:30%;top:-10%;background:radial-gradient(closest-side,rgba(255,77,141,.22),transparent)}
+#compare::before{right:-20%;top:30%;background:radial-gradient(closest-side,rgba(255,138,61,.28),transparent)}
+.srcard,.fg,.cam,.step,.feat2 figure,.shots figure,.views figure,details,.trust>div,.sup{background:var(--card);border:1px solid var(--line);border-radius:20px}
+.srcard{overflow:hidden}
+.srcard,.cam,.feat2 figure,.step{transition:transform .3s,border-color .3s}
+@media (hover:hover){.srcard:hover,.cam:hover,.feat2 figure:hover,.step:hover{transform:translateY(-4px);border-color:rgba(255,138,61,.35)}.fg:hover{background:var(--card-hi);border-color:rgba(255,255,255,.18)}}
+.feats{background:none;border:0;gap:16px;border-radius:0;overflow:visible}
+.fg{padding:28px;transition:border-color .3s,background .3s}
+.fg .ic{background:rgba(255,138,61,.12);border-radius:12px;color:#ff9a3c}
+.fg li::marker{color:#ff8a3d}
+.feat2 figcaption,.shots figcaption,.views figcaption{background:transparent;color:var(--muted)}
+.feat2 figcaption b{color:var(--text)}
+.feat2 .pic{background:radial-gradient(circle at 50% 30%,rgba(255,255,255,.05),transparent 70%)}
+.views figure,.shots figure{overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.5)}
+.droid .ph img{box-shadow:0 30px 90px rgba(0,0,0,.6),0 0 0 1px rgba(255,255,255,.08)}
+.cmp{background:var(--card);border:1px solid var(--line);border-radius:20px;border-collapse:separate;border-spacing:0;overflow:hidden}
+.cmp th,.cmp td{border-bottom:1px solid var(--line);padding:18px 20px}
+.cmp tr:last-child th,.cmp tr:last-child td{border-bottom:0}
+.cmp td.k,.cmp thead th.k{background:linear-gradient(180deg,rgba(255,138,61,.12),rgba(255,138,61,.05));color:#fff}
+.cmp thead th.k{color:#ffb27a;font-size:17px}
+.cmp td.k::before{content:"✓ ";color:#ff8a3d;font-weight:700}
+.cmp td.o{color:rgba(244,244,246,.45)}
+.free{background:radial-gradient(900px 400px at 20% 0%,rgba(255,255,255,.18),transparent 60%),linear-gradient(135deg,#ff8a3d,#e8551a 50%,#c2185b);border:0}
+.free h2{font-size:clamp(44px,7vw,96px)}
+.step .n{background:linear-gradient(135deg,#ff8a3d,#e8551a);color:#fff;box-shadow:0 8px 24px rgba(232,85,26,.4)}
+.step{padding:28px}
+.nums b{background:linear-gradient(180deg,#fff,rgba(255,255,255,.55));-webkit-background-clip:text;background-clip:text;color:transparent;font-size:clamp(44px,6vw,80px)}
+.trust>div{padding:22px}
+details{padding:4px 22px;margin-bottom:10px}
+details[open]{border-color:rgba(255,138,61,.3);background:var(--card-hi)}
+summary{font-size:18px}
+.ba{background:radial-gradient(800px 400px at 50% 0%,rgba(124,92,255,.18),transparent 70%),#07070a}
+.end{background:radial-gradient(700px 360px at 50% 100%,rgba(255,138,61,.35),transparent 70%),#07070a;text-align:center}
+.end img{filter:drop-shadow(0 20px 50px rgba(255,138,61,.45))}
+.end h2{font-size:clamp(40px,7vw,96px)}
+footer{background:#07070a;border-top:1px solid var(--line);color:var(--muted)}
+.rv{opacity:0;translate:0 28px;transition:opacity .8s cubic-bezier(.16,1,.3,1),translate .8s cubic-bezier(.16,1,.3,1)}
+.rv.in{opacity:1;translate:0 0}
+@media (prefers-reduced-motion:reduce){.rv{opacity:1;translate:none;transition:none}}
+/* phone */
+@media (max-width:600px){
+  section{padding-block:56px}
+  .fg,.step,.trust>div{padding:20px}
+  .cmp th,.cmp td{padding:12px 10px;font-size:14px}
+  .cmp td.k::before{content:""}
+  .droid .ph{gap:10px}
+  .droid .ph img{border-radius:16px}
+  .btn{height:46px;padding:0 20px}
+  .ctas{width:100%}
+  .hero2 .ctas .btn{flex:1 1 100%}
+  summary{font-size:16px}
+}
+.nums{border:1px solid var(--line);border-radius:20px;background:var(--card);overflow:hidden}
+.nums div{border-right:1px solid var(--line);border-bottom:0}
+.nums div:last-child{border-right:0}
+@media (max-width:960px){.nums div{border-right:0;border-bottom:1px solid var(--line)}}
+.howpics{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:36px}
+.howpics figure{position:relative;margin:0;border-radius:20px;overflow:hidden;border:1px solid var(--line);box-shadow:0 30px 80px rgba(0,0,0,.5)}
+.howpics img{width:100%;aspect-ratio:16/9;object-fit:cover}
+.howpics figcaption{position:absolute;left:14px;bottom:14px;padding:6px 12px;border-radius:999px;background:rgba(10,10,12,.7);backdrop-filter:blur(8px);font-size:14px}
+.howpics .pin{position:absolute;translate:-50% -50%}
+.flow{list-style:none;padding:0;margin:20px 0 0;display:grid;grid-template-columns:repeat(3,1fr);gap:16px;counter-reset:none}
+.flow li{position:relative;display:flex;gap:16px;align-items:flex-start;padding:22px;border-radius:20px;background:var(--card);border:1px solid var(--line)}
+.flow li>b{flex:none;width:36px;height:36px;border-radius:18px;display:grid;place-items:center;background:linear-gradient(135deg,#ff8a3d,#e8551a);color:#fff;font:700 16px var(--display);box-shadow:0 8px 24px rgba(232,85,26,.4)}
+.flow h3{font-size:18px;margin-bottom:4px}.flow p{color:var(--muted);font-size:15px}
+.flow li:not(:last-child)::after{content:"→";position:absolute;right:-14px;top:50%;translate:0 -50%;color:#ff8a3d;font-size:20px;z-index:1}
+#how::before{content:"";position:absolute;z-index:-1;left:20%;top:-10%;width:min(900px,120vw);height:min(900px,120vw);border-radius:50%;filter:blur(90px);opacity:.5;background:radial-gradient(closest-side,rgba(255,138,61,.3),transparent);pointer-events:none}
+@media (max-width:760px){.howpics,.flow{grid-template-columns:1fr}.flow li:not(:last-child)::after{content:"↓";right:auto;left:38px;top:auto;bottom:-20px;translate:0 0}}
 </style>
 </head>
 <body>
 <header><div class="wrap">
   <a class="brand" href="#top"><img src="assets/kissik-icon-512.png" alt="">KISSIK</a>
-  <nav><a href="#cameras">Webcam &amp; phone</a><a href="#android">Android</a><a href="#proof">Before &amp; after</a><a href="#app">The app</a><a href="#features">Features</a><a href="#compare">Why KISSIK</a><a href="#free">Free</a><a href="#support">Support</a><a href="#faq">FAQ</a></nav>
+  <nav><a href="#how">How it works</a><a href="#cameras">Webcam &amp; phone</a><a href="#proof">Before &amp; after</a><a href="#app">The app</a><a href="#android">Android</a><a href="#features">Features</a><a href="#compare">Why KISSIK</a><a href="#free">Free</a><a href="#support">Support</a><a href="#faq">FAQ</a></nav>
   <a class="btn o" href="https://github.com/krigrv/kissik">GitHub</a>
 </div></header>
 
@@ -299,6 +387,19 @@ footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
   </div>
   <div class="hstage"><div class="hframe"><video src="video-clips/hero.mp4" poster="video-clips/hero.jpg" autoplay muted loop playsinline preload="auto" aria-label="KISSIK studio: a live camera picture gets a name card in one click, then podcasts, classes, music, streams and a phone camera all come through KISSIK"></video></div></div>
   <div class="works"><span>Shows up as “KISSIK” in</span><b>Zoom</b><b>Microsoft Teams</b><b>Google Meet</b><b>OBS Studio</b><b>Discord</b><b>Webex</b><b>Slack</b><b>Any browser</b></div>
+</section>
+
+<section id="how" class="wrap">
+  <div class="rv" style="max-width:820px"><div class="kick">How it works</div><h2>Your phone films. Your PC makes it look great. Your call sees KISSIK.</h2><p class="lead" style="margin-top:14px">Clip your phone on the monitor or stand it on a small tripod. KISSIK on your Windows PC adds the background, light, framing and your name, then hands the picture to whatever app you call from.</p></div>
+  <div class="howpics">
+    <figure class="rv"><img src="assets/desk/desk-1.jpg" alt="A man on a video call, his phone clipped on top of the monitor as the camera" loading="lazy"><span class="pin" style="left:34%;top:10%">1</span><span class="pin" style="left:44%;top:40%">3</span><figcaption>Phone clipped on the monitor</figcaption></figure>
+    <figure class="rv"><img src="assets/desk/desk-2.jpg" alt="A woman on a video call with a laptop, her phone on a small tripod as the camera" loading="lazy"><span class="pin" style="left:89%;top:47%">1</span><span class="pin" style="left:69%;top:32%">3</span><figcaption>Phone on a mini tripod, next to a laptop</figcaption></figure>
+  </div>
+  <ol class="flow rv">
+    <li><b>1</b><div><h3>Your phone is the lens</h3><p>KISSIK Camera on Android sends its picture over Wi-Fi or USB.</p></div></li>
+    <li><b>2</b><div><h3>KISSIK on your PC</h3><p>Background, light, framing and name card, worked out on your own graphics card.</p></div></li>
+    <li><b>3</b><div><h3>Your meeting app</h3><p>Pick "KISSIK" as the camera in Zoom, Teams, Meet or any app.</p></div></li>
+  </ol>
 </section>
 
 <section id="cameras" class="wrap">
@@ -318,27 +419,6 @@ footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
   <p class="same rv">Either way, KISSIK shows up as <b>one camera in every app</b>: meetings, streaming and browsers.</p>
 </section>
 
-<section id="any" class="wrap" style="padding-top:0">
-  <div class="rv" style="max-width:760px"><div class="kick">Any camera</div><h2>Plug in what you own. KISSIK makes it look better.</h2><p class="lead" style="margin-top:14px">If Windows sees it as a camera, KISSIK can use it. Switch between them in one click.</p></div>
-  <div class="cams"><div class="cam rv"><svg viewBox="0 0 64 48" aria-hidden="true"><rect x="10" y="6" width="44" height="28" rx="3"/><path d="M4 40h56l-4-6H8z"/><circle cx="32" cy="10" r="2" class="f"/></svg><b>Built-in laptop camera</b><span>Works as it is</span></div><div class="cam rv"><svg viewBox="0 0 64 48" aria-hidden="true"><rect x="12" y="8" width="40" height="22" rx="11"/><circle cx="32" cy="19" r="7"/><circle cx="32" cy="19" r="3" class="f"/><path d="M26 30l-4 10h20l-4-10"/></svg><b>USB webcam</b><span>Any standard webcam, with its own focus and zoom controls</span></div><div class="cam rv"><svg viewBox="0 0 64 48" aria-hidden="true"><rect x="22" y="3" width="20" height="42" rx="4"/><circle cx="32" cy="10" r="2.5" class="f"/><path d="M29 40h6"/></svg><b>Android phone</b><span>QR pairing, Wi-Fi or USB</span><em>Available</em></div><div class="cam rv"><svg viewBox="0 0 64 48" aria-hidden="true"><path d="M6 16h12l4-6h20l4 6h12v26H6z"/><circle cx="32" cy="28" r="10"/><circle cx="32" cy="28" r="5" class="f"/></svg><b>DSLR or mirrorless</b><span>In its webcam mode, or through an HDMI capture card</span></div><div class="cam rv"><svg viewBox="0 0 64 48" aria-hidden="true"><rect x="12" y="10" width="40" height="28" rx="4"/><circle cx="40" cy="24" r="8"/><circle cx="40" cy="24" r="3.5" class="f"/><rect x="17" y="15" width="10" height="6" rx="1"/></svg><b>Action camera</b><span>In its USB webcam mode</span></div><div class="cam rv"><svg viewBox="0 0 64 48" aria-hidden="true"><rect x="8" y="16" width="34" height="20" rx="3"/><path d="M42 22h8v8h-8M50 26h8"/><circle cx="16" cy="26" r="2.5" class="f"/></svg><b>Capture card</b><span>HDMI cameras and other video sources</span></div><div class="cam rv"><svg viewBox="0 0 64 48" aria-hidden="true"><path d="M10 42h44"/><path d="M20 42l12-26 10 8"/><rect x="36" y="20" width="16" height="10" rx="2"/><circle cx="32" cy="16" r="2.5" class="f"/></svg><b>Document camera</b><span>Desk, hands and paper, top-down</span></div><div class="cam rv soon"><svg viewBox="0 0 64 48" aria-hidden="true"><rect x="22" y="3" width="20" height="42" rx="5"/><circle cx="28" cy="10" r="2.5" class="f"/><circle cx="34" cy="10" r="2.5"/><path d="M29 40h6"/></svg><b>iPhone</b><span>Planned next</span></div></div>
-</section>
-
-<section id="real" class="wrap" style="padding-top:0">
-  <div class="desk">
-    <figure class="rv" style="aspect-ratio:16/9"><img src="assets/desk/desk-1.jpg" alt="A man on a video conference at his desk, phone clipped on top of the monitor as the camera"><span class="pin" style="left:66%;top:6%">1</span><span class="pin" style="left:58%;top:42%">2</span></figure>
-    <div class="rv deskcopy"><div class="kick">On a real call</div><h2>Clip your phone on the monitor. Look like you hired a crew.</h2><p class="lead" style="margin-top:14px">KISSIK runs on your Windows PC and sends the finished picture to whatever you call from.</p>
-      <ol class="pins"><li><b>1</b>Your phone is the lens</li><li><b>2</b>KISSIK's picture, in your meeting app</li></ol></div>
-  </div>
-</section>
-
-<section id="android" class="wrap">
-  <div class="droid">
-    <div class="rv"><div class="kick">KISSIK Camera for Android</div><h2>Your phone, as your best webcam.</h2><p class="lead" style="margin-top:14px">Install KISSIK Camera on your Android phone, scan the code on your PC, and you're live over Wi-Fi or USB.</p>
-      <ul><li>Front or main lens, zoom, brightness and focus</li><li>Phone mic and torch</li><li>Up to 1080p video</li><li>The screen dims while it films to save battery</li><li>Your PC can change the phone's controls too</li></ul>
-      <div class="ctas" style="margin-top:22px"><a class="btn o" href="https://github.com/krigrv/kissik/releases/latest">Get the Android app</a><a class="btn" href="https://github.com/krigrv/kissik">View on GitHub</a></div></div>
-    <div class="ph rv"><img src="assets/phone/live-person.jpg" alt="KISSIK Camera on Android, live over Wi-Fi" loading="lazy"><img src="assets/phone/10-pro-controls.jpg" alt="Camera controls: lens, zoom, brightness, focus and frame rate" loading="lazy"><img src="assets/phone/9-home-pro-dock.jpg" alt="The phone app's controls: lens, torch, mic, quality and Pro" loading="lazy"></div>
-  </div>
-</section>
 <section id="proof" class="ba">
  <div class="wrap">
   <div class="head rv"><div class="kick">Drag the line</div><h2>Same person. Same room.</h2><p class="lead">On the left, a plain laptop webcam. On the right, a phone through KISSIK with screen light, a softer background and a name plate.</p></div>
@@ -373,6 +453,21 @@ footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
     <figure class="rv"><img src="assets/screens/first-screen.jpg" alt="The first screen guides you to connect a webcam or phone" loading="lazy"><figcaption>Guided first screen</figcaption></figure>
   </div>
 </section>
+
+<section id="android" class="wrap">
+  <div class="droid">
+    <div class="rv"><div class="kick">KISSIK Camera for Android</div><h2>Your phone, as your best webcam.</h2><p class="lead" style="margin-top:14px">Install KISSIK Camera on your Android phone, scan the code on your PC, and you're live over Wi-Fi or USB.</p>
+      <ul><li>Front or main lens, zoom, brightness and focus</li><li>Phone mic and torch</li><li>Up to 1080p video</li><li>The screen dims while it films to save battery</li><li>Your PC can change the phone's controls too</li></ul>
+      <div class="ctas" style="margin-top:22px"><a class="btn o" href="https://github.com/krigrv/kissik/releases/latest">Get the Android app</a><a class="btn" href="https://github.com/krigrv/kissik">View on GitHub</a></div></div>
+    <div class="ph rv"><img src="assets/phone/live-person.jpg" alt="KISSIK Camera on Android, live over Wi-Fi" loading="lazy"><img src="assets/phone/10-pro-controls.jpg" alt="Camera controls: lens, zoom, brightness, focus and frame rate" loading="lazy"><img src="assets/phone/9-home-pro-dock.jpg" alt="The phone app's controls: lens, torch, mic, quality and Pro" loading="lazy"></div>
+  </div>
+</section>
+
+<section id="any" class="wrap">
+  <div class="rv" style="max-width:760px"><div class="kick">Any camera</div><h2>Plug in what you own. KISSIK makes it look better.</h2><p class="lead" style="margin-top:14px">If Windows sees it as a camera, KISSIK can use it. Switch between them in one click.</p></div>
+  <div class="cams"><div class="cam rv"><svg viewBox="0 0 64 48" aria-hidden="true"><rect x="10" y="6" width="44" height="28" rx="3"/><path d="M4 40h56l-4-6H8z"/><circle cx="32" cy="10" r="2" class="f"/></svg><b>Built-in laptop camera</b><span>Works as it is</span></div><div class="cam rv"><svg viewBox="0 0 64 48" aria-hidden="true"><rect x="12" y="8" width="40" height="22" rx="11"/><circle cx="32" cy="19" r="7"/><circle cx="32" cy="19" r="3" class="f"/><path d="M26 30l-4 10h20l-4-10"/></svg><b>USB webcam</b><span>Any standard webcam, with its own focus and zoom controls</span></div><div class="cam rv"><svg viewBox="0 0 64 48" aria-hidden="true"><rect x="22" y="3" width="20" height="42" rx="4"/><circle cx="32" cy="10" r="2.5" class="f"/><path d="M29 40h6"/></svg><b>Android phone</b><span>QR pairing, Wi-Fi or USB</span><em>Available</em></div><div class="cam rv"><svg viewBox="0 0 64 48" aria-hidden="true"><path d="M6 16h12l4-6h20l4 6h12v26H6z"/><circle cx="32" cy="28" r="10"/><circle cx="32" cy="28" r="5" class="f"/></svg><b>DSLR or mirrorless</b><span>In its webcam mode, or through an HDMI capture card</span></div><div class="cam rv"><svg viewBox="0 0 64 48" aria-hidden="true"><rect x="12" y="10" width="40" height="28" rx="4"/><circle cx="40" cy="24" r="8"/><circle cx="40" cy="24" r="3.5" class="f"/><rect x="17" y="15" width="10" height="6" rx="1"/></svg><b>Action camera</b><span>In its USB webcam mode</span></div><div class="cam rv"><svg viewBox="0 0 64 48" aria-hidden="true"><rect x="8" y="16" width="34" height="20" rx="3"/><path d="M42 22h8v8h-8M50 26h8"/><circle cx="16" cy="26" r="2.5" class="f"/></svg><b>Capture card</b><span>HDMI cameras and other video sources</span></div><div class="cam rv"><svg viewBox="0 0 64 48" aria-hidden="true"><path d="M10 42h44"/><path d="M20 42l12-26 10 8"/><rect x="36" y="20" width="16" height="10" rx="2"/><circle cx="32" cy="16" r="2.5" class="f"/></svg><b>Document camera</b><span>Desk, hands and paper, top-down</span></div><div class="cam rv soon"><svg viewBox="0 0 64 48" aria-hidden="true"><rect x="22" y="3" width="20" height="42" rx="5"/><circle cx="28" cy="10" r="2.5" class="f"/><circle cx="34" cy="10" r="2.5"/><path d="M29 40h6"/></svg><b>iPhone</b><span>Planned next</span></div></div>
+</section>
+
 <section id="features" class="wrap">
   <div class="rv" style="max-width:760px"><div class="kick">Everything in KISSIK</div><h2>A whole studio. Every part of it free.</h2><p class="lead" style="margin-top:14px">Over 40 tools in one app, worked out on your own graphics card.</p></div>
   <div class="feats"><div class="fg rv"><video class="fv" src="video-clips/social.mp4" poster="video-clips/social.jpg" autoplay muted loop playsinline preload="metadata" aria-label="A creator filming with a phone"></video><div class="ic"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="m16 10 5-3v10l-5-3"/></svg></div><h3>Cameras</h3><ul><li>Any webcam, with its real focus, zoom and exposure controls</li><li>Your phone as a camera: QR pairing, Wi-Fi or USB</li><li>Phone pro controls and phone mic</li><li>Phone screen dims while it films; forget a phone in one click</li><li>Auto best picture for your camera</li><li>720p to 4K, 30 or 60 fps, vertical 9:16</li><li>Save your own output profiles</li></ul></div><div class="fg rv"><div class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="9" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg></div><h3>Background</h3><ul><li>Blur, from portrait to full privacy</li><li>Replace with a picture or a looping video</li><li>Remove, or use a green screen</li><li>Clean hair edges and light wrap</li><li>Spotlight and gentle retouch</li></ul></div><div class="fg rv"><div class="ic"><svg viewBox="0 0 24 24"><path d="M3 8V5a2 2 0 0 1 2-2h3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M8 21H5a2 2 0 0 1-2-2v-3"/><circle cx="12" cy="12" r="3"/></svg></div><h3>Framing & look</h3><ul><li>Auto-framing that moves like a camera operator</li><li>Zoom, pan, mirror and rotate</li><li>Colour, temperature and sharpness controls</li><li>Built-in filters and your own LUTs</li><li>Screen light: ring, bars or frame, 2200–9000 K</li></ul></div><div class="fg rv"><video class="fv" src="video-clips/business.mp4" poster="video-clips/business.jpg" autoplay muted loop playsinline preload="metadata" aria-label="A founder on a call"></video><div class="ic"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M6 14h7"/></svg></div><h3>Scenes</h3><ul><li>100 scenes in 10 groups, from Boardroom to Diwali</li><li>New Name Card, Lower Third and Just my name</li><li>Your name, pronouns, logo and own fields, filled in once</li><li>All scenes and + New right in the scene strip</li><li>Drag-and-drop editor with undo</li><li>Text, logos, shapes and a placed camera</li><li>Smooth transitions between scenes</li><li>Share scenes as a single file</li></ul></div><div class="fg rv"><video class="fv" src="video-clips/podcast.mp4" poster="video-clips/podcast.jpg" autoplay muted loop playsinline preload="metadata" aria-label="A podcaster talking into a microphone"></video><div class="ic"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></div><h3>Sound</h3><ul><li>On-device noise removal</li><li>Low cut, de-esser and auto level</li><li>Mixer with meters, EQ and limiter</li><li>Mix in system sound</li><li>Watchdog restarts a mic that drops</li></ul></div><div class="fg rv"><div class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3" fill="currentColor"/></svg></div><h3>Record</h3><ul><li>Record exactly what you see, with sound</li><li>A calm Record button that stays still while recording</li><li>Recordings survive a crash</li><li>Replay buffer: save the last moments</li><li>Snapshots as PNG</li></ul></div><div class="fg rv"><video class="fv" src="video-clips/education.mp4" poster="video-clips/education.jpg" autoplay muted loop playsinline preload="metadata" aria-label="A teacher explaining to the class"></video><div class="ic"><svg viewBox="0 0 24 24"><path d="M4 5h16M4 10h16M4 15h10"/></svg></div><h3>Present</h3><ul><li>Teleprompter next to the lens</li><li>Live captions, checked on this PC</li><li>Presets per app</li></ul></div><div class="fg rv"><div class="ic"><svg viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></div><h3>Privacy</h3><ul><li>Everything runs on your PC</li><li>Privacy shutter and guard</li><li>Encrypted phone pairing</li><li>No account, nothing uploaded</li></ul></div><div class="fg rv"><div class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="2"/><path d="M5 9h14M12 9v12M8 21l4-7 4 7"/></svg></div><h3>Easy for everyone</h3><ul><li>Simple mode or full Studio mode</li><li>Large controls and reduced motion</li><li>High contrast and screen-reader support</li><li>Light and dark mode</li><li>Start with Windows; Ctrl+Alt+K brings KISSIK forward</li></ul></div></div>
@@ -382,6 +477,7 @@ footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
   <div class="rv" style="max-width:760px"><div class="kick">Why KISSIK</div><h2>Everything the paid camera apps charge for. Free.</h2><p class="lead" style="margin-top:14px">Most camera apps lock 4K, scenes or the phone camera behind a subscription. KISSIK doesn't.</p></div>
   <div class="rv" style="overflow-x:auto"><table class="cmp"><thead><tr><th></th><th class="k" scope="col">KISSIK</th><th scope="col">Typical camera apps</th></tr></thead><tbody><tr><th scope="row">Price</th><td class="k">Free, every feature</td><td class="o">Monthly subscription for the good parts</td></tr><tr><th scope="row">Watermark</th><td class="k">Never</td><td class="o">Often, until you pay</td></tr><tr><th scope="row">Account</th><td class="k">None</td><td class="o">Usually required</td></tr><tr><th scope="row">4K and 60 fps</th><td class="k">Free</td><td class="o">Paid tier</td></tr><tr><th scope="row">Webcam and phone</th><td class="k">Both, in one app</td><td class="o">Often phone only, or webcam only</td></tr><tr><th scope="row">Scenes</th><td class="k">100 built in, with your name, pronouns and logo</td><td class="o">A few, or sold as packs</td></tr><tr><th scope="row">Background, framing, light, sound</th><td class="k">All in one window</td><td class="o">Spread over several apps</td></tr><tr><th scope="row">Your video</th><td class="k">Stays on your PC</td><td class="o">May be sent to the cloud</td></tr><tr><th scope="row">Source code</th><td class="k">Open source</td><td class="o">Closed</td></tr></tbody></table></div>
 </section>
+
 <section id="free" class="free">
  <div class="wrap row">
   <div class="rv"><h2>Free means free.</h2><p style="margin-top:16px;font-size:18px;opacity:.92;max-width:420px">Nothing is held back to make you pay. No trial, no tiers, no catch. KISSIK is open source.</p></div>
@@ -392,6 +488,34 @@ footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
     <div>Subscription <span>none</span></div><div>Account <span>none</span></div>
   </div>
  </div>
+</section>
+
+<section id="setup" class="wrap">
+  <div class="rv" style="max-width:720px"><div class="kick">Set up in a minute</div><h2>Three steps, then forget about it.</h2></div>
+  <div class="steps">
+    <div class="step rv"><div class="n">1</div><h3>Install KISSIK</h3><p>Get it from the Microsoft Store (in review now) and open it. No sign-up.</p></div>
+    <div class="step rv"><div class="n">2</div><h3>Pick KISSIK as your camera</h3><p>In your meeting, streaming or browser app, choose "KISSIK" in the camera list. It shows up by that name in Zoom, Teams and Meet.</p></div>
+    <div class="step rv"><div class="n">3</div><h3>Add your phone <span class="opt">Optional</span></h3><p>Open the KISSIK phone app and scan the QR code on your PC.</p></div>
+  </div>
+</section>
+
+<section id="trust" class="wrap">
+  <div class="nums rv"><div><b>100</b><span>scenes built in</span></div><div><b>4K</b><span>recording</span></div><div><b>1</b><span>camera for every app</span></div><div><b>0</b><span>uploads</span></div><div><b>0</b><span>accounts</span></div></div>
+  <div class="trust">
+    <div class="rv"><b>Stays on your PC</b><span>The AI runs on your own graphics card. Nothing is uploaded.</span></div>
+    <div class="rv"><b>Open source</b><span>GPL-3.0. Anyone can read the code.</span></div>
+    <div class="rv"><b>Removes cleanly</b><span>Uninstalling takes the camera out of every app.</span></div>
+    <div class="rv"><b>Android app ready</b><span>Mac, Linux and iPhone are planned next.</span></div>
+  </div>
+</section>
+
+<section id="faq" class="wrap">
+  <h2 class="rv" style="margin-bottom:16px">Questions</h2>
+  <details class="rv"><summary>Is it really free?</summary><p>Yes. Every feature is free, including 4K, the phone camera and all 100 scenes, on as many PCs as you like.</p></details>
+  <details class="rv"><summary>Do I need a phone?</summary><p>No. KISSIK works with any webcam. The phone is an option when you want a better camera.</p></details>
+  <details class="rv"><summary>Does my video go to a server?</summary><p>No. Everything runs on your own computer, and there's no account.</p></details>
+  <details class="rv"><summary>Which apps can I use it in?</summary><p>KISSIK appears as a camera named "KISSIK" in meeting apps like Zoom, Teams and Meet, in streaming apps and in browsers.</p></details>
+  <details class="rv"><summary>When are Mac, iPhone and Linux coming?</summary><p>The Android app is ready now. macOS, Linux and iPhone are planned.</p></details>
 </section>
 
 <section id="support" class="wrap">
@@ -405,34 +529,6 @@ footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
       <p class="biz"><b>Companies:</b> want KISSIK for your team, a custom build, a sponsorship, or to talk about buying the project? <a href="https://github.com/krigrv/kissik/issues">Get in touch</a>.</p></div>
     <figure class="qr"><img src="assets/donate-upi-qr.png" alt="UPI QR code to donate to KISSIK"><figcaption>Scan with any UPI app</figcaption></figure>
   </div>
-</section>
-
-<section class="wrap">
-  <div class="rv" style="max-width:720px"><div class="kick">Set up in a minute</div><h2>Three steps, then forget about it.</h2></div>
-  <div class="steps">
-    <div class="step rv"><div class="n">1</div><h3>Install KISSIK</h3><p>Get it from the Microsoft Store (in review now) and open it. No sign-up.</p></div>
-    <div class="step rv"><div class="n">2</div><h3>Pick KISSIK as your camera</h3><p>In your meeting, streaming or browser app, choose "KISSIK" in the camera list. It shows up by that name in Zoom, Teams and Meet.</p></div>
-    <div class="step rv"><div class="n">3</div><h3>Add your phone <span class="opt">Optional</span></h3><p>Open the KISSIK phone app and scan the QR code on your PC.</p></div>
-  </div>
-</section>
-
-<section class="wrap" style="padding-top:0">
-  <div class="nums rv"><div><b>100</b><span>scenes built in</span></div><div><b>4K</b><span>recording</span></div><div><b>1</b><span>camera for every app</span></div><div><b>0</b><span>uploads</span></div><div><b>0</b><span>accounts</span></div></div>
-  <div class="trust">
-    <div class="rv"><b>Stays on your PC</b><span>The AI runs on your own graphics card. Nothing is uploaded.</span></div>
-    <div class="rv"><b>Open source</b><span>GPL-3.0. Anyone can read the code.</span></div>
-    <div class="rv"><b>Removes cleanly</b><span>Uninstalling takes the camera out of every app.</span></div>
-    <div class="rv"><b>Android in testing</b><span>Mac, Linux and iPhone are planned next.</span></div>
-  </div>
-</section>
-
-<section id="faq" class="wrap" style="padding-top:0">
-  <h2 class="rv" style="margin-bottom:16px">Questions</h2>
-  <details class="rv"><summary>Is it really free?</summary><p>Yes. Every feature is free, including 4K, the phone camera and all 100 scenes, on as many PCs as you like.</p></details>
-  <details class="rv"><summary>Do I need a phone?</summary><p>No. KISSIK works with any webcam. The phone is an option when you want a better camera.</p></details>
-  <details class="rv"><summary>Does my video go to a server?</summary><p>No. Everything runs on your own computer, and there's no account.</p></details>
-  <details class="rv"><summary>Which apps can I use it in?</summary><p>KISSIK appears as a camera named "KISSIK" in meeting apps like Zoom, Teams and Meet, in streaming apps and in browsers.</p></details>
-  <details class="rv"><summary>When are Mac, iPhone and Linux coming?</summary><p>Android is in testing now. macOS, Linux and iPhone are planned.</p></details>
 </section>
 
 <section class="end">
