@@ -445,7 +445,9 @@ public sealed partial class MainPage : Page
             EmptyBusy.Text = "";
             HudText.Text = cam.Name;
             _connectedAt = DateTime.UtcNow; _pictureMissing = false;
-            Status($"Connected: {cam.Name} — camera mode {_session.Mode?.ToString() ?? "default"} for {_profile.Name} ({_profile.Details})" + LimitNote(_session.Mode));
+            if (CameraCatalog.IsWindowsVirtual(cam.Name))
+                Status($"Connected: {cam.Name}. Tip: if this is your phone, pick Phone (Wi-Fi) with the KISSIK Camera app instead, for up to 4K, pro controls, the phone's mic and less delay.");
+            else Status($"Connected: {cam.Name} — camera mode {_session.Mode?.ToString() ?? "default"} for {_profile.Name} ({_profile.Details})" + LimitNote(_session.Mode));
         }
         catch (UnauthorizedAccessException)
         {
