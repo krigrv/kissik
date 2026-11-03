@@ -26,6 +26,9 @@ try {
   if (-not $env:DOTNET_ROOT) { $env:DOTNET_ROOT = "C:\Users\Krishna Gaurav\GitHub\tools\dotnet10" }
   $dotnet = Join-Path $env:DOTNET_ROOT 'dotnet.exe'
   New-Item -ItemType Directory -Force $Out | Out-Null
+  # A leftover Upload folder keeps the previous identity's manifest; the Store build would reuse it.
+  Get-ChildItem (Join-Path $root 'src\OpenKamera.App\bin') -Recurse -Directory -Filter Upload -ErrorAction SilentlyContinue |
+      Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
   # A full path ending in "/" (not "\", which would escape the closing quote when the path has spaces).
   $Out = [IO.Path]::GetFullPath($Out).TrimEnd('\') + '/'
   & $dotnet publish (Join-Path $root 'src\OpenKamera.App\OpenKamera.App.csproj') -c Release -r win-x64 `
