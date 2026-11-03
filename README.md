@@ -7,8 +7,11 @@ build scenes with your name, logo and slides, and record it all — no account,
 no watermark, nothing locked behind a paywall.
 
 > **Our promise:** every resolution and frame rate is free (up to 4K 60), on every
-> computer you own. No watermark, no ads, no account, no subscription. If you'd
-> like to help, there's a 🙏 Support button — it's optional, always.
+> computer you own. No watermark, no account, no subscription, and never an ad in
+> your video. KISSIK may show one small card marked "Sponsored" in its own window;
+> it's chosen on your PC (nothing about you is sent) and you can turn it off in
+> Settings and help. If you'd like to help, there's a 🙏 Support button — it's
+> optional, always.
 
 > **Independent project.** KISSIK is not affiliated with, endorsed by or
 > connected to any other camera or webcam software company. All product names
@@ -32,13 +35,18 @@ no watermark, nothing locked behind a paywall.
 - **Snapshot and recording** — exactly what you see, as PNG and H.264 MP4, with
   sound; recordings survive a crash.
 - **Meeting camera** — a Windows 11 camera for Zoom, Teams, Meet, Discord and OBS.
-- **Phone as a camera** — scan a QR code, no app to install; phone mic too.
+- **Phone as a camera** — the KISSIK Camera app for Android (in `android/`):
+  scan a QR code, up to 4K on back lenses, about 100 ms camera-to-screen at
+  60 fps, pro controls (lens, exposure, ISO, shutter, focus, torch, zoom), the
+  phone's mic, and its screen dims while it streams.
 - **Audio** — mic mixer with meters, EQ, limiter, system sound, watchdog.
 - **Screen light, prompter, captions, privacy shutter and guard, auto-framing,
   green screen, presets per app, light and dark mode.**
 
-Planned work — audio mixer, phone as a camera, virtual camera for Zoom/Teams/
-Meet, livestreaming, screen light, auto-framing — is tracked in
+Also: replay buffer (save the last 30 seconds), scene transitions, video
+backgrounds, accurate captions on this PC, your own output profiles, your
+details (name, pronouns, logo, your own fields) filled into scenes, start with
+Windows, and Ctrl+Alt shortcuts that work from any app. What's next is in
 [ROADMAP.md](ROADMAP.md).
 
 ## Requirements

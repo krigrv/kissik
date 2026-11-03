@@ -4,217 +4,396 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>KISSIK — free camera studio</title>
-<meta name="description" content="KISSIK is a free, open-source camera studio for Windows 11. Background blur and replace, looks, framing, scenes, screen light and recording. No account, no watermark.">
+<meta name="description" content="KISSIK makes any camera look studio-grade on Windows 11: your webcam, or your phone as a better one. Background, framing, light and 100 scenes. Free, no account, no watermark.">
+<link rel="icon" type="image/png" href="assets/kissik-icon-512.png">
+<link rel="apple-touch-icon" href="assets/kissik-icon-512.png">
+<meta property="og:title" content="KISSIK — any camera, studio look, free">
+<meta property="og:description" content="Use your webcam, or turn your phone into a better one. Free on Windows 11.">
+<meta property="og:image" content="assets/kissik-icon-1024.png">
+<meta name="twitter:card" content="summary">
 <style>
-/* Product-page style: calm light sections, Segoe UI Variable, one primary action. Dark mode mirrors the app (DgPage + gold). */
+/* Call grid + before/after. The hero is a live meeting gallery of people already using KISSIK scenes
+   (some on a laptop webcam, some on a phone); the proof is a drag slider. Segoe, one orange, dark hero then light page. */
 :root{
-  --bg:#ffffff; --bg-2:#f3f3f3; --card:#ffffff; --line:#e5e5e5;
-  --text:#1a1a1a; --text-2:#5c5c5c;
-  --btn:#1a1a1a; --on-btn:#ffffff; --link:#8a5a00; --mark:#c99600;
-  color-scheme:light;
+  --ink:#141416; --ink-2:#1e1e21; --tile:#000;
+  --bg:#ffffff; --bg-2:#f4f4f5; --line:#e4e4e7; --text:#161618; --muted:#5b5b63;
+  --o:#e8551a; --o-hi:#ff9a3c; --o-text:#c2410c; --on-o:#ffffff;
+  --font:"Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,sans-serif;
+  --display:"Segoe UI Variable Display","Segoe UI",system-ui,sans-serif;
 }
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
-  --bg:#050507; --bg-2:#111216; --card:#16171b; --line:#26272c;
-  --text:#F4F5F7; --text-2:#a8abb2; --btn:#FFD36B; --on-btn:#1b1400; --link:#FFD36B; --mark:#FFD36B; color-scheme:dark}}
-:root[data-theme="dark"]{
-  --bg:#050507; --bg-2:#111216; --card:#16171b; --line:#26272c;
-  --text:#F4F5F7; --text-2:#a8abb2; --btn:#FFD36B; --on-btn:#1b1400; --link:#FFD36B; --mark:#FFD36B; color-scheme:dark}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#161618;--bg-2:#1f1f22;--line:#2e2e33;--text:#f4f4f5;--muted:#a8a8b0;--o-text:#ff9a3c;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#161618;--bg-2:#1f1f22;--line:#2e2e33;--text:#f4f4f5;--muted:#a8a8b0;--o-text:#ff9a3c;color-scheme:dark}
 *{box-sizing:border-box}
-html{scroll-behavior:smooth;scroll-padding-top:64px}
-body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 "Segoe UI Variable Text","Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased}
-a{color:var(--link)}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.55 var(--font);-webkit-font-smoothing:antialiased}
 img{max-width:100%;display:block}
-.wrap{max-width:1200px;margin:0 auto;padding-left:max(24px,env(safe-area-inset-left,0px));padding-right:max(24px,env(safe-area-inset-right,0px))}
-h1,h2,h3{font-family:"Segoe UI Variable Display","Segoe UI",system-ui,sans-serif;font-weight:600;margin:0;text-wrap:balance}
-h1{font-size:clamp(36px,5vw,56px);line-height:1.1}
-h2{font-size:clamp(28px,3.4vw,40px);line-height:1.2}
-h3{font-size:20px;line-height:1.3}
-p{margin:0;color:var(--text-2)}
-.wmk{font:700 20px/1 Georgia,"Times New Roman",serif;letter-spacing:.02em;color:var(--text)}.wmk i{color:var(--mark)}
+a{color:inherit}
+.wrap{max-width:1200px;margin:0 auto;padding-left:max(20px,env(safe-area-inset-left,0px));padding-right:max(20px,env(safe-area-inset-right,0px))}
+h1,h2,h3{font-family:var(--display);font-weight:700;letter-spacing:-.025em;text-wrap:balance;margin:0}
+h2{font-size:clamp(30px,4vw,48px);line-height:1.05}
+h3{font-size:20px;letter-spacing:-.01em}
+p{margin:0}
+.lead{font-size:clamp(17px,1.5vw,19px);color:var(--muted);max-width:600px}
+.btn{display:inline-flex;align-items:center;justify-content:center;height:48px;padding:0 24px;border-radius:999px;font:600 15px var(--font);text-decoration:none;border:1.5px solid currentColor;transition:transform .15s,filter .15s;white-space:nowrap}
+.btn:active{transform:scale(.97)}
+.btn.o{background:var(--o);border-color:var(--o);color:var(--on-o)}
+.btn.o:hover{filter:brightness(1.08)}
+section{padding-block:104px}
+.kick{font:600 14px var(--font);color:var(--o-text);margin-bottom:12px}
 
 /* header */
-header{position:sticky;top:env(safe-area-inset-top,0px);z-index:10;background:var(--bg);border-bottom:1px solid var(--line)}
-body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);background:var(--bg);z-index:11}
-header .wrap{display:flex;align-items:center;gap:28px;height:56px}
-header nav{display:flex;gap:24px;flex:1;overflow-x:auto}
-header nav a{color:var(--text);text-decoration:none;font-size:14px;white-space:nowrap}
-header nav a:hover{text-decoration:underline}
+header{position:sticky;top:env(safe-area-inset-top,0px);z-index:30;background:rgba(20,20,22,.82);backdrop-filter:blur(20px) saturate(160%);-webkit-backdrop-filter:blur(20px) saturate(160%);color:#fff}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:31;background:var(--ink)}
+header .wrap{display:flex;align-items:center;gap:28px;height:58px;max-width:none}
+.brand{display:inline-flex;align-items:center;gap:10px;font:700 17px var(--display);text-decoration:none}
+.brand img{width:28px;height:28px;border-radius:7px}
+nav{display:flex;gap:24px;flex:1}
+nav a{font-size:14px;color:rgba(255,255,255,.72);text-decoration:none}
+nav a:hover{color:#fff}
+header .btn{height:36px;padding:0 18px;font-size:14px}
 
-.btn{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:10px 28px;border-radius:4px;background:var(--btn);color:var(--on-btn);font-weight:600;text-decoration:none;font-size:16px}
-.btn:hover{opacity:.88}
-.btn.sm{min-height:32px;padding:5px 16px;font-size:14px}
-.more{font-weight:600;text-decoration:none}.more:hover{text-decoration:underline}
-.more::after{content:" ›"}
+/* hero: call grid */
+.hero{background:var(--ink);color:#fff;padding:8px max(8px,env(safe-area-inset-left,0px)) 0 max(8px,env(safe-area-inset-right,0px))}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(2,minmax(150px,23vh)) auto repeat(1,minmax(150px,23vh));gap:8px}
+.t{position:relative;border-radius:12px;overflow:hidden;background:var(--tile);opacity:0;transform:scale(.96);animation:in .7s cubic-bezier(.2,.8,.2,1) forwards}
+.t img{width:100%;height:100%;object-fit:cover}
+.t .nm{position:absolute;left:8px;bottom:8px;display:flex;gap:6px;align-items:center;font:600 12px var(--font);background:rgba(0,0,0,.58);padding:4px 9px;border-radius:6px;backdrop-filter:blur(6px)}
+.src{position:absolute;right:8px;top:8px;font:600 11px var(--font);padding:3px 8px;border-radius:5px;background:rgba(0,0,0,.58)}
+.src.ph{background:var(--o);color:#fff}
+.mic{width:8px;height:8px;border-radius:50%;background:#3ddc84}
+.t.spk{grid-column:2/span 2;grid-row:1/span 2;box-shadow:inset 0 0 0 3px var(--o-hi)}
+.t.spk .lt{position:absolute;left:4%;bottom:7%;background:rgba(14,14,16,.86);padding:10px 16px;border-left:4px solid var(--o-hi);border-radius:4px}
+.lt b{display:block;font-size:clamp(14px,1.4vw,19px)}.lt i{font-style:normal;opacity:.72;font-size:13px}
+.say{grid-column:1/-1;display:grid;grid-template-columns:1.2fr 1fr;gap:32px;align-items:center;padding:44px 28px;border-radius:12px;background:var(--ink-2)}
+.say h1{font-size:clamp(40px,5.6vw,80px);line-height:.98}
+.say h1 span{color:var(--o-hi)}
+.say p{color:rgba(255,255,255,.75);font-size:18px;margin-bottom:22px}
+.say .ctas{display:flex;gap:10px;flex-wrap:wrap}
+.say .btn:not(.o){color:#fff}
+.say small{display:block;margin-top:14px;color:rgba(255,255,255,.55);font-size:13px}
+.callbar{display:flex;justify-content:center;gap:10px;padding:14px 0 18px}
+.callbar i{width:42px;height:42px;border-radius:50%;background:#2a2a2e;display:grid;place-items:center}
+.callbar i.end{width:62px;border-radius:21px;background:#d92c20}
+.callbar svg{width:18px;height:18px;fill:none;stroke:#fff;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+@keyframes in{to{opacity:1;transform:none}}
 
-section{padding-block:72px}
-.alt{background:var(--bg-2)}
+/* two sources */
+.two{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:44px}
+.srcard{border:1px solid var(--line);border-radius:16px;overflow:hidden;background:var(--bg-2);display:flex;flex-direction:column}
+.srcard .pic{aspect-ratio:16/10;position:relative;overflow:hidden;background:#111}
+.srcard .pic img{width:100%;height:100%;object-fit:cover}
+.srcard .body{padding:26px 26px 30px;display:grid;gap:10px}
+.srcard .body p{color:var(--muted)}
+.ticks{list-style:none;padding:0;margin:6px 0 0;display:grid;gap:8px;font-size:15px}
+.ticks li{display:flex;gap:10px}
+.ticks li::before{content:"";flex:none;width:7px;height:7px;margin-top:9px;border-radius:50%;background:var(--o)}
+.phonepic{display:grid;place-items:center;background:linear-gradient(160deg,#2a160a,#120a06)}
+.srcard .phonepic img{position:absolute;top:5%;left:50%;transform:translateX(-50%);width:auto;height:90%;max-width:none;border-radius:18px;box-shadow:0 0 0 5px #0b0b0b,0 20px 40px rgba(0,0,0,.5)}
+.same{text-align:center;margin-top:22px;color:var(--muted);font-size:15px}
+.same b{color:var(--text)}
 
-/* hero */
-.hero{text-align:center;padding-block:64px 0}
-.hero .copy{display:grid;gap:16px;justify-items:center;max-width:720px;margin:0 auto}
-.hero p{font-size:18px}
-.hero .fine{font-size:13px}
-.hero figure{margin:48px auto 0;max-width:1100px;border-radius:8px 8px 0 0;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,.18);border:1px solid var(--line);border-bottom:0}
+/* before / after */
+.ba{background:var(--bg-2);border-block:1px solid var(--line)}
+.ba .head{text-align:center;max-width:720px;margin:0 auto 36px}
+.ba .head .lead{margin:14px auto 0}
+.cmp{position:relative;max-width:1100px;margin:0 auto;aspect-ratio:16/9;border-radius:16px;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.18);--x:50%;cursor:ew-resize;touch-action:pan-y;user-select:none}
+.cmp img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;pointer-events:none}
+.who{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin:0 auto 18px}
+.who button{display:flex;align-items:center;gap:8px;border:1px solid var(--line);background:var(--bg);color:var(--text);font:500 14px var(--font);padding:5px 14px 5px 5px;border-radius:999px;cursor:pointer}
+.who button img{width:28px;height:28px;border-radius:50%;object-fit:cover}
+.who button[aria-selected="true"]{border-color:var(--o);box-shadow:0 0 0 2px var(--o) inset}
 
-/* feature rows */
-.row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);gap:56px;align-items:center}
-.row + .row{margin-top:88px}
-.row.flip .txt{order:2}
-.row .txt{display:grid;gap:14px}
-.row figure{margin:0;border-radius:8px;overflow:hidden;border:1px solid var(--line);box-shadow:0 4px 24px rgba(0,0,0,.10)}
-.row ul{margin:4px 0 0;padding-left:20px;color:var(--text-2)}.row li{margin:4px 0}
+/* on a real call */
+.desk{display:grid;grid-template-columns:1.35fr 1fr;gap:20px;margin-top:44px}
+.desk figure{margin:0;position:relative;border-radius:16px;overflow:hidden;background:#111;min-width:0}
+.desk figure img{width:100%;height:100%;object-fit:cover}
+.desk figcaption{position:absolute;left:0;bottom:0;right:0;padding:40px 16px 14px;background:linear-gradient(transparent,rgba(0,0,0,.72));color:#fff;font-size:15px;text-shadow:0 1px 8px rgba(0,0,0,.6)}
+.desk figcaption b{display:block;font:700 19px var(--display)}
+.desk .side{display:grid;gap:20px}
+.pin{position:absolute;width:30px;height:30px;border-radius:50%;background:var(--o);color:#fff;font:700 14px var(--font);display:grid;place-items:center;box-shadow:0 0 0 6px rgba(232,85,26,.3)}
+.cmp .after{position:absolute;inset:0;clip-path:inset(0 0 0 var(--x))}
+.cmp .after img{filter:saturate(1.06) brightness(1.04) contrast(1.03)}
+.cmp .lt{position:absolute;left:max(calc(var(--x) + 3%),55%);bottom:7%;background:rgba(255,255,255,.95);color:#111;padding:10px 16px;border-radius:8px;border-left:4px solid var(--o)}
+.cmp .lt span{font-size:13px;color:#555}
+.line{position:absolute;top:0;bottom:0;left:var(--x);width:3px;background:#fff;transform:translateX(-50%);pointer-events:none}
+.knob{position:absolute;top:50%;left:var(--x);width:52px;height:52px;border-radius:50%;background:#fff;transform:translate(-50%,-50%);box-shadow:0 4px 16px rgba(0,0,0,.3);display:grid;place-items:center;border:0;cursor:ew-resize}
+.knob svg{width:22px;height:22px;fill:none;stroke:var(--o);stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.lab{position:absolute;top:16px;font:600 13px var(--font);padding:6px 11px;border-radius:7px;color:#fff;pointer-events:none}
+.lab.l{left:16px;background:rgba(0,0,0,.6)}.lab.r{right:16px;background:var(--o)}
+.fixes{display:grid;grid-template-columns:repeat(4,1fr);gap:24px;max-width:1100px;margin:36px auto 0}
+.fixes div{border-top:2px solid var(--text);padding-top:12px}
+.fixes b{display:block;font-size:17px}.fixes span{color:var(--muted);font-size:15px}
 
-/* simple tiles */
-.center{text-align:center;display:grid;gap:12px;max-width:720px;margin:0 auto 40px}
-.tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
-.tile{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:24px;display:grid;gap:8px;align-content:start}
-.tile p{font-size:14px}
-.tile .tag{font-size:12px;font-weight:600;color:var(--text-2);text-transform:uppercase;letter-spacing:.06em}
-.tile .tag.on{color:var(--mark)}
+/* made for you */
+.pivot{display:flex;gap:6px;flex-wrap:wrap;margin:28px 0 20px}
+.pivot button{border:1px solid var(--line);background:var(--bg);color:var(--text);font:500 14px var(--font);padding:8px 14px;border-radius:999px;cursor:pointer}
+.pivot button[aria-selected="true"]{background:var(--text);color:var(--bg);border-color:var(--text)}
+.stage{display:grid;grid-template-columns:1.5fr 1fr;gap:32px;align-items:center}
+.stage>*{min-width:0}
+.frame{position:relative;aspect-ratio:16/9;border-radius:14px;overflow:hidden;background:#111}
+.frame img{width:100%;height:100%;object-fit:cover;transition:opacity .3s}
+.frame .ov{position:absolute;inset:0;color:#fff;font-family:var(--display);pointer-events:none}
+.chip{position:absolute;left:10px;top:10px;font:600 11px var(--font);letter-spacing:.04em;padding:5px 8px;border-radius:5px;background:rgba(0,0,0,.6);color:#fff}
+.chip.live{background:#d92c20}
+.story h3{font-size:clamp(24px,2.4vw,32px)}
+.story .pb{margin-top:14px;color:var(--muted)}
+.story .pb b{color:var(--text)}
+.story .scn{margin-top:18px;font-size:14px;color:var(--muted)}.story .scn b{color:var(--text)}
 
-/* specs */
-.specs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));border-top:1px solid var(--line)}
-.specs div{padding:18px 0;border-bottom:1px solid var(--line);display:grid;grid-template-columns:200px 1fr;gap:16px}
-.specs div:nth-child(odd){padding-right:32px}
-.specs b{font-weight:600}
-.specs span{color:var(--text-2)}
+/* features */
+.feats{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:16px;overflow:hidden;margin-top:40px}
+.fg{background:var(--bg);padding:26px 26px 28px}
+.fg .ic{width:40px;height:40px;border-radius:10px;background:var(--bg-2);display:grid;place-items:center;color:var(--o-text);margin-bottom:14px}
+.fg svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.fg ul{list-style:none;padding:0;margin:10px 0 0;display:grid;gap:7px;font-size:15px;color:var(--muted)}
+.fg li{padding-left:16px;position:relative}.fg li::before{content:"";position:absolute;left:0;top:9px;width:6px;height:6px;border-radius:50%;background:var(--o)}
+.deskcopy{align-self:center}
+.pins{list-style:none;padding:0;margin:22px 0 0;display:grid;gap:10px}
+.pins li{display:flex;gap:12px;align-items:center}.pins b{width:28px;height:28px;border-radius:50%;background:var(--o);color:#fff;display:grid;place-items:center;font-size:13px;flex:none}
 
-/* faq */
-details{border-bottom:1px solid var(--line)}
-details:first-of-type{border-top:1px solid var(--line)}
-summary{list-style:none;cursor:pointer;padding:18px 0;font-weight:600;display:flex;justify-content:space-between;gap:16px}
-summary::-webkit-details-marker{display:none}
-summary::after{content:"+";font-weight:400;font-size:22px;line-height:1}
-details[open] summary::after{content:"−"}
-details p{padding:0 0 20px;max-width:760px}
+/* any camera */
+.cams{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:40px}
+.cam{position:relative;overflow:hidden;border:1px solid var(--line);border-radius:16px;padding:22px 20px 22px;display:flex;flex-direction:column;gap:6px;background:var(--bg);transition:border-color .2s,transform .2s}
+.cam:hover{border-color:var(--o);transform:translateY(-2px)}
+.cam svg{width:88px;height:66px;fill:none;stroke:var(--text);stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round;margin-bottom:12px;transition:transform .25s}.cam svg .f{fill:var(--o);stroke:none}.cam:hover svg{transform:translateY(-3px)}
+.cam b{font:700 17px var(--display)}
+.cam span{color:var(--muted);font-size:14px}
+.cam em{position:absolute;top:14px;right:14px;font:600 11px var(--font);font-style:normal;padding:3px 8px;border-radius:5px;background:var(--bg-2);color:var(--o-text)}
+.cam.soon{opacity:.6;border-style:dashed}
 
-footer{background:var(--bg-2);padding-block:40px;font-size:13px;color:var(--text-2)}
-footer .wrap{display:flex;flex-wrap:wrap;gap:16px;justify-content:space-between}
-footer a{color:var(--text-2)}
+/* support */
+.sup{display:grid;grid-template-columns:1.6fr 1fr;gap:48px;align-items:center;border:1px solid var(--line);border-radius:20px;padding:44px;background:var(--bg-2)}
+.sup>*{min-width:0}
+.ways{display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-top:26px}
+.upi{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:999px;padding:6px 6px 6px 16px;background:var(--bg)}
+.upi span{font-size:13px;color:var(--muted)}.upi code{font:600 15px ui-monospace,Consolas,monospace}
+.upi button{border:0;border-radius:999px;background:var(--text);color:var(--bg);font:600 13px var(--font);padding:8px 14px;cursor:pointer}
+.biz{margin-top:24px;font-size:15px;color:var(--muted)}.biz b{color:var(--text)}.biz a{color:var(--o-text);font-weight:600}
+.qr{margin:0;text-align:center}.qr img{width:min(240px,100%);margin:0 auto;border-radius:12px;background:#fff;padding:10px;border:1px solid var(--line)}
+.qr figcaption{font-size:14px;color:var(--muted);margin-top:10px}
 
-@media (max-width:900px){
-  .row,.specs{grid-template-columns:1fr}.row{gap:28px}.row.flip .txt{order:0}
-  .tiles{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .specs div{grid-template-columns:1fr;gap:4px}.specs div:nth-child(odd){padding-right:0}
-  header nav{display:none}
+/* free means free */
+.free{background:var(--o);color:#fff}
+.free h2{font-size:clamp(36px,5.5vw,76px)}
+.free .row{display:grid;grid-template-columns:1fr 1.3fr;gap:48px;align-items:end}
+.freelist{display:grid;grid-template-columns:1fr 1fr;gap:0;border-top:1.5px solid rgba(255,255,255,.55)}
+.freelist div{padding:16px 0;border-bottom:1.5px solid rgba(255,255,255,.55);font:600 19px var(--display);display:flex;justify-content:space-between;gap:12px;padding-right:18px}
+.freelist div span{font-weight:400;opacity:.85;font-size:15px}
+
+/* setup */
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:40px;counter-reset:s}
+.step{padding:26px;border:1px solid var(--line);border-radius:16px}
+.step .n{font:700 44px/1 var(--display);color:var(--o-text)}
+.step h3{margin:14px 0 6px}.step p{color:var(--muted);font-size:15px}
+.step .opt{display:inline-block;margin-left:6px;font:600 11px var(--font);padding:2px 7px;border-radius:5px;background:var(--bg-2);color:var(--muted);vertical-align:middle}
+
+/* numbers + trust */
+.nums{display:grid;grid-template-columns:repeat(5,1fr);border:1.5px solid var(--text);border-radius:4px}
+.nums div{padding:22px 20px;border-right:1.5px solid var(--text)}.nums div:last-child{border:0}
+.nums b{display:block;font:700 40px/1 var(--display);letter-spacing:-.03em}.nums span{font-size:14px;color:var(--muted)}
+.trust{display:grid;grid-template-columns:repeat(4,1fr);gap:24px;margin-top:36px}
+.trust b{display:block;margin-bottom:4px}.trust span{color:var(--muted);font-size:15px}
+
+/* faq + end */
+details{border-bottom:1px solid var(--line);padding:18px 0}
+summary{cursor:pointer;font:600 18px var(--display);list-style:none;display:flex;justify-content:space-between;gap:16px}
+summary::after{content:"+";color:var(--muted);font-weight:400}
+details[open] summary::after{content:"–"}
+details p{color:var(--muted);margin-top:10px;max-width:720px}
+.end{background:var(--ink);color:#fff;text-align:center}
+.end img{width:84px;height:84px;border-radius:20px;margin:0 auto 22px}
+.end h2{font-size:clamp(40px,6vw,84px)}
+.end p{color:rgba(255,255,255,.7);margin:16px auto 30px;font-size:18px}
+footer{background:var(--ink);color:rgba(255,255,255,.55);font-size:13px;border-top:1px solid #2a2a2e;padding-block:24px}
+footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
+
+.rv{opacity:0;transform:translateY(22px);transition:opacity .7s cubic-bezier(.2,.8,.2,1),transform .7s cubic-bezier(.2,.8,.2,1)}
+.rv.in{opacity:1;transform:none}
+@media (prefers-reduced-motion:reduce){.rv,.t{opacity:1;transform:none;transition:none;animation:none}html{scroll-behavior:auto}}
+@media (max-width:960px){
+  nav{display:none}
+  .grid{grid-template-columns:1fr 1fr;grid-template-rows:none;grid-auto-rows:minmax(130px,26vw)}
+  .t.spk{grid-column:1/-1;grid-row:span 2}
+  .say{grid-template-columns:1fr;padding:28px 20px}
+  .t.hide-m{display:none}
+  .two,.stage,.free .row,.desk{grid-template-columns:1fr}
+  .feats,.cams{grid-template-columns:1fr 1fr}
+  .sup{grid-template-columns:1fr;padding:28px 22px}
+  .fixes,.trust{grid-template-columns:1fr 1fr}
+  .steps{grid-template-columns:1fr}
+  .nums{grid-template-columns:1fr 1fr}.nums div{border-right:0;border-bottom:1.5px solid var(--text)}
+  .freelist{grid-template-columns:1fr}
 }
-@media (max-width:520px){.tiles{grid-template-columns:1fr}section{padding-block:52px}}
+@media (max-width:600px){.feats{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
-
 <header><div class="wrap">
-  <a href="#top" style="text-decoration:none"><span class="wmk">KISSI<i>K</i></span></a>
-  <nav><a href="#features">Features</a><a href="#light">Screen light</a><a href="#phone">Phone</a><a href="#platforms">Platforms</a><a href="#specs">Specs</a><a href="#faq">FAQ</a></nav>
-  <a class="btn sm" href="#download">Download</a>
+  <a class="brand" href="#top"><img src="assets/kissik-icon-512.png" alt="">KISSIK</a>
+  <nav><a href="#cameras">Webcam &amp; phone</a><a href="#proof">Before &amp; after</a><a href="#features">Features</a><a href="#free">Free</a><a href="#support">Support</a><a href="#faq">FAQ</a></nav>
+  <a class="btn o" href="https://github.com/">Download</a>
 </div></header>
 
-<section class="hero" id="top"><div class="wrap">
-  <div class="copy">
-    <h1>Your webcam, at its best.</h1>
-    <p>A free camera studio for Windows 11. Blur or replace your background, frame yourself automatically, add your name and logo, light your face with your screen, and record.</p>
-    <a class="btn" href="#download">Download for free</a>
-    <p class="fine">Windows 11 (x64) · No account · No watermark · Open source</p>
-  </div>
-  <figure><img src="assets/screens/studio.jpg" alt="KISSIK on Windows 11: camera panel on the left, framing panel on the right, scenes along the bottom, and Snapshot, Record, Meeting camera and Light in the command bar"></figure>
-</div></section>
-
-<section id="features" class="alt"><div class="wrap">
-  <div class="row">
-    <div class="txt">
-      <h2>Look professional on every call</h2>
-      <p>Blur, replace or remove your background with AI that runs on your own computer. Auto-framing keeps you centred as you move, and steady picture smooths a shaky camera.</p>
-      <ul><li>Fast or High edge quality</li><li>Green and blue screen</li><li>Spotlight and gentle retouch</li><li>Focus, zoom, exposure and white balance</li></ul>
+<main id="top">
+<section class="hero" style="padding-block:8px 0">
+  <div class="grid">
+    <div class="t" style="animation-delay:.05s"><img src="assets/person/education.jpg" alt=""><span class="src">Webcam</span><span class="nm"><i class="mic"></i>Mei · Lesson</span></div>
+    <div class="t spk" style="animation-delay:0s"><img src="assets/person/professional.jpg" alt="Amara on a call using the KISSIK Executive scene"><span class="src ph">Phone camera</span><div class="lt"><b>Amara Okafor</b><i>VP Operations</i></div></div>
+    <div class="t" style="animation-delay:.1s"><img src="assets/person/podcast.jpg" alt=""><span class="src ph">Phone camera</span><span class="nm"><i class="mic"></i>Omar · Deep Dive</span></div>
+    <div class="t" style="animation-delay:.15s"><img src="assets/person/streaming.jpg" alt=""><span class="src ph">Phone camera</span><span class="nm"><i class="mic"></i>Riya · Just Chatting</span></div>
+    <div class="t" style="animation-delay:.2s"><img src="assets/person/wellness.jpg" alt=""><span class="src">Webcam</span><span class="nm"><i class="mic"></i>Helen · Breathe</span></div>
+    <div class="say">
+      <div><h1>Any camera.<br>Studio look. <span>Free.</span></h1></div>
+      <div><p>Use your webcam, or turn your phone into a better one. KISSIK adds the background, framing, light and scenes, in every app on Windows 11.</p>
+        <div class="ctas"><a class="btn o" href="https://github.com/">Download for Windows 11</a><a class="btn" href="#cameras">Use your phone too</a></div>
+        <small>No account · No watermark · Open source</small></div>
     </div>
-    <figure><img src="assets/screens/camera.jpg" alt="KISSIK Camera tab with background, edge quality, green screen, spotlight, retouch and framing controls" loading="lazy"></figure>
+    <div class="t hide-m" style="animation-delay:.25s"><img src="assets/person/business.jpg" alt=""><span class="src">Webcam</span><span class="nm"><i class="mic"></i>Diego · Big Number</span></div>
+    <div class="t" style="animation-delay:.3s"><img src="assets/person/gaming.jpg" alt=""><span class="src">Webcam</span><span class="nm"><i class="mic"></i>Jake · Facecam</span></div>
+    <div class="t hide-m" style="animation-delay:.35s"><img src="assets/person/creative.jpg" alt=""><span class="src ph">Phone camera</span><span class="nm"><i class="mic"></i>Kofi · Music Session</span></div>
+    <div class="t" style="animation-delay:.4s"><img src="assets/person/events.jpg" alt=""><span class="src ph">Phone camera</span><span class="nm"><i class="mic"></i>The Sharmas · Diwali</span></div>
   </div>
-
-  <div class="row flip">
-    <div class="txt">
-      <h2>Scenes with your name and logo</h2>
-      <p>Add a name, a logo, shapes or a round camera bubble. Each scene keeps its own background and layers, and Ctrl&nbsp;1–9 switches between them.</p>
-      <a class="more" href="#platforms">See what's ready</a>
-    </div>
-    <figure><img src="assets/screens/layers.jpg" alt="KISSIK Layers tab with scene picker, scene background colours and layer list" loading="lazy"></figure>
+  <div class="callbar" aria-hidden="true">
+    <i><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></i>
+    <i><svg viewBox="0 0 24 24"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="m16 10 5-3v10l-5-3"/></svg></i>
+    <i><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8"/></svg></i>
+    <i class="end"><svg viewBox="0 0 24 24"><path d="M4 14c4-4 12-4 16 0l-2 3-3-1v-2a10 10 0 0 0-6 0v2l-3 1z"/></svg></i>
   </div>
+</section>
 
-  <div class="row">
-    <div class="txt">
-      <h2>Sound as good as you look</h2>
-      <p>Level meters, a limiter, noise suppression and a four-band equaliser, in the same window.</p>
-    </div>
-    <figure><img src="assets/screens/audio.jpg" alt="KISSIK Audio tab with level meters, volume, limiter, noise suppression and equaliser" loading="lazy"></figure>
+<section id="cameras" class="wrap">
+  <div class="rv" style="max-width:720px"><div class="kick">Start with what you have</div><h2>Your webcam, or your phone. Same studio.</h2></div>
+  <div class="two">
+    <article class="srcard rv">
+      <div class="pic"><img src="assets/person/education.jpg" alt="A teacher on a laptop webcam with KISSIK"></div>
+      <div class="body"><h3>Make your webcam better</h3><p>Keep the camera you have. KISSIK fixes what it can't.</p>
+        <ul class="ticks"><li>Blur, replace or remove the background on your own GPU</li><li>Your screen as a soft ring light, 2200–9000 K</li><li>Auto-framing that follows you</li></ul></div>
+    </article>
+    <article class="srcard rv">
+      <div class="pic phonepic"><img src="assets/phone/live-person.jpg" alt="The KISSIK phone app streaming to the PC"></div>
+      <div class="body"><h3>Or use your phone as the camera</h3><p>Your phone's camera is far better than a laptop's. Pair it in seconds.</p>
+        <ul class="ticks"><li>Scan a QR code. No account.</li><li>Wi-Fi or USB, up to 1080p</li><li>Pro controls: lens, focus, exposure</li></ul></div>
+    </article>
   </div>
-</div></section>
+  <p class="same rv">Either way, KISSIK shows up as <b>one camera in every app</b>: meetings, streaming and browsers.</p>
+</section>
 
-<section id="light"><div class="wrap">
-  <div class="row flip">
-    <div class="txt">
-      <h2>Your screen becomes a soft light</h2>
-      <p>Turn on Light and your monitor glows as a ring, bars or a frame, from warm 2200 K to cool 9000 K. It stays out of your screen shares.</p>
-    </div>
-    <figure><img src="assets/screens/light.jpg" alt="KISSIK screen light shown as a ring in the window" loading="lazy"></figure>
+<section id="any" class="wrap" style="padding-top:0">
+  <div class="rv" style="max-width:760px"><div class="kick">Any camera</div><h2>Plug in what you own. KISSIK makes it look better.</h2><p class="lead" style="margin-top:14px">If Windows sees it as a camera, KISSIK can use it. Switch between them in one click.</p></div>
+  <div class="cams"><div class="cam rv"><svg viewBox="0 0 64 48" aria-hidden="true"><rect x="10" y="6" width="44" height="28" rx="3"/><path d="M4 40h56l-4-6H8z"/><circle cx="32" cy="10" r="2" class="f"/></svg><b>Built-in laptop camera</b><span>Works as it is</span></div><div class="cam rv"><svg viewBox="0 0 64 48" aria-hidden="true"><rect x="12" y="8" width="40" height="22" rx="11"/><circle cx="32" cy="19" r="7"/><circle cx="32" cy="19" r="3" class="f"/><path d="M26 30l-4 10h20l-4-10"/></svg><b>USB webcam</b><span>Any standard webcam, with its own focus and zoom controls</span></div><div class="cam rv"><svg viewBox="0 0 64 48" aria-hidden="true"><rect x="22" y="3" width="20" height="42" rx="4"/><circle cx="32" cy="10" r="2.5" class="f"/><path d="M29 40h6"/></svg><b>Android phone</b><span>QR pairing, Wi-Fi or USB</span><em>In testing</em></div><div class="cam rv"><svg viewBox="0 0 64 48" aria-hidden="true"><path d="M6 16h12l4-6h20l4 6h12v26H6z"/><circle cx="32" cy="28" r="10"/><circle cx="32" cy="28" r="5" class="f"/></svg><b>DSLR or mirrorless</b><span>In its webcam mode, or through an HDMI capture card</span></div><div class="cam rv"><svg viewBox="0 0 64 48" aria-hidden="true"><rect x="12" y="10" width="40" height="28" rx="4"/><circle cx="40" cy="24" r="8"/><circle cx="40" cy="24" r="3.5" class="f"/><rect x="17" y="15" width="10" height="6" rx="1"/></svg><b>Action camera</b><span>In its USB webcam mode</span></div><div class="cam rv"><svg viewBox="0 0 64 48" aria-hidden="true"><rect x="8" y="16" width="34" height="20" rx="3"/><path d="M42 22h8v8h-8M50 26h8"/><circle cx="16" cy="26" r="2.5" class="f"/></svg><b>Capture card</b><span>HDMI cameras and other video sources</span></div><div class="cam rv"><svg viewBox="0 0 64 48" aria-hidden="true"><path d="M10 42h44"/><path d="M20 42l12-26 10 8"/><rect x="36" y="20" width="16" height="10" rx="2"/><circle cx="32" cy="16" r="2.5" class="f"/></svg><b>Document camera</b><span>Desk, hands and paper, top-down</span></div><div class="cam rv soon"><svg viewBox="0 0 64 48" aria-hidden="true"><rect x="22" y="3" width="20" height="42" rx="5"/><circle cx="28" cy="10" r="2.5" class="f"/><circle cx="34" cy="10" r="2.5"/><path d="M29 40h6"/></svg><b>iPhone</b><span>Planned next</span></div></div>
+</section>
+
+<section id="real" class="wrap" style="padding-top:0">
+  <div class="desk">
+    <figure class="rv" style="aspect-ratio:16/9"><img src="assets/desk/desk-1.jpg" alt="A man on a video conference at his desk, phone clipped on top of the monitor as the camera"><span class="pin" style="left:66%;top:6%">1</span><span class="pin" style="left:58%;top:42%">2</span></figure>
+    <div class="rv deskcopy"><div class="kick">On a real call</div><h2>Clip your phone on the monitor. Look like you hired a crew.</h2><p class="lead" style="margin-top:14px">KISSIK runs on your Windows PC and sends the finished picture to whatever you call from.</p>
+      <ol class="pins"><li><b>1</b>Your phone is the lens</li><li><b>2</b>KISSIK's picture, in your meeting app</li></ol></div>
   </div>
-</div></section>
+</section>
 
-<section id="phone" class="alt"><div class="wrap">
-  <div class="center">
-    <h2>Use your phone as a webcam</h2>
-    <p>Coming next. Our own open-source iPhone app sends every lens to KISSIK, then Android. Donations fund this work.</p>
+<section id="proof" class="ba">
+ <div class="wrap">
+  <div class="head rv"><div class="kick">Drag the line</div><h2>Same person. Same room.</h2><p class="lead">On the left, a plain laptop webcam. On the right, a phone through KISSIK with screen light, a softer background and a name plate.</p></div>
+  <div class="who rv" id="who" role="tablist" aria-label="Choose an example"></div>
+  <div class="cmp rv" id="cmp">
+    <img class="before" id="bimg" src="assets/before/professional.jpg" alt="Before: plain laptop webcam, dim and flat">
+    <div class="after"><img id="aimg" src="assets/before/professional-after.jpg" alt="After: phone camera through KISSIK"><div class="lt" id="alt"><b>Amara Okafor</b><br><span>VP Operations</span></div></div>
+    <div class="line"></div>
+    <button class="knob" id="knob" aria-label="Compare before and after" role="slider" aria-valuemin="5" aria-valuemax="95" aria-valuenow="50"><svg viewBox="0 0 24 24"><path d="M9 6 3 12l6 6M15 6l6 6-6 6"/></svg></button>
+    <span class="lab l">Laptop webcam</span><span class="lab r">Phone + KISSIK</span>
   </div>
-  <div class="tiles">
-    <div class="tile"><h3>Pair once</h3><p>Scan a QR code. No accounts.</p></div>
-    <div class="tile"><h3>USB or Wi-Fi</h3><p>USB for the lowest delay, Wi-Fi for freedom.</p></div>
-    <div class="tile"><h3>Every lens</h3><p>Focus, exposure, zoom and torch from either device.</p></div>
-    <div class="tile"><h3>Stays cool</h3><p>Backs off before your phone gets hot.</p></div>
+  <div class="fixes">
+    <div class="rv"><b>Light</b><span>Your screen becomes a soft ring light.</span></div>
+    <div class="rv"><b>Background</b><span>Blurred or replaced, on your own PC.</span></div>
+    <div class="rv"><b>Framing</b><span>Stays centred when you move.</span></div>
+    <div class="rv"><b>Scene</b><span>Name plate in one click.</span></div>
   </div>
-</div></section>
+ </div>
+</section>
 
-<section id="platforms"><div class="wrap">
-  <div class="center"><h2>One studio, more devices on the way</h2></div>
-  <div class="tiles">
-    <div class="tile"><span class="tag on">Available</span><h3>Windows 11</h3><p>The full studio. Meeting camera and audio mixer in progress.</p></div>
-    <div class="tile"><span class="tag">Next</span><h3>iPhone</h3><p>Your iPhone as a camera for your computer.</p><a class="more" href="../docs/platforms/ios.md">Plan</a></div>
-    <div class="tile"><span class="tag">Planned</span><h3>macOS</h3><p>Native app with a system camera and microphone.</p><a class="more" href="../docs/platforms/macos.md">Plan</a></div>
-    <div class="tile"><span class="tag">Planned</span><h3>Linux</h3><p>Ubuntu and Fedora, Flatpak first.</p><a class="more" href="../docs/platforms/linux.md">Plan</a></div>
+<section id="features" class="wrap">
+  <div class="rv" style="max-width:760px"><div class="kick">Everything in KISSIK</div><h2>A whole studio. Every part of it free.</h2><p class="lead" style="margin-top:14px">Over 40 tools in one app, worked out on your own graphics card.</p></div>
+  <div class="feats"><div class="fg rv"><div class="ic"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="m16 10 5-3v10l-5-3"/></svg></div><h3>Cameras</h3><ul><li>Any webcam, with its real focus, zoom and exposure controls</li><li>Your phone as a camera: QR pairing, Wi-Fi or USB</li><li>Phone pro controls and phone mic</li><li>Auto best picture for your camera</li><li>720p to 4K, 30 or 60 fps, vertical 9:16</li></ul></div><div class="fg rv"><div class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="9" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg></div><h3>Background</h3><ul><li>Blur, from portrait to full privacy</li><li>Replace with a picture or a looping video</li><li>Remove, or use a green screen</li><li>Clean hair edges and light wrap</li><li>Spotlight and gentle retouch</li></ul></div><div class="fg rv"><div class="ic"><svg viewBox="0 0 24 24"><path d="M3 8V5a2 2 0 0 1 2-2h3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M8 21H5a2 2 0 0 1-2-2v-3"/><circle cx="12" cy="12" r="3"/></svg></div><h3>Framing & look</h3><ul><li>Auto-framing that moves like a camera operator</li><li>Zoom, pan, mirror and rotate</li><li>Colour, temperature and sharpness controls</li><li>Built-in filters and your own LUTs</li><li>Screen light: ring, bars or frame, 2200–9000 K</li></ul></div><div class="fg rv"><div class="ic"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M6 14h7"/></svg></div><h3>Scenes</h3><ul><li>100 scenes in 10 groups, from Boardroom to Diwali</li><li>Drag-and-drop editor with undo</li><li>Text, logos, shapes and a placed camera</li><li>Smooth transitions between scenes</li><li>Share scenes as a single file</li></ul></div><div class="fg rv"><div class="ic"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></div><h3>Sound</h3><ul><li>On-device noise removal</li><li>Low cut, de-esser and auto level</li><li>Mixer with meters, EQ and limiter</li><li>Mix in system sound</li><li>Watchdog restarts a mic that drops</li></ul></div><div class="fg rv"><div class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3" fill="currentColor"/></svg></div><h3>Record</h3><ul><li>Record exactly what you see, with sound</li><li>Recordings survive a crash</li><li>Replay buffer: save the last moments</li><li>Snapshots as PNG</li></ul></div><div class="fg rv"><div class="ic"><svg viewBox="0 0 24 24"><path d="M4 5h16M4 10h16M4 15h10"/></svg></div><h3>Present</h3><ul><li>Teleprompter next to the lens</li><li>Live captions, checked on this PC</li><li>Presets per app</li></ul></div><div class="fg rv"><div class="ic"><svg viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></div><h3>Privacy</h3><ul><li>Everything runs on your PC</li><li>Privacy shutter and guard</li><li>Encrypted phone pairing</li><li>No account, nothing uploaded</li></ul></div><div class="fg rv"><div class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="2"/><path d="M5 9h14M12 9v12M8 21l4-7 4 7"/></svg></div><h3>Easy for everyone</h3><ul><li>Simple mode or full Studio mode</li><li>Large controls and reduced motion</li><li>High contrast and screen-reader support</li><li>Light and dark mode</li></ul></div></div>
+</section>
+
+<section id="free" class="free">
+ <div class="wrap row">
+  <div class="rv"><h2>Free means free.</h2><p style="margin-top:16px;font-size:18px;opacity:.92;max-width:420px">Nothing is held back to make you pay. No trial, no tiers, no catch. KISSIK is open source.</p></div>
+  <div class="freelist rv">
+    <div>4K recording <span>free</span></div><div>Every effect <span>free</span></div>
+    <div>All 100 scenes <span>free</span></div><div>Phone camera <span>free</span></div>
+    <div>Every PC you own <span>free</span></div><div>Watermark <span>none</span></div>
+    <div>Subscription <span>none</span></div><div>Account <span>none</span></div>
   </div>
-</div></section>
+ </div>
+</section>
 
-<section id="specs" class="alt"><div class="wrap">
-  <h2 style="margin-bottom:28px">Tech specs</h2>
-  <div class="specs">
-    <div><b>Operating system</b><span>Windows 11 (x64)</span></div>
-    <div><b>Price</b><span>Free. No paid tier, no trial.</span></div>
-    <div><b>Cameras</b><span>Any USB or built-in webcam, plus capture cards in webcam mode</span></div>
-    <div><b>Resolution</b><span>720p to 4K (3840 × 2160), 30 or 60 fps, vertical 9:16</span></div>
-    <div><b>Recording</b><span>H.264 MP4 and PNG snapshots</span></div>
-    <div><b>Processing</b><span>On your computer and GPU. Nothing uploaded.</span></div>
-    <div><b>Graphics</b><span>A recent GPU for High quality at 1080p; Fast runs on most laptops</span></div>
-    <div><b>Licence</b><span>Open source, GPL-3.0</span></div>
+<section id="support" class="wrap">
+  <div class="sup rv">
+    <div><div class="kick">Keep KISSIK free</div><h2>Built by one person. Funded by people like you.</h2>
+      <p class="lead" style="margin-top:14px">KISSIK has no ads, no paid tier and no investors. Your donation pays for development, starting with the iPhone app so your iPhone can be your webcam too.</p>
+      <div class="ways">
+        <a class="btn o" href="https://paypal.me/krishnagaurav">Donate with PayPal</a>
+        <div class="upi"><span>UPI (India)</span><code id="upi">krigrv@upi</code><button type="button" id="cp">Copy</button></div>
+      </div>
+      <p class="biz"><b>Companies:</b> want KISSIK for your team, a custom build, a sponsorship, or to talk about buying the project? <a href="https://github.com/">Get in touch</a>.</p></div>
+    <figure class="qr"><img src="assets/donate-upi-qr.png" alt="UPI QR code to donate to KISSIK"><figcaption>Scan with any UPI app</figcaption></figure>
   </div>
-</div></section>
+</section>
 
-<section id="faq"><div class="wrap">
-  <h2 style="margin-bottom:28px">Frequently asked questions</h2>
-  <details><summary>Is it really free?</summary><p>Yes. No trial, no watermark, no account and no paid tier.</p></details>
-  <details><summary>Does my video go to a server?</summary><p>No. Capture, AI and effects all run on your own computer.</p></details>
-  <details><summary>Can I use it in meeting apps?</summary><p>The system meeting camera is being built now. Once it lands, KISSIK shows up as a camera in every app.</p></details>
-  <details><summary>When are Mac, iPhone and Linux coming?</summary><p>The iPhone app is next and is funded by donations. macOS and Linux follow; their developer plans are public.</p></details>
-</div></section>
-
-<section id="download" class="alt"><div class="wrap">
-  <div class="center" style="margin-bottom:0;justify-items:center">
-    <h2>Get KISSIK</h2>
-    <p>Free for Windows 11. Builds and source on GitHub.</p>
-    <a class="btn" href="https://github.com/">Download for free</a>
-    <p style="font-size:14px"><a href="../docs/DEVELOPMENT.md">Build from source</a> · <a href="../docs/donate-upi-qr.png">Support the project</a></p>
+<section class="wrap">
+  <div class="rv" style="max-width:720px"><div class="kick">Set up in a minute</div><h2>Three steps, then forget about it.</h2></div>
+  <div class="steps">
+    <div class="step rv"><div class="n">1</div><h3>Install KISSIK</h3><p>Download for Windows 11 and open it. No sign-up.</p></div>
+    <div class="step rv"><div class="n">2</div><h3>Pick KISSIK as your camera</h3><p>In your meeting, streaming or browser app, choose "KISSIK" in the camera list.</p></div>
+    <div class="step rv"><div class="n">3</div><h3>Add your phone <span class="opt">Optional</span></h3><p>Open the KISSIK phone app and scan the QR code on your PC.</p></div>
   </div>
-</div></section>
+</section>
 
-<footer><div class="wrap">
-  <span><span class="wmk" style="font-size:14px">KISSI<i>K</i></span> · GPL-3.0 · made in the open</span>
-  <span>An independent project, not affiliated with any other camera or software company.</span>
-</div></footer>
+<section class="wrap" style="padding-top:0">
+  <div class="nums rv"><div><b>100</b><span>scenes built in</span></div><div><b>4K</b><span>recording</span></div><div><b>1</b><span>camera for every app</span></div><div><b>0</b><span>uploads</span></div><div><b>0</b><span>accounts</span></div></div>
+  <div class="trust">
+    <div class="rv"><b>Stays on your PC</b><span>The AI runs on your own graphics card. Nothing is uploaded.</span></div>
+    <div class="rv"><b>Open source</b><span>GPL-3.0. Anyone can read the code.</span></div>
+    <div class="rv"><b>Removes cleanly</b><span>Uninstalling takes the camera out of every app.</span></div>
+    <div class="rv"><b>Android in testing</b><span>Mac, Linux and iPhone are planned next.</span></div>
+  </div>
+</section>
 
+<section id="faq" class="wrap" style="padding-top:0">
+  <h2 class="rv" style="margin-bottom:16px">Questions</h2>
+  <details class="rv"><summary>Is it really free?</summary><p>Yes. Every feature is free, including 4K, the phone camera and all 100 scenes, on as many PCs as you like.</p></details>
+  <details class="rv"><summary>Do I need a phone?</summary><p>No. KISSIK works with any webcam. The phone is an option when you want a better camera.</p></details>
+  <details class="rv"><summary>Does my video go to a server?</summary><p>No. Everything runs on your own computer, and there's no account.</p></details>
+  <details class="rv"><summary>Which apps can I use it in?</summary><p>KISSIK appears as a camera in meeting apps, streaming apps and browsers.</p></details>
+  <details class="rv"><summary>When are Mac, iPhone and Linux coming?</summary><p>Android is in testing now. macOS, Linux and iPhone are planned.</p></details>
+</section>
+
+<section class="end">
+  <div class="wrap rv"><img src="assets/kissik-icon-512.png" alt=""><h2>Any camera. Studio look.</h2><p>Free for Windows 11. No account. No watermark.</p><a class="btn o" href="https://github.com/">Download for Windows 11</a></div>
+</section>
+</main>
+<footer><div class="wrap"><span>KISSIK · Free and open source (GPL-3.0)</span><span>People shown are AI-generated examples.</span></div></footer>
+
+<script>
+// before / after: four people to compare
+const BA=[{k:"professional",n:"Amara",l:"<b>Amara Okafor</b><br><span>VP Operations</span>"},{k:"education",n:"Mei",l:"<b>Mei Tanaka</b><br><span>Year 5 · Fractions</span>"},{k:"streaming",n:"Riya",l:"<b>Riya</b><br><span>Live · Just chatting</span>"},{k:"podcast",n:"Omar",l:"<b>Deep Dive</b><br><span>Episode 42</span>"}];
+const who=document.getElementById('who');
+BA.forEach((x,i)=>{const b=document.createElement('button');b.setAttribute('role','tab');b.innerHTML=`<img src="assets/person/${x.k}.jpg" alt="">${x.n}`;b.onclick=()=>pick(i);who.appendChild(b)});
+function pick(i){const x=BA[i];document.getElementById('bimg').src=`assets/before/${x.k}.jpg`;document.getElementById('aimg').src=`assets/before/${x.k}-after.jpg`;document.getElementById('alt').innerHTML=x.l;[...who.children].forEach((b,j)=>b.setAttribute('aria-selected',j==i))}
+pick(0);
+
+// before / after slider: drag, click or arrow keys
+const cmp=document.getElementById('cmp'),knob=document.getElementById('knob');
+const set=v=>{v=Math.min(95,Math.max(5,v));cmp.style.setProperty('--x',v+'%');knob.setAttribute('aria-valuenow',Math.round(v))};
+const at=e=>{const r=cmp.getBoundingClientRect();set((e.clientX-r.left)/r.width*100)};
+let drag=0;cmp.addEventListener('pointerdown',e=>{drag=1;cmp.setPointerCapture(e.pointerId);at(e)});
+cmp.addEventListener('pointermove',e=>drag&&at(e));cmp.addEventListener('pointerup',()=>drag=0);
+knob.addEventListener('keydown',e=>{const v=+knob.getAttribute('aria-valuenow');if(e.key=='ArrowLeft')set(v-5);if(e.key=='ArrowRight')set(v+5)});
+
+document.getElementById('cp').onclick=e=>{const t=document.getElementById('upi').textContent;navigator.clipboard.writeText(t).then(()=>e.target.textContent='Copied',()=>{const r=document.createRange();r.selectNodeContents(document.getElementById('upi'));getSelection().removeAllRanges();getSelection().addRange(r)})};
+const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target)}}),{threshold:.12});
+document.querySelectorAll('.rv').forEach(el=>io.observe(el));
+</script>
 </body>
 </html>
