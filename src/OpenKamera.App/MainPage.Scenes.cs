@@ -35,7 +35,81 @@ public sealed partial class MainPage
         _captureTimer.Interval = TimeSpan.FromMilliseconds(120);
         _captureTimer.IsRepeating = false;
         _captureTimer.Tick += async (_, _) => await CaptureOverlayAsync();
+        SceneRenderer.Me = _settings.Me;
         RefreshSceneRail(_settings.SceneId);
+    }
+
+    private async void MyDetails_Click(object sender, RoutedEventArgs e) => await EditMyDetailsAsync();
+
+    /// <summary>Asks for the user's name and details (filled into scenes). Empty fields hide their line.</summary>
+    internal async Task EditMyDetailsAsync()
+    {
+        var me = _settings.Me;
+        TextBox Box(string header, string value, string placeholder)
+        {
+            var b = new TextBox { Header = header, Text = value, PlaceholderText = placeholder };
+            AutomationProperties.SetName(b, header);
+            return b;
+        }
+        var name = Box("Your name", me.Name, "Asha Rao");
+        var title = Box("Title or role (optional)", me.Title, "Product designer · Acme");
+        var handle = Box("Social handle (optional)", me.Handle, "@asharao");
+        var email = Box("Email (optional)", me.Email, "asha@example.com");
+        var place = Box("City (optional)", me.Location, "Bengaluru, India");
+        var pronouns = Box("Pronouns (optional)", me.Pronouns, "she/her");
+        string logoPath = me.LogoPath;
+        var logoName = new TextBlock { Text = me.HasLogo ? Path.GetFileName(me.LogoPath) : "No logo", VerticalAlignment = VerticalAlignment.Center, Opacity = 0.8 };
+        var pickLogo = new Button { Content = "Choose…" };
+        var clearLogo = new Button { Content = "Remove" };
+        pickLogo.Click += async (_, _) =>
+        {
+            var picker = new Windows.Storage.Pickers.FileOpenPicker();
+            WinRT.Interop.InitializeWithWindow.Initialize(picker, WinRT.Interop.WindowNative.GetWindowHandle(App.MainWindow));
+            foreach (var ext in new[] { ".png", ".jpg", ".jpeg" }) picker.FileTypeFilter.Add(ext);
+            if (await picker.PickSingleFileAsync() is { } f)
+            {
+                // A copy in KISSIK's folder, so moving or deleting the original doesn't break scenes.
+                string dest = Path.Combine(AppPaths.Data, "my-logo" + Path.GetExtension(f.Path).ToLowerInvariant());
+                Directory.CreateDirectory(AppPaths.Data);
+                File.Copy(f.Path, dest, overwrite: true);
+                logoPath = dest; logoName.Text = f.Name;
+            }
+        };
+        clearLogo.Click += (_, _) => { logoPath = ""; logoName.Text = "No logo"; };
+        var logoRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        logoRow.Children.Add(pickLogo); logoRow.Children.Add(clearLogo); logoRow.Children.Add(logoName);
+        var logoBlock = new StackPanel { Spacing = 4 };
+        logoBlock.Children.Add(new TextBlock { Text = "Logo or picture (optional, shown in place of your initials)" });
+        logoBlock.Children.Add(logoRow);
+        var custom = new TextBox
+        {
+            Header = "Your own fields (optional): one per line, like Company = Acme. Use {Company} in any scene text.",
+            Text = me.CustomText, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MinHeight = 72,
+        };
+        AutomationProperties.SetName(custom, "Your own fields");
+        var body = new StackPanel { Spacing = 10, MinWidth = 340 };
+        body.Children.Add(new TextBlock { Text = "Scenes show these in place of \"Your Name\". Leave a line empty to hide it. They stay on this PC.", TextWrapping = TextWrapping.Wrap, Opacity = 0.8 });
+        foreach (var b in new[] { name, title, pronouns, handle, email, place }) body.Children.Add(b);
+        body.Children.Add(logoBlock);
+        body.Children.Add(custom);
+        var dialog = new ContentDialog
+        {
+            XamlRoot = XamlRoot, Title = "Your name in scenes", Content = new ScrollViewer { Content = body, MaxHeight = 520 },
+            PrimaryButtonText = "Save", CloseButtonText = "Not now", DefaultButton = ContentDialogButton.Primary,
+        };
+        _settings.MeAsked = true;
+        ContentDialogResult r;
+        try { r = await dialog.ShowAsync(); } catch { return; } // another dialog is open
+        if (r == ContentDialogResult.Primary)
+        {
+            me.Name = name.Text.Trim(); me.Title = title.Text.Trim(); me.Handle = handle.Text.Trim().TrimStart('@');
+            me.Email = email.Text.Trim(); me.Location = place.Text.Trim();
+            me.Pronouns = pronouns.Text.Trim(); me.LogoPath = logoPath; me.SetCustom(custom.Text);
+            Status(me.IsSet ? $"Scenes now show {me.Name}." : "No name given: scenes show their sample text.");
+        }
+        _settings.Save();
+        RenderScene();
+        RefreshSceneRail(_scene.Id);
     }
 
     private void RefreshSceneRail(string? selectId)
@@ -49,6 +123,9 @@ public sealed partial class MainPage
             "*fav" => _scenes.Where(s => _settings.Favourites.Contains("scene:" + s.Id)),
             _ => _scenes.Where(s => s.Category == tag),
         };
+        string q = SceneSearch?.Text.Trim() ?? "";
+        if (q.Length > 0)
+            shown = _scenes.Where(s => s.Name.Contains(q, StringComparison.OrdinalIgnoreCase) || s.Category.Contains(q, StringComparison.OrdinalIgnoreCase));
         _loadingScene = true;
         SceneList.ItemsSource = shown.ToList();
         _loadingScene = false;
@@ -56,6 +133,8 @@ public sealed partial class MainPage
         if (SceneList.Items.Contains(target)) SceneList.SelectedItem = target;
         else LoadScene(target);
     }
+
+    private void SceneSearch_TextChanged(object sender, TextChangedEventArgs e) => RefreshSceneRail(_scene.Id);
 
     private void SelectSceneByShortcut(int n)
     {
@@ -80,7 +159,7 @@ public sealed partial class MainPage
     private void SceneList_ContainerContentChanging(ListViewBase sender, ContainerContentChangingEventArgs args)
     {
         if (args.Item is not SceneDocument s || args.ItemContainer.ContentTemplateRoot is not FrameworkElement root) return;
-        if (FindChild<Canvas>(root) is { } canvas) SceneRenderer.Render(canvas, s, 320, 180, withBackground: true);
+        if (FindChild<Canvas>(root) is { } canvas) SceneRenderer.Render(canvas, s, 320, 180, withBackground: true, camera: _session is not null && _lastFrame is not null ? _thumbSource : null);
     }
 
     private static T? FindChild<T>(DependencyObject parent) where T : DependencyObject
@@ -96,6 +175,8 @@ public sealed partial class MainPage
 
     private void LoadScene(SceneDocument s)
     {
+        BeginSceneFade();
+        _ = EnsureSecondCameraAsync().ContinueWith(_ => { }, TaskScheduler.Default);
         _scene = (SceneLibrary.Load(s.Id) ?? s).Clone();
         _settings.SceneId = _scene.Id; _settings.Save();
         _undo.Clear(); _redo.Clear();
@@ -103,6 +184,9 @@ public sealed partial class MainPage
         RenderScene();
         RefreshLayersTab();
         Status($"Scene: {_scene.Name}");
+        // First scene that shows a name: ask for it once instead of showing "Your Name" to the meeting.
+        if (!_settings.MeAsked && !_settings.Me.IsSet && MyDetails.HasPlaceholders(_scene) && XamlRoot is not null)
+            DispatcherQueue.TryEnqueue(() => _ = EditMyDetailsAsync());
     }
 
     // ── Rendering + capture ─────────────────────────────────────────────
@@ -117,6 +201,28 @@ public sealed partial class MainPage
         _captureTimer?.Stop(); _captureTimer?.Start();
     }
 
+    private volatile byte[]? _overlayBehind;
+    private volatile byte[]? _overlayUnder;
+
+    /// <summary>Renders the overlay canvas with the elements matching <paramref name="hide"/> hidden, at output size.</summary>
+    private async Task<byte[]> CaptureLayersAsync(Func<FrameworkElement, bool> hide, OutputProfile p)
+    {
+        var hidden = OverlayCanvas.Children.OfType<FrameworkElement>().Where(hide).ToList();
+        var saved = hidden.Select(e => e.Opacity).ToList();
+        foreach (var e in hidden) e.Opacity = 0;
+        try
+        {
+            var rtb = new RenderTargetBitmap();
+            await rtb.RenderAsync(OverlayCanvas);
+            var pixels = (await rtb.GetPixelsAsync()).ToArray();
+            LastOverlayCapture = $"rtb {rtb.PixelWidth}×{rtb.PixelHeight}, {pixels.Length} bytes, canvas {OverlayCanvas.ActualWidth:0}×{OverlayCanvas.ActualHeight:0}, output {p.Width}×{p.Height}";
+            if (rtb.PixelWidth != p.Width || rtb.PixelHeight != p.Height)
+                (pixels, _, _) = OutputFit.Stretch(pixels, rtb.PixelWidth, rtb.PixelHeight, p.Width, p.Height);
+            return pixels;
+        }
+        finally { for (int i = 0; i < hidden.Count; i++) hidden[i].Opacity = saved[i]; }
+    }
+
     /// <summary>Captures the overlay layers at exactly the output size (premultiplied BGRA).</summary>
     private async Task CaptureOverlayAsync()
     {
@@ -124,19 +230,24 @@ public sealed partial class MainPage
         {
             var p = _profile;
             if (!_scene.Overlays.Any(l => l.Visible) && !(_scene.Camera.Visible && !string.IsNullOrEmpty(_scene.Camera.Stroke)))
-            { _overlay = null; return; }
+            { _overlay = null; _overlayBehind = null; _overlayUnder = null; return; }
             // Render at the canvas's natural size (its pixel size includes display scaling), then resample
             // to the output. Asking RenderTargetBitmap for the output size directly mixes in the DPI factor
             // and the overlay comes out oversized.
-            var rtb = new RenderTargetBitmap();
-            await rtb.RenderAsync(OverlayCanvas);
-            var pixels = (await rtb.GetPixelsAsync()).ToArray();
-            LastOverlayCapture = $"rtb {rtb.PixelWidth}×{rtb.PixelHeight}, {pixels.Length} bytes, canvas {OverlayCanvas.ActualWidth:0}×{OverlayCanvas.ActualHeight:0}, output {p.Width}×{p.Height}";
-            if (rtb.PixelWidth * p.Height != rtb.PixelHeight * p.Width)
-                Status($"Scene capture has the wrong shape ({LastOverlayCapture}); recordings may misplace layers.");
-            if (rtb.PixelWidth != p.Width || rtb.PixelHeight != p.Height)
-                (pixels, _, _) = OutputFit.Stretch(pixels, rtb.PixelWidth, rtb.PixelHeight, p.Width, p.Height);
+            // Layers dragged past the edge would otherwise grow the capture beyond the canvas.
+            OverlayCanvas.Clip = new Microsoft.UI.Xaml.Media.RectangleGeometry
+            { Rect = new Windows.Foundation.Rect(0, 0, OverlayCanvas.ActualWidth, OverlayCanvas.ActualHeight) };
+            var behindIds = _scene.Layers.Where(l => l.Visible && l.Behind).Select(l => l.Id).ToHashSet();
+            // Front layers go over the finished picture; "behind me" layers are blended under the person.
+            // Layers listed before the camera (a photo print, a card) sit under the video, not over it.
+            var underIds = SceneCompositor.UnderCameraIds(_scene);
+            var pixels = await CaptureLayersAsync(el => el.Tag is string id && (behindIds.Contains(id) || underIds.Contains(id)), p);
+            _overlayBehind = behindIds.Count > 0 ? await CaptureLayersAsync(el => !(el.Tag is string id && behindIds.Contains(id)), p) : null;
+            _overlayUnder = underIds.Count > 0 ? await CaptureLayersAsync(el => !(el.Tag is string id && underIds.Contains(id)), p) : null;
             _overlay = new OverlayImage(pixels, p.Width, p.Height);
+            // In the preview the behind layers are drawn by the video itself, so hide their live copies.
+            foreach (var el in OverlayCanvas.Children.OfType<FrameworkElement>())
+                if (el.Tag is string id && (behindIds.Contains(id) || underIds.Contains(id))) el.Opacity = 0;
         }
         catch (Exception ex) { Status("Scene capture failed: " + ex.Message); }
     }
@@ -260,15 +371,27 @@ public sealed partial class MainPage
     private async void AddLayer_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not MenuFlyoutItem { Tag: string kind }) return;
+        if (kind == "camera2") { await AddSecondCameraAsync(); return; }
+        string? galleryPick = null;
+        if (kind == "gallery") { galleryPick = await PickGalleryBackgroundAsync(); if (galleryPick is null) return; kind = "bg"; }
         SceneLayer layer = kind switch
         {
             "text" => new SceneLayer { Kind = "text", Text = "New text", X = 0.1, Y = 0.1, W = 0.4, H = 0.09, FontSize = 0.06, Bold = true },
             "rect" => new SceneLayer { Kind = "shape", X = 0.1, Y = 0.1, W = 0.25, H = 0.2, Color = "#CC2EA3F2", CornerRadius = 0.015 },
             "ellipse" => new SceneLayer { Kind = "shape", Shape = "ellipse", X = 0.1, Y = 0.1, W = 0.1125, H = 0.2, Color = "#CC2EA3F2" },
             "camera" => new SceneLayer { Kind = "camera", Name = "Video source", X = 0.6, Y = 0.45, W = 0.3, H = 0.45, CornerRadius = 0.02 },
+            "bg" => _scene.Layers.FirstOrDefault(x => x.Kind == "image" && x.Behind && x.W >= 0.99 && x.H >= 0.99)
+                    ?? new SceneLayer { Kind = "image", X = 0, Y = 0, W = 1, H = 1, Behind = true },
             _ => new SceneLayer { Kind = "image", X = 0.75, Y = 0.05, W = 0.2, H = 0.2 },
         };
-        if (kind == "image")
+        bool replacing = kind == "bg" && _scene.Layers.Contains(layer);
+        if (galleryPick is not null)
+        {
+            SceneLibrary.Save(_scene);
+            layer.Source = SceneLibrary.AddAsset(_scene, galleryPick);
+            layer.Name = "Background: " + Path.GetFileNameWithoutExtension(galleryPick);
+        }
+        else if (kind is "image" or "bg")
         {
             var picker = new Windows.Storage.Pickers.FileOpenPicker();
             foreach (var ext in new[] { ".png", ".jpg", ".jpeg", ".gif", ".bmp" }) picker.FileTypeFilter.Add(ext);
@@ -277,14 +400,54 @@ public sealed partial class MainPage
             if (file is null) return;
             SceneLibrary.Save(_scene);
             layer.Source = SceneLibrary.AddAsset(_scene, file.Path);
-            layer.Name = Path.GetFileNameWithoutExtension(file.Name);
+            layer.Name = kind == "bg" ? "Background: " + Path.GetFileNameWithoutExtension(file.Name) : Path.GetFileNameWithoutExtension(file.Name);
         }
         BeginEdit();
-        if (kind == "camera") _scene.Layers.Insert(0, layer); // video sits under the other layers
+        if (kind == "bg" && BgMode.SelectedItem == BgOff) { BgMode.SelectedItem = BgRemove; UpdateBackground(); } // the picture shows where your real room was
+        if (replacing) { }
+        else if (kind is "camera" or "bg") _scene.Layers.Insert(0, layer); // video sits under the other layers
         else _scene.Layers.Add(layer);
         _selectedLayerId = layer.Id;
         Commit();
         RefreshLayersTab();
+    }
+
+    /// <summary>Built-in backgrounds (Assets\Backgrounds), grouped by profession, with a search box.</summary>
+    private async Task<string?> PickGalleryBackgroundAsync()
+    {
+        string dir = Path.Combine(AppContext.BaseDirectory, "Assets", "Backgrounds");
+        var all = Directory.Exists(dir) ? Directory.GetFiles(dir, "*.jpg").OrderBy(f => f).ToList() : [];
+        if (all.Count == 0) { Status("No built-in backgrounds found."); return null; }
+        var grid = new GridView { SelectionMode = ListViewSelectionMode.Single, MaxHeight = 460 };
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(grid, "Backgrounds");
+        void Fill(string q)
+        {
+            grid.Items.Clear();
+            foreach (var f in all.Where(f => q.Length == 0 || Path.GetFileNameWithoutExtension(f).Contains(q, StringComparison.OrdinalIgnoreCase)))
+            {
+                var cell = new StackPanel { Width = 176, Spacing = 4, Tag = f };
+                cell.Children.Add(new Image { Source = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri(f)) { DecodePixelWidth = 176 }, Width = 176, Height = 99, Stretch = Microsoft.UI.Xaml.Media.Stretch.UniformToFill });
+                cell.Children.Add(new TextBlock { Text = Path.GetFileNameWithoutExtension(f), FontSize = 12, TextTrimming = TextTrimming.CharacterEllipsis });
+                Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(cell, Path.GetFileNameWithoutExtension(f));
+                grid.Items.Add(cell);
+            }
+        }
+        var search = new TextBox { PlaceholderText = "Search: doctor, chef, gaming…" };
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(search, "Search backgrounds");
+        search.TextChanged += (_, _) => Fill(search.Text.Trim());
+        Fill("");
+        var body = new StackPanel { Spacing = 10, Width = 600 };
+        body.Children.Add(search); body.Children.Add(grid);
+        var dlg = new ContentDialog
+        {
+            XamlRoot = XamlRoot, Title = "Choose a background", Content = body,
+            PrimaryButtonText = "Use background", CloseButtonText = "Cancel", DefaultButton = ContentDialogButton.Primary,
+        };
+        dlg.Resources["ContentDialogMaxWidth"] = 680.0;
+        bool picked = false;
+        grid.DoubleTapped += (_, _) => { if (grid.SelectedItem is not null) { picked = true; dlg.Hide(); } };
+        var res = await dlg.ShowAsync();
+        return (grid.SelectedItem as FrameworkElement)?.Tag as string is { } pick && (res == ContentDialogResult.Primary || picked) ? pick : null;
     }
 
     private void DeleteSelectedLayer()
@@ -295,6 +458,7 @@ public sealed partial class MainPage
         _selectedLayerId = null;
         Commit();
         RefreshLayersTab();
+        Announce($"{(l.Name.Length > 0 ? l.Name : l.Kind)} layer deleted. Ctrl+Z brings it back.");
     }
 
     private void MoveSelected(int delta)
@@ -319,7 +483,7 @@ public sealed partial class MainPage
     private async void SceneExport_Click(object sender, RoutedEventArgs e)
     {
         var picker = new Windows.Storage.Pickers.FileSavePicker { SuggestedFileName = _scene.Name };
-        picker.FileTypeChoices.Add("OpenKamera scene", [".okscene"]);
+        picker.FileTypeChoices.Add("KISSIK scene", [".okscene"]);
         WinRT.Interop.InitializeWithWindow.Initialize(picker, WinRT.Interop.WindowNative.GetWindowHandle(App.MainWindow));
         var file = await picker.PickSaveFileAsync();
         if (file is null) return;
@@ -364,6 +528,7 @@ public sealed partial class MainPage
     private void Overlay_PointerPressed(object sender, PointerRoutedEventArgs e)
     {
         string? id = HitLayerId(e.OriginalSource);
+        if (id is null && TryPhoneTapFocus(e)) { e.Handled = true; return; }
         // Clicking empty canvas selects the camera when it is a placed layer, otherwise clears the selection.
         _selectedLayerId = id;
         RefreshLayerList(); UpdateAdorner(); BuildProps();
@@ -392,8 +557,63 @@ public sealed partial class MainPage
     {
         if (_dragId is null) return;
         OverlayCanvas.ReleasePointerCapture(e.Pointer);
-        _dragId = null;
-        if (_dragMoved) Commit();
+        string id = _dragId; _dragId = null;
+        if (_dragMoved) { Commit(); return; }
+        // A click (no drag) on text: edit it right there on the video. Wait out a double-click first, so its second
+        // click doesn't land on the edit box's dismiss area and shut it straight away.
+        if (Selected is not { Kind: "text" } l || ElementFor(id) is not FrameworkElement el) return;
+        if (_quickEditTimer is { IsRunning: true }) return; // second click of a double-click: one edit box is enough
+        _quickEditTimer ??= DispatcherQueue.CreateTimer();
+        _quickEditTimer.Interval = TimeSpan.FromMilliseconds(320);
+        _quickEditTimer.IsRepeating = false;
+        _quickEditTimer.Tick += OpenQuick;
+        _quickEditTimer.Start();
+        void OpenQuick(Microsoft.UI.Dispatching.DispatcherQueueTimer t, object _)
+        {
+            t.Tick -= OpenQuick;
+            // Placeholder text ("Your Name", "@yourhandle", email, city) comes from your details: edit those, so
+            // every scene changes together.
+            if (SceneRenderer.Me.Fill(l.Text) != l.Text || IsPlaceholder(l.Text)) _ = EditMyDetailsAsync();
+            else ShowQuickEdit(l, el);
+        }
+    }
+
+    private Microsoft.UI.Dispatching.DispatcherQueueTimer? _quickEditTimer;
+
+    private static bool IsPlaceholder(string t) => t is "Your Name" or "YOUR NAME" or "YN" or "@yourhandle" or "@yourname"
+        or "you@example.com" or "City, Country" or "Title or topic" or "Head of Product · Company";
+
+    private void SelectLayersTab() { if (SidebarTabs.SelectedItem != TabLayers) SidebarTabs.SelectedItem = TabLayers; }
+
+    /// <summary>Edit a text layer in place: text, size, bold and colour, applied live; one undo step.</summary>
+    private void ShowQuickEdit(SceneLayer l, FrameworkElement anchor)
+    {
+        SelectLayersTab();
+        BeginEdit();
+        var text = new TextBox { Text = l.Text, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MinWidth = 260, Header = "Text" };
+        text.TextChanged += (_, _) => { l.Text = text.Text; RenderScene(); };
+        var size = new Slider { Header = "Size", Minimum = 10, Maximum = 200, Value = l.FontSize * 1000 };
+        size.ValueChanged += (_, e2) => { l.FontSize = e2.NewValue / 1000; RenderScene(); };
+        var bold = new ToggleSwitch { Header = "Bold", IsOn = l.Bold };
+        bold.Toggled += (_, _) => { l.Bold = bold.IsOn; RenderScene(); };
+        var colours = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+        foreach (var hex in new[] { "#FFFFFFFF", "#FF111111", "#FFFFD36B", "#FF2EA3F2", "#FFFF6B6B", "#FF5BFF8F" })
+        {
+            var swatch = new Button { Width = 28, Height = 28, Padding = new Thickness(0), CornerRadius = new CornerRadius(14),
+                Background = SceneRenderer.Brush(hex, Microsoft.UI.Colors.White) };
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(swatch, "Colour " + hex);
+            swatch.Click += (_, _) => { l.Color = hex; RenderScene(); };
+            colours.Children.Add(swatch);
+        }
+        var panel = new StackPanel { Spacing = 10, Padding = new Thickness(4) };
+        panel.Children.Add(text); panel.Children.Add(size); panel.Children.Add(bold); panel.Children.Add(colours);
+        var flyout = new Flyout { Content = panel, Placement = Microsoft.UI.Xaml.Controls.Primitives.FlyoutPlacementMode.Top };
+        flyout.Opened += (_, _) => { text.Focus(FocusState.Programmatic); text.SelectAll(); };
+        flyout.Closed += (_, _) => { Commit(); BuildProps(); };
+        // Anchor to the stage, not the text element: typing redraws the scene and replaces that element,
+        // which would close a flyout attached to it after the first keystroke.
+        var at = anchor.TransformToVisual(Stage).TransformPoint(new Windows.Foundation.Point(anchor.ActualWidth / 2, 0));
+        flyout.ShowAt(Stage, new Microsoft.UI.Xaml.Controls.Primitives.FlyoutShowOptions { Position = at, Placement = Microsoft.UI.Xaml.Controls.Primitives.FlyoutPlacementMode.Top });
     }
 
     /// <summary>Snaps to the canvas edges and centre within 1 %.</summary>
@@ -467,7 +687,7 @@ public sealed partial class MainPage
         header.Children.Add(tools);
         PropsPanel.Children.Add(header);
 
-        PropsPanel.Children.Add(TextField("Layer name", l.Name, v => l.Name = v));
+        if (l.Kind != "text") PropsPanel.Children.Add(TextField("Layer name", l.Name, v => l.Name = v));
 
         switch (l.Kind)
         {
@@ -498,7 +718,7 @@ public sealed partial class MainPage
                 PropsPanel.Children.Add(replace);
                 PropsPanel.Children.Add(SliderField("Corner radius", l.CornerRadius * 1000, 0, 200, v => l.CornerRadius = v / 1000));
                 break;
-            case "camera":
+            case "camera" or "camera2":
                 PropsPanel.Children.Add(ChoiceField("Shape", ["rect", "ellipse"], l.Shape, v =>
                 {
                     l.Shape = v;
@@ -512,6 +732,8 @@ public sealed partial class MainPage
                 PropsPanel.Children.Add(fill);
                 break;
         }
+        if (l.Kind != "camera")
+            PropsPanel.Children.Add(ToggleField("Behind me (in front of the background)", l.Behind, v => l.Behind = v));
         PropsPanel.Children.Add(SliderField("Opacity", l.Opacity * 100, 5, 100, v => l.Opacity = v / 100));
     }
 

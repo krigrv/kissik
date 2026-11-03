@@ -25,7 +25,15 @@ public sealed record OutputProfile(string Name, int Width, int Height, int Fps)
     public static IReadOnlyList<OutputProfile> All { get; } = [P720, P1080, P1080x60, P1440, P2160, Vertical, VerticalHd];
 
     public bool IsVertical => Height > Width;
-    public string Aspect => IsVertical ? "9:16" : "16:9";
+    public string Aspect
+    {
+        get
+        {
+            int a = Width, b = Height;
+            while (b != 0) (a, b) = (b, a % b);
+            return a == 0 ? "16:9" : $"{Width / a}:{Height / a}";
+        }
+    }
     /// <summary>e.g. "1080p 16:9 at 30 FPS"; vertical profiles name the long edge.</summary>
     public string Details => $"{Height}p {Aspect} at {Fps} FPS";
     /// <summary>Two-line pill in the command bar, e.g. "720p" / "30FPS".</summary>

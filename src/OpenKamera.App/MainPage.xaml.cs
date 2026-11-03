@@ -19,11 +19,12 @@ public sealed partial class MainPage : Page
     private int _processing, _skipped;
     private readonly FpsCounter _fps = new();
     private OutputProfile _profile = OutputProfile.P720;
-    private CompositeRecorder? _recorder;
+    private SegmentedRecorder? _recorder;
     private DonationInfo _donation = new();
     private readonly System.Diagnostics.Stopwatch _recordClock = new();
     private DateTimeOffset _lastSaved = DateTimeOffset.MinValue;
     // Immutable snapshots, swapped on the UI thread and read on the frame thread.
+    private double _latencyMs;
     private volatile ImageFilters.Adjustments _adj = ImageFilters.Adjustments.Neutral;
     private volatile FrameTransform _transform = FrameTransform.Identity;
     private readonly List<Lut3D> _luts = [];
@@ -36,6 +37,7 @@ public sealed partial class MainPage : Page
         InitializeComponent();
         Current = this;
         Loaded += MainPage_Loaded;
+        SizeChanged += (_, _) => FitCapsule();
         Unloaded += async (_, _) => { if (_session is not null) await _session.DisposeAsync(); _bgPipeline.Dispose(); };
     }
 
@@ -48,8 +50,37 @@ public sealed partial class MainPage : Page
         DonateBtn.Visibility = _donation.IsConfigured ? Visibility.Visible : Visibility.Collapsed;
         RestoreLook();
         BuildLookStrip();
+        try { InitVirtualCamera(); } catch (Exception ex) { Status("Meeting camera unavailable: " + ex.Message); }
+        try { InitFraming(); } catch { }
+        try { InitGuardAndMirror(); } catch { }
+        try { InitTheme(); } catch { }
+        try { InitAccess(); } catch { }
+        try { InitSystemSound(); } catch { }
+        try { InitAudio(); } catch (Exception ex) { Status("Audio unavailable: " + ex.Message); }
+        try { InitScreenLight(); } catch (Exception ex) { Status("Screen light unavailable: " + ex.Message); LightBtn.IsEnabled = false; }
         await RefreshMicrophonesAsync();
         await RefreshDevicesAsync();
+        // Don't make people press Connect every time: open the last camera straight away.
+        if (_session is null && DeviceBox.SelectedItem is CameraDeviceInfo c && c != PhoneDevice && c != PictureDevice) await ConnectAsync();
+        StartConnectWatch();
+        StartSceneThumbs();
+        StartAudioWatchdog();
+        StartPictureWatchdog();
+        _ = ShowWelcomeAndModeAsync().ContinueWith(_ => DispatcherQueue.TryEnqueue(() => _ = OfferCrashReportAsync()), TaskScheduler.Default);
+        ResumePairedPhone();
+        try { InitVertical(); } catch { }
+        try { InitExtras(); } catch { }
+        try { InitTray(); } catch (Exception ex) { Status("Tray icon unavailable: " + ex.Message); }
+        _ = CheckForUpdateAsync(quiet: true);
+        _ = InitSponsorsAsync();
+        InitTransitions();
+        InitAccurate();
+        InitCrashReports();
+        try { InitControl(); } catch (Exception ex) { Status("Remote control unavailable: " + ex.Message); }
+        Unloaded += async (_, _) => { if (_control is { } c) await c.DisposeAsync(); };
+        try { InitGlobalHotkeys(); } catch (Exception ex) { Status("Global shortcuts unavailable: " + ex.Message); }
+        Unloaded += async (_, _) => await StopPhoneAsync();
+        _ = RecoverRecordingsAsync();
     }
 
     /// <summary>Ctrl+1…9 switch scenes, Ctrl+R records, Ctrl+Shift+S takes a snapshot.</summary>
@@ -71,6 +102,9 @@ public sealed partial class MainPage : Page
             (Windows.System.VirtualKey.Z, Windows.System.VirtualKeyModifiers.Control, Undo),
             (Windows.System.VirtualKey.Y, Windows.System.VirtualKeyModifiers.Control, Redo),
             (Windows.System.VirtualKey.Delete, Windows.System.VirtualKeyModifiers.None, DeleteSelectedLayer),
+            (Windows.System.VirtualKey.R, Windows.System.VirtualKeyModifiers.Control | Windows.System.VirtualKeyModifiers.Shift, TogglePause),
+            (Windows.System.VirtualKey.H, Windows.System.VirtualKeyModifiers.Control | Windows.System.VirtualKeyModifiers.Shift,
+                () => SetShutter(_shutter == ShutterMode.Off ? ShutterMode.Away : ShutterMode.Off)),
         })
         {
             var acc = new Microsoft.UI.Xaml.Input.KeyboardAccelerator { Key = key, Modifiers = mods };
@@ -104,7 +138,6 @@ public sealed partial class MainPage : Page
             var names = mics.Where(m => m.IsEnabled).Select(m => m.Name).ToList();
             MicList.ItemsSource = names;
             MicEmpty.Visibility = names.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-            MicName.Text = names.FirstOrDefault() ?? "No microphone";
         }
         catch (Exception ex) { Status("Microphone list failed: " + ex.Message); }
     }
@@ -122,10 +155,20 @@ public sealed partial class MainPage : Page
     private void LeftPaneToggle_Click(object sender, RoutedEventArgs e) => TogglePanes(LeftPane, AudioCard);
     private void RightPaneToggle_Click(object sender, RoutedEventArgs e) => TogglePanes(RightPane, Filmstrip);
 
-    private static void TogglePanes(params FrameworkElement[] panes)
+    private void TogglePanes(params FrameworkElement[] panes)
     {
         bool show = panes[0].Visibility != Visibility.Visible;
         foreach (var p in panes) p.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+        UpdateStageMargin();
+    }
+
+    /// <summary>Keeps the video in the space the panels leave free, so nothing in the picture is ever hidden.</summary>
+    private void UpdateStageMargin()
+    {
+        bool left = LeftPane.Visibility == Visibility.Visible, right = RightPane.Visibility == Visibility.Visible;
+        StageViewbox.Margin = SimplePanel.Visibility == Visibility.Visible ? new Thickness(12, 60, 12, 150)
+            : new Thickness(left ? 340 : 12, 60, right ? 260 : 12, right ? 142 : 12);
+        Filmstrip.Margin = new Thickness(left ? 340 : 12, 0, right ? 260 : 12, 12);
     }
 
     private void NewSceneBtn_Click(object sender, RoutedEventArgs e)
@@ -146,7 +189,7 @@ public sealed partial class MainPage : Page
 
     private void SyncBgTiles(BackgroundMode mode)
     {
-        var accent = (Microsoft.UI.Xaml.Media.Brush)Resources["DgAccentBrush"];
+        var accent = Token("DgAccentBrush");
         var none = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent);
         foreach (var (tile, m) in new (ToggleButton, BackgroundMode)[]
             { (TileOff, BackgroundMode.Off), (TileBlur, BackgroundMode.Blur), (TileReplace, BackgroundMode.Replace), (TileRemove, BackgroundMode.Remove) })
@@ -174,6 +217,10 @@ public sealed partial class MainPage : Page
         }
         ApplyProfile(p);
         _settings.ProfileName = p.Name; _settings.Save();
+        MatchPhoneQuality();
+        // The phone is fed from outside: asking it for the new size (above) is all it needs. Restarting the capture
+        // session with the phone's id would stop the phone feed and freeze the picture.
+        if (DeviceBox.SelectedItem == PhoneDevice) { Status($"Profile: {p.Name} ({p.Details}). Asked your phone for the matching size."); return; }
         if (_session is not null && DeviceBox.SelectedItem is CameraDeviceInfo cam)
         {
             Status($"Switching camera to suit {p.Name}…");
@@ -204,18 +251,25 @@ public sealed partial class MainPage : Page
     /// <summary>Radio menu of output profiles; the details ("1080p 16:9 at 30 FPS") sit on the right.</summary>
     private void BuildProfileMenu()
     {
-        var current = OutputProfile.All.FirstOrDefault(p => p.Name == _settings.ProfileName) ?? OutputProfile.P720;
+        var current = AllProfiles.FirstOrDefault(p => p.Name == _settings.ProfileName) ?? OutputProfile.P720;
         ProfileMenu.Items.Clear();
-        foreach (var p in OutputProfile.All)
+        int? phoneMax = DeviceBox.SelectedItem == PhoneDevice ? _phone?.LastStatus?.MaxLongSide : null;
+        foreach (var p in AllProfiles)
         {
+            bool tooBig = phoneMax is { } m && Math.Max(p.Width, p.Height) > m;
             var item = new RadioMenuFlyoutItem
             {
-                Text = p.Name, GroupName = "profiles", IsChecked = p == current,
+                Text = tooBig ? p.Name + " (above your phone's best)" : p.Name, GroupName = "profiles", IsChecked = p == current,
                 KeyboardAcceleratorTextOverride = p.Details, Tag = p,
             };
-            item.Click += async (_, _) => await ChangeProfileAsync(p);
+            item.Click += async (_, _) =>
+            {
+                try { await ChangeProfileAsync(p); }
+                catch (Exception ex) { Status("Couldn't switch profile: " + ex.Message); } // never let a menu click close the app
+            };
             ProfileMenu.Items.Add(item);
         }
+        AddProfileTools();
         ApplyProfile(current);
     }
 
@@ -256,12 +310,14 @@ public sealed partial class MainPage : Page
         FilterBox.SelectedIndex = (int)_settings.Filter;
         foreach (var s in EnhanceSliders)
             if (_settings.Enhance.TryGetValue(s.Name, out var v)) s.Value = Math.Clamp(v, s.Minimum, s.Maximum);
+        _luts.Clear();
         if (Directory.Exists(AppSettings.LutFolder))
             foreach (var f in Directory.EnumerateFiles(AppSettings.LutFolder, "*.cube"))
                 try { _luts.Add(Lut3D.Load(f)); } catch (Exception ex) { Status($"Skipped LUT {Path.GetFileName(f)}: {ex.Message}"); }
         RefreshLutBox(_settings.LutName);
         MirrorToggle.IsChecked = _settings.Mirror;
         RestoreBackground();
+        RefreshPresetBox(null);
         _restoring = false;
         UpdateBackground();
         _transform = new FrameTransform(_settings.Mirror, _settings.Rotation);
@@ -272,6 +328,9 @@ public sealed partial class MainPage : Page
     {
         FilterPreset.None => "No filter",
         FilterPreset.BlackAndWhite => "Black & white",
+        FilterPreset.GoldenHour => "Golden hour",
+        FilterPreset.TealOrange => "Teal & orange",
+        FilterPreset.FilmPrint => "Film print",
         _ => f.ToString(),
     };
 
@@ -285,35 +344,63 @@ public sealed partial class MainPage : Page
     {
         try
         {
-            var cams = await _catalog.GetCamerasAsync();
+            var cams = (await _catalog.GetCamerasAsync()).ToList();
+            cams.Add(PhoneDevice);
+            cams.Add(PictureDevice);
             DeviceBox.ItemsSource = cams;
-            var last = cams.FirstOrDefault(c => c.Id == _settings.LastDeviceId) ?? cams.FirstOrDefault();
-            DeviceBox.SelectedItem = last;
-            EmptyText.Visibility = cams.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-            Status($"Found {cams.Count} camera(s).");
+            // Keep what's running; otherwise go back to the last source, including the phone.
+            if (_session is null || DeviceBox.SelectedItem is null)
+            {
+                var last = _settings.LastDeviceId == PhoneDevice.Id ? PhoneDevice
+                    : cams.FirstOrDefault(c => c.Id == _settings.LastDeviceId && c != PhoneDevice && c != PictureDevice) ?? cams.FirstOrDefault();
+                DeviceBox.SelectedItem = last;
+            }
+            EmptyText.Visibility = cams.Count <= 2 ? Visibility.Visible : Visibility.Collapsed;
+            Status($"Found {cams.Count - 2} camera(s), plus your phone and a picture source.");
         }
         catch (Exception ex) { Status("Camera enumeration failed: " + ex.Message); }
     }
 
-    private void Status(string msg) => StatusText.Text = msg;
+    private void Status(string msg) { StatusText.Text = msg; Announce(msg); SyncSimple(); }
 
     private void DeviceBox_SelectionChanged(object sender, SelectionChangedEventArgs e) { }
 
-    private async void ConnectBtn_Click(object sender, RoutedEventArgs e)
+    private async void ConnectBtn_Click(object sender, RoutedEventArgs e) => await ConnectAsync(toggle: true);
+
+    private async void EmptyConnect_Click(object sender, RoutedEventArgs e) => await ConnectAsync();
+
+    /// <summary>Switches the source to the phone and connects, which shows the pairing code.</summary>
+    private async void EmptyPhone_Click(object sender, RoutedEventArgs e)
     {
+        if (_session is not null) await ConnectAsync(toggle: true);
+        DeviceBox.SelectedItem = PhoneDevice;
+        await ConnectAsync();
+    }
+
+    private async Task ConnectAsync(bool toggle = false)
+    {
+        if (!toggle && _session is not null) return;
         if (_session is not null)
         {
             if (_recorder is not null) await StopRecordingAsync();
+            // The phone server keeps running so a paired phone can come back by itself.
+            PhoneControls.Visibility = Visibility.Collapsed;
+            PhonePro.Visibility = Visibility.Collapsed;
+            if (DeviceBox.SelectedItem == PhoneDevice) StopPhoneH264();
+            StopPicture();
             await _session.DisposeAsync();
             _session = null; _controller = null;
             ConnectBtn.Content = "Connect";
-            SourceDot.Fill = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(102, 255, 255, 255));
+            SourceDot.Fill = Token("ControlStrongStrokeColorDefaultBrush");
             SourceInfo.Text = "";
             SnapshotBtn.IsEnabled = RecordBtn.IsEnabled = false;
+            if (_live is not null) await StopLiveAsync();
+            LiveBtn.IsEnabled = false;
             ControlsPanel.Children.Clear();
-            FocusMode.IsEnabled = false;
+            FocusMode.IsEnabled = false; FocusRow.Visibility = Visibility.Collapsed;
             EmptyText.Visibility = Visibility.Visible;
             PreviewImage.Source = null;
+            Minimap.Background = Token("ControlFillColorDefaultBrush"); // no stale picture in the framing preview
             HudText.Text = "No device open";
             Status("Disconnected.");
             return;
@@ -327,33 +414,51 @@ public sealed partial class MainPage : Page
         try
         {
             ConnectBtn.IsEnabled = false;
-            _session = new CaptureSession();
+            _session = new CaptureSession { KeepYuv = FrameProcessor.GpuActive };
             _session.FrameAvailable += OnFrame;
-            await _session.StartAsync(cam.Id, _profile);
+            if (cam == PhoneDevice) { await _session.StartExternalAsync(); await StartPhoneAsync(); }
+            else if (cam == PictureDevice)
+            {
+                await _session.StartExternalAsync();
+                if (!await StartPictureAsync(_session))
+                {
+                    await _session.DisposeAsync(); _session = null;
+                    Status("No picture chosen.");
+                    return;
+                }
+            }
+            else await _session.StartAsync(cam.Id, _profile);
+            if (cam != PhoneDevice && cam != PictureDevice) WatchCamera(_session, cam);
             _controller = _session.Controls is { } c ? new CameraController(c) : null;
-            _settings.LastDeviceId = cam.Id;
+            if (cam != PictureDevice) _settings.LastDeviceId = cam.Id; // the phone too, so turning the camera off and on comes back to it
             _settings.Save();
             BuildControls();
             var focus = _controller?.GetProperties().FirstOrDefault(p => p.Name == "Focus");
             FocusMode.IsEnabled = focus is { CanAuto: true };
+            FocusRow.Visibility = FocusMode.IsEnabled ? Visibility.Visible : Visibility.Collapsed; // only where the camera can do it
             if (focus is not null) { _restoring = true; FocusMode.SelectedItem = focus.Auto ? FocusAuto : FocusManual; _restoring = false; }
             CameraPanel.ChangeView(null, 0, null, disableAnimation: true);
             ConnectBtn.Content = "Disconnect";
-            SourceDot.Fill = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 91, 255, 143));
-            SnapshotBtn.IsEnabled = RecordBtn.IsEnabled = true;
+            SourceDot.Fill = Token("SystemFillColorSuccessBrush");
+            SnapshotBtn.IsEnabled = RecordBtn.IsEnabled = LiveBtn.IsEnabled = true;
             EmptyText.Visibility = Visibility.Collapsed;
+            EmptyBusy.Text = "";
             HudText.Text = cam.Name;
-            Status($"Connected: {cam.Name} — camera mode {_session.Mode?.ToString() ?? "default"} for {_profile.Name} ({_profile.Details})");
+            _connectedAt = DateTime.UtcNow; _pictureMissing = false;
+            Status($"Connected: {cam.Name} — camera mode {_session.Mode?.ToString() ?? "default"} for {_profile.Name} ({_profile.Details})" + LimitNote(_session.Mode));
         }
         catch (UnauthorizedAccessException)
         {
             // Windows camera privacy denied (or never answered) for this app.
-            Status("Camera access is off for OpenKamera. Turn it on in Settings → Privacy & security → Camera, then Connect again.");
+            Status("Camera access is off for KISSIK. Turn it on in Settings → Privacy & security → Camera, then Connect again.");
             _ = Windows.System.Launcher.LaunchUriAsync(new Uri("ms-settings:privacy-webcam"));
             if (_session is not null) { await _session.DisposeAsync(); _session = null; }
         }
         catch (Exception ex)
         {
+            var busy = DeviceUsage.InUseBy(PrivacyDevice.Camera).Distinct().ToList();
+            EmptyBusy.Text = busy.Count > 0 ? $"Your camera is open in {string.Join(", ", busy)}. Close it there, then press Connect." : "";
+            EmptyText.Visibility = Visibility.Visible;
             Status("Connect failed: " + ex.Message);
             if (_session is not null) { await _session.DisposeAsync(); _session = null; }
         }
@@ -361,42 +466,185 @@ public sealed partial class MainPage : Page
     }
 
     /// <summary>The look for the next frame. Overlays are excluded for the preview (XAML draws them live).</summary>
+    private (byte[] Src, int W, int H, byte[] Scaled)? _behindCache, _frontCache;
+
+    /// <summary>The scene's front layers at the processed size, so smooth-first halving never drops them from the output.</summary>
+    private byte[]? FrontAt(int w, int h)
+    {
+        if (_overlay is not { } o) return null;
+        if (o.Width == w && o.Height == h) return o.Pixels;
+        if (_frontCache is { } c && ReferenceEquals(c.Src, o.Pixels) && c.W == w && c.H == h) return c.Scaled;
+        var scaled = OutputFit.Stretch(o.Pixels, o.Width, o.Height, w, h).Pixels;
+        _frontCache = (o.Pixels, w, h, scaled);
+        return scaled;
+    }
+
+    /// <summary>The "behind me" layers at the size frames are processed at (smooth-first may halve it), cached per size.</summary>
+    private byte[]? BehindAt(int w, int h) => ScaledLayers(_overlayBehind, w, h, ref _behindCache);
+
+    /// <summary>The "under the camera" layers at processing size, cached per size.</summary>
+    private byte[]? UnderAt(int w, int h) => ScaledLayers(_overlayUnder, w, h, ref _underCache);
+    private (byte[] Src, int W, int H, byte[] Scaled)? _underCache;
+
+    private byte[]? ScaledLayers(byte[]? src, int w, int h, ref (byte[] Src, int W, int H, byte[] Scaled)? cache)
+    {
+        if (src is null) return null;
+        if (src.Length == w * h * 4) return src;
+        if (cache is { } c && ReferenceEquals(c.Src, src) && c.W == w && c.H == h) return c.Scaled;
+        var p = _profile;
+        if (src.Length != p.Width * p.Height * 4) return null;
+        var scaled = OutputFit.Stretch(src, p.Width, p.Height, w, h).Pixels;
+        cache = (src, w, h, scaled);
+        return scaled;
+    }
+
     private FrameRecipe CurrentRecipe(bool withOverlay = false)
     {
         var p = _profile;
         var overlay = _overlay;
-        return new FrameRecipe(_adj, _transform, _bg, p.Width, p.Height, _sceneSnapshot,
-            withOverlay && overlay is { Width: var ow, Height: var oh } && ow == p.Width && oh == p.Height ? overlay.Pixels : null);
+        int level = _smooth.Level;
+        var bg = level >= 1 && _bg.Quality == SegmentationQuality.High ? _bg with { Quality = SegmentationQuality.Fast } : _bg;
+        bool steady = _stabilise && level < 2;
+        // Level 3 halves the processing size, but never mid-recording and never below 720p.
+        bool half = level >= 3 && _recorder is null && p.Height >= 1440;
+        int ow = half ? (p.Width / 2) & ~1 : p.Width, oh = half ? (p.Height / 2) & ~1 : p.Height;
+        return new FrameRecipe(_adj, steady ? _stabilizer.Apply(_transform) : _transform, bg, ow, oh, _sceneSnapshot,
+            withOverlay && overlay is { Width: var vw, Height: var vh } && vw == ow && vh == oh ? overlay.Pixels : null,
+            BehindAt(ow, oh), UnderAt(ow, oh), SecondCameraLayers());
     }
 
     /// <summary>
     /// Frame-reader thread: process every frame once (at profile size), feed the recorder, then hand the
     /// result to the preview if the UI is free. Frames that arrive while one is processing are skipped.
     /// </summary>
+    private double _procMs;
+    private volatile bool _exposureCheck;
+    private volatile ColourVisionType _cvd;
+
+    private void Cvd_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: string t } && Enum.TryParse<ColourVisionType>(t, out var v)) _cvd = v;
+        Status(_cvd == ColourVisionType.Off ? "Normal colours." : $"Preview shows {_cvd} (only you see this): check your scene text and slides still stand out.");
+    }
+    private volatile string _exposureNote = "";
+
+    private void ExposureToggle_Click(object sender, RoutedEventArgs e)
+    {
+        _exposureCheck = ExposureToggle.IsChecked;
+        Status(_exposureCheck ? "Exposure check on (only you see it): red stripes = too bright, blue = too dark." : "Exposure check off.");
+    }
+    private volatile byte[]? _lastBaked, _fadeFrom;
+    private DateTime _fadeStart;
+
+    /// <summary>Starts a cross-fade from the current output to whatever comes next (call when the scene changes).</summary>
+    private void BeginSceneFade()
+    {
+        // While the GPU bakes, the CPU's last baked frame is stale: the GPU keeps its own copy to transition from.
+        _fadeFrom = _gpuBaking ? null : _lastBaked; _fadeStart = DateTime.UtcNow;
+        if (FrameProcessor.GpuActive && _settings.Transition != SceneTransition.Cut) { GpuEffects.Shared!.BeginFade(); _gpuFadeStart = _fadeStart; }
+    }
+    private DateTime? _gpuFadeStart;
+    private volatile bool _gpuBaking;
+    private static readonly (int, int) PreviewMax = (1920, 1080);
+    private ShutterMode ShutterNow => _shutter != ShutterMode.Off ? _shutter : _guardHiding ? ShutterMode.Blur : ShutterMode.Off;
+    private readonly SmoothGovernor _smooth = new();
+
     private void OnFrame(SoftwareBitmap bmp)
     {
+        if (_smooth.Level < 2) { TrackFace(bmp); StabiliseMeasure(bmp); }
         if (Interlocked.Exchange(ref _processing, 1) == 1) { Interlocked.Increment(ref _skipped); return; }
         byte[] pixels; int w, h;
-        try { (pixels, w, h) = FrameProcessor.ProcessPixels(bmp, CurrentRecipe(), _bgPipeline); }
-        catch { Volatile.Write(ref _processing, 0); return; }
-        _fps.Tick();
-        if (_recorder is { } rec)
+        long t0 = System.Diagnostics.Stopwatch.GetTimestamp();
+        // On the GPU the outputs' layers (front overlay, scene transition, captions, shutter) are baked there too.
+        // The outputs are read once here so the bake's size matches what each of them gets below.
+        bool vcam = _vcam.HasClients;
+        var live = _live; var rec = _recorder is { } r0 && !_recPaused ? r0 : null; var replay = _replay;
+        bool fullSize = live is not null || rec is not null || replay is not null;
+        OutputBake? bake = null;
+        double? fadeT = _gpuFadeStart is { } fs ? (DateTime.UtcNow - fs) / SceneTransitions.Duration : null;
+        if (fadeT >= 1) { _gpuFadeStart = null; fadeT = null; }
+        if (FrameProcessor.GpuActive && (vcam || fullSize))
         {
-            // Recording gets the scene layers baked in; the preview shows them as live XAML instead.
-            var framePx = pixels;
-            if (_overlay is { } ov && ov.Width == w && ov.Height == h)
-            {
-                framePx = (byte[])pixels.Clone();
-                SceneCompositor.BlendOver(framePx, ov.Pixels);
-            }
-            rec.Push(framePx, w, h, _recordClock.Elapsed);
+            var cap = _captionImage;
+            // The meeting camera alone takes at most 1080p: shrink on the GPU so only that much comes back.
+            (int, int)? fit = fullSize ? null : (VirtualCameraChannel.MaxWidth, VirtualCameraChannel.MaxHeight);
+            // A recording on the GPU encoder takes the frame as a texture; bytes come back only for the others.
+            bool texture = rec is { TakesTextures: true };
+            bool bytes = !texture || vcam || live is not null || replay is not null || _vertical is not null;
+            bake = new OutputBake(FrontAt, fadeT, cap?.Pixels, cap?.Width ?? 0, cap?.Height ?? 0, ShutterNow, fit, _settings.Transition, texture, bytes);
         }
+        FrameOutput output;
+        // On the GPU the preview, thumbnails and picture checks get at most 1080p; the outputs keep full size.
+        try { output = FrameProcessor.Process(bmp, CurrentRecipe(), _bgPipeline, bake, PreviewMax); (pixels, w, h) = (output.Pixels, output.Width, output.Height); }
+        catch { Volatile.Write(ref _processing, 0); return; }
+        var onGpu = output.Baked;
+        _gpuBaking = onGpu is not null;
+        int ow = onGpu?.Width ?? w, oh = onGpu?.Height ?? h; // the outputs' size
+        // Smoothed effects time per frame: the delay OpenKamera adds on top of the camera itself.
+        double ms = System.Diagnostics.Stopwatch.GetElapsedTime(t0).TotalMilliseconds;
+        _procMs = _procMs <= 0 ? ms : _procMs * 0.9 + ms * 0.1;
+        if (_smooth.Update(_procMs, _profile.Fps, DateTime.UtcNow))
+        {
+            int lv = _smooth.Level;
+            DispatcherQueue.TryEnqueue(() => Status(lv switch
+            {
+                0 => "Smooth-first: effects back to full quality.",
+                1 => "Smooth-first: lighter background edges to keep the video smooth.",
+                2 => "Smooth-first: also pausing Steady picture and face tracking to keep the video smooth.",
+                _ => "Smooth-first: processing at half size until there's headroom again (not while recording).",
+            }));
+        }
+        _fps.Tick();
+        _lastFrameAt = DateTime.UtcNow;
+        _lastFrame = (pixels, w, h);
+        // Meeting camera and recordings get the scene layers baked in; the preview shows them as live XAML.
+        byte[]? baked = null;
+        byte[] Baked()
+        {
+            if (baked is not null) return baked;
+            if (onGpu?.Pixels is { } gpuBytes) return baked = gpuBytes;
+            baked = pixels;
+            if (FrontAt(w, h) is { } front) { baked = (byte[])pixels.Clone(); SceneCompositor.BlendOver(baked, front); }
+            // Scene switch: cross-fade from the last frame of the old scene.
+            if (_fadeFrom is { } from && from.Length == baked.Length)
+            {
+                double t = (DateTime.UtcNow - _fadeStart) / SceneTransitions.Duration;
+                if (t >= 1 || _settings.Transition == SceneTransition.Cut) _fadeFrom = null;
+                else { if (ReferenceEquals(baked, pixels)) baked = (byte[])pixels.Clone(); SceneTransitions.Apply(baked, from, w, h, t, _settings.Transition); }
+            }
+            _lastBaked = baked;
+            baked = BurnCaptions(baked, w, h);
+            baked = PrivacyShutter.Apply(baked, w, h, ShutterNow);
+            return baked;
+        }
+        if (vcam) FeedVirtualCamera(Baked(), ow, oh);
+        live?.Push(Baked(), ow, oh);
+        // Recording gets the scene layers baked in; the preview shows them as live XAML instead.
+        if (onGpu?.Texture is { } tex)
+        {
+            // The recorder owns the texture from here (it frees it once encoded, or when it drops it).
+            if (rec is not null) rec.PushTexture(tex, _recordClock.Elapsed); else tex.Dispose();
+            if (rec is not null && onGpu.Pixels is { } b) PushVertical(b, ow, oh);
+        }
+        else if (rec is not null) { var b = Baked(); rec.Push(b, ow, oh, _recordClock.Elapsed); PushVertical(b, ow, oh); }
+        replay?.Push(Baked(), ow, oh, _replayClock.Elapsed);
         Volatile.Write(ref _processing, 0);
 
         if (_updatingPreview) return;
         _updatingPreview = true;
         SoftwareBitmap copy;
-        try { copy = FrameProcessor.ToBitmap(pixels, w, h); }
+        var shown = pixels;
+        if (_cvd != ColourVisionType.Off) { shown = (byte[])pixels.Clone(); ColourVision.Apply(shown, _cvd); }
+        if (_exposureCheck)
+        {
+            // Preview only: the outputs above already have their own copy of the frame.
+            if (ReferenceEquals(shown, pixels)) shown = (byte[])pixels.Clone();
+            var (clip, crush) = ExposureCheck.Apply(shown, w, h, (int)(Environment.TickCount64 / 120 % 12));
+            _exposureNote = clip > 0.08 ? "Too bright in places: lower Light or move away from the window."
+                          : crush > 0.25 ? "Large dark areas: add light in front of you." : "Exposure looks good.";
+        }
+        int outH = oh;
+        try { copy = FrameProcessor.ToBitmap(shown, w, h); }
         catch { _updatingPreview = false; return; }
         bool queued = DispatcherQueue.TryEnqueue(async () =>
         {
@@ -404,6 +652,9 @@ public sealed partial class MainPage : Page
             {
                 var src = new SoftwareBitmapSource();
                 await src.SetBitmapAsync(copy);
+                // Camera-to-screen delay: from the sensor's capture stamp to the picture handed to the screen.
+                if (_h264 is not null) NotePhoneShown();
+                if (_session?.LastCaptureTime is { } cap) _latencyMs = _latencyMs * 0.9 + (CaptureSession.Now - cap).TotalMilliseconds * 0.1;
                 PreviewImage.Source = src;
                 string fx = _bg.NeedsMask
                     ? (_bgPipeline.LastError is { } err ? $" · effects error: {err}" : $" · effects {_bgPipeline.LastMs:0} ms{(_bgPipeline.UsesGpu ? " GPU" : " CPU")}")
@@ -411,10 +662,10 @@ public sealed partial class MainPage : Page
                 if (_recorder is not null)
                 {
                     RecordLabel.Text = $"{_recordClock.Elapsed:mm\\:ss}";
-                    RecPillText.Text = $"● REC {_recordClock.Elapsed:mm\\:ss}";
+                    RecPillText.Text = _recPaused ? $"❚❚ PAUSED {_recordClock.Elapsed:mm\\:ss}" : $"● REC {_recordClock.Elapsed:mm\\:ss}";
                 }
-                HudText.Text = $"{copy.PixelHeight}p {_fps.Fps:0} fps{fx}";
-                if (_session?.Mode is { } m) SourceInfo.Text = $"{m.Width}×{m.Height} @ {m.Fps:0}";
+                HudText.Text = $"{outH}p {_fps.Fps:0} fps · {_procMs:0} ms{(_latencyMs > 0 && DeviceBox.SelectedItem != PhoneDevice ? $" · delay {_latencyMs:0} ms" : "")}{PhoneRates()}{(_smooth.Level > 0 ? " · smooth-first" : "")}{fx}{(_exposureCheck ? " · " + _exposureNote : "")}";
+                if (_session?.Mode is { } m) { SourceInfo.Text = $"{m.Width}×{m.Height} @ {m.Fps:0}"; RefreshSponsor(); }
             }
             catch (Exception ex) when (_session is not null) { Status("Preview error: " + ex.Message); }
             catch { /* frame raced with disconnect */ }
@@ -548,6 +799,28 @@ public sealed partial class MainPage : Page
         UpdateAdjustments(); SaveLook();
     }
 
+    /// <summary>One press: neutral adjustments, measure the live picture, then fix exposure, colour cast and flat light.</summary>
+    private async void AutoBest_Click(object sender, RoutedEventArgs e)
+    {
+        if (_session is null || _lastFrame is null) { Status("Connect a camera first."); return; }
+        AutoBestBtn.IsEnabled = false;
+        try
+        {
+            EnhanceReset_Click(sender, e);
+            await Task.Delay(450); // let a frame through with neutral adjustments
+            if (_lastFrame is not { } f) return;
+            var r = await Task.Run(() => AutoPicture.Analyze(f.Px, f.W, f.H));
+            _restoring = true;
+            EnhGamma.Value = r.Gamma * 100; EnhContrast.Value = r.Contrast * 100;
+            EnhTemperature.Value = r.Temperature * 100; EnhTint.Value = r.Tint * 100;
+            EnhSharpness.Value = r.Sharpness * 100; EnhVibrance.Value = r.Vibrance * 100;
+            _restoring = false;
+            UpdateAdjustments(); SaveLook();
+            Status(r.Summary + " Fine-tune under Adjustments, or reset with the arrow.");
+        }
+        finally { _restoring = false; AutoBestBtn.IsEnabled = true; }
+    }
+
     private async void ImportLutBtn_Click(object sender, RoutedEventArgs e) => await ImportLutCoreAsync();
 
     /// <summary>Picks, validates and stores a .cube LUT, then selects it. Returns null when cancelled or invalid.</summary>
@@ -589,6 +862,9 @@ public sealed partial class MainPage : Page
         if (b.Spotlight > 0) SpotlightAmount.Value = b.Spotlight * 100;
         RetouchToggle.IsOn = b.Retouch > 0;
         if (b.Retouch > 0) RetouchAmount.Value = b.Retouch * 100;
+        GreenScreenToggle.IsOn = b.GreenScreen;
+        KeyColorBar.SelectedItem = b.KeyColor == BlueKey ? KeyBlue : KeyGreen;
+        KeySimilarity.Value = b.Similarity * 100; KeySmoothness.Value = b.Smoothness * 100; KeySpill.Value = b.Spill * 100;
         RefreshBackgroundPicker(b.BackgroundId);
     }
 
@@ -600,9 +876,11 @@ public sealed partial class MainPage : Page
         BgPicker.SelectedItem = all.FirstOrDefault(b => b.Id == select) ?? all.FirstOrDefault();
     }
 
+    private const string GreenKey = "#00B140", BlueKey = "#0047BB";
+
     private void UpdateBackground()
     {
-        if (_restoring || RetouchAmount is null || BgPicker is null) return; // fires during InitializeComponent
+        if (_restoring || RetouchAmount is null || BgPicker is null || KeySpill is null) return; // fires during InitializeComponent
         var item = BgMode.SelectedItem;
         var mode = item == BgBlur ? BackgroundMode.Blur : item == BgReplace ? BackgroundMode.Replace
                  : item == BgRemove ? BackgroundMode.Remove : BackgroundMode.Off;
@@ -610,6 +888,8 @@ public sealed partial class MainPage : Page
         BgPickerRow.Visibility = mode == BackgroundMode.Replace ? Visibility.Visible : Visibility.Collapsed;
         SyncBgTiles(mode);
         SpotlightAmount.IsEnabled = SpotlightToggle.IsOn;
+        GreenScreenPanel.Visibility = GreenScreenToggle.IsOn ? Visibility.Visible : Visibility.Collapsed;
+        BgQuality.Visibility = GreenScreenToggle.IsOn ? Visibility.Collapsed : Visibility.Visible;
         RetouchAmount.IsEnabled = RetouchToggle.IsOn;
         SpotlightValue.Text = SpotlightToggle.IsOn ? $"{SpotlightAmount.Value:0} %" : "";
         _bg = new BackgroundSettings(
@@ -618,7 +898,10 @@ public sealed partial class MainPage : Page
             Spotlight: SpotlightToggle.IsOn ? SpotlightAmount.Value / 100.0 : 0,
             Retouch: RetouchToggle.IsOn ? RetouchAmount.Value / 100.0 : 0,
             BackgroundId: (BgPicker.SelectedItem as BackgroundInfo)?.Id,
-            Quality: BgQuality.SelectedItem == BgQualityHigh ? SegmentationQuality.High : SegmentationQuality.Fast);
+            Quality: BgQuality.SelectedItem == BgQualityHigh ? SegmentationQuality.High : SegmentationQuality.Fast,
+            GreenScreen: GreenScreenToggle.IsOn,
+            KeyColor: KeyColorBar.SelectedItem == KeyBlue ? BlueKey : GreenKey,
+            Similarity: KeySimilarity.Value / 100.0, Smoothness: KeySmoothness.Value / 100.0, Spill: KeySpill.Value / 100.0);
         _settings.Background = _bg;
         _settings.Save();
     }
@@ -632,7 +915,7 @@ public sealed partial class MainPage : Page
     private async void BgImportBtn_Click(object sender, RoutedEventArgs e)
     {
         var picker = new Windows.Storage.Pickers.FileOpenPicker();
-        foreach (var ext in new[] { ".png", ".jpg", ".jpeg" }) picker.FileTypeFilter.Add(ext);
+        foreach (var ext in BackgroundLibrary.ImageExtensions.Concat(BackgroundLibrary.VideoExtensions)) picker.FileTypeFilter.Add(ext); // pictures and looping videos
         WinRT.Interop.InitializeWithWindow.Initialize(picker, WinRT.Interop.WindowNative.GetWindowHandle(App.MainWindow));
         var file = await picker.PickSingleFileAsync();
         if (file is null) return;
@@ -683,10 +966,10 @@ public sealed partial class MainPage : Page
         try
         {
             string folder = string.IsNullOrWhiteSpace(_settings.ImageFolder)
-                ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "OpenKamera")
+                ? AppPaths.Pictures
                 : _settings.ImageFolder;
             Directory.CreateDirectory(folder);
-            string path = Path.Combine(folder, $"OpenKamera-{DateTime.Now:yyyyMMdd-HHmmss}.png");
+            string path = Path.Combine(folder, $"KISSIK-{DateTime.Now:yyyyMMdd-HHmmss}.png");
             await _session.SaveSnapshotAsync(path, CurrentRecipe(withOverlay: true), _bgPipeline);
             _lastSaved = DateTimeOffset.Now;
             Status("Snapshot saved: " + path);
@@ -697,24 +980,29 @@ public sealed partial class MainPage : Page
     private async void RecordBtn_Click(object sender, RoutedEventArgs e)
     {
         if (_session is null) return;
+        if (_savingRecording) { Status("Still saving the last recording. Record again in a moment."); return; }
+        // A double press on Stop shouldn't start a new recording the moment a short one finishes saving.
+        if (_recorder is null && DateTime.UtcNow - _recordingSavedAt < TimeSpan.FromSeconds(2)) return;
         try
         {
             if (_recorder is not null) { await StopRecordingAsync(); return; }
-            string folder = string.IsNullOrWhiteSpace(_settings.RecordingFolder)
-                ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyVideos), "OpenKamera")
-                : _settings.RecordingFolder;
+            if (_countdown is { } running) { running.Cancel(); return; } // pressing Record again cancels the countdown
+            if (!await CountdownAsync()) { Status("Recording cancelled."); return; }
+            string folder = RecordingFolder();
             Directory.CreateDirectory(folder);
-            string path = Path.Combine(folder, $"OpenKamera-{DateTime.Now:yyyyMMdd-HHmmss}.mp4");
-            var rec = new CompositeRecorder(_profile.Width, _profile.Height, _profile.Fps);
+            string path = Path.Combine(folder, $"KISSIK-{DateTime.Now:yyyyMMdd-HHmmss}.mp4");
+            var rec = new SegmentedRecorder(_profile.Width, _profile.Height, _profile.Fps, withAudio: _audio.IsRunning);
             await rec.StartAsync(path);
+            await StartVerticalAsync(path);
             _recordClock.Restart();
             _recorder = rec;
             RecordLabel.Text = "00:00"; RecordIcon.Glyph = "";
             RecordBtn.Background = (Microsoft.UI.Xaml.Media.Brush)Resources["DgRecBrush"];
             RecordBtn.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.White);
             RecPill.Visibility = Visibility.Visible;
+            _recPaused = false; PauseBtn.Visibility = Visibility.Visible; SetPauseLook();
             AutomationProperties.SetName(RecordBtn, "■ Stop");
-            Status($"Recording {rec.Width}×{rec.Height} @ {rec.Fps} fps: {rec.Path}");
+            Status($"Recording {rec.Width}×{rec.Height} @ {rec.Fps} fps{(rec.OnGpu ? " (GPU encoder)" : "")}: {rec.Path}");
         }
         catch (Exception ex) { _recorder = null; Status("Record failed: " + ex.Message); }
     }
@@ -747,6 +1035,14 @@ public sealed partial class MainPage : Page
                 Text = d.PayPalUrl, FontSize = 11, HorizontalAlignment = HorizontalAlignment.Center,
                 Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorTertiaryBrush"],
             });
+        }
+
+        if (d.HasKoFi)
+        {
+            var kofi = new Button { HorizontalAlignment = HorizontalAlignment.Stretch, Content = "Support on Ko-fi" };
+            AutomationProperties.SetName(kofi, "Support on Ko-fi");
+            kofi.Click += async (_, _) => await Windows.System.Launcher.LaunchUriAsync(new Uri(d.KoFiUrl));
+            body.Children.Add(kofi);
         }
 
         if (d.HasUpi)
@@ -792,12 +1088,46 @@ public sealed partial class MainPage : Page
 
         var dialog = new ContentDialog
         {
-            Title = "Support OpenKamera",
+            Title = "Support KISSIK",
             Content = new ScrollViewer { Content = body },
             CloseButtonText = "Close",
             XamlRoot = XamlRoot,
         };
         await dialog.ShowAsync();
+    }
+
+    /// <summary>Says plainly when the camera can't reach the chosen quality, instead of capping it silently.</summary>
+    private string LimitNote(CaptureMode? mode)
+    {
+        if (mode is not { } m) return "";
+        var notes = new List<string>();
+        if (m.Height < _profile.Height) notes.Add($"this camera supports up to {m.Height}p, so the picture is scaled up to {_profile.Height}p");
+        if (m.Fps > 0 && m.Fps + 0.5 < _profile.Fps) notes.Add($"it runs at {m.Fps:0} fps, not {_profile.Fps}");
+        return notes.Count == 0 ? "" : ". Note: " + string.Join("; ", notes) + ". Every quality is free; this is the camera's own limit.";
+    }
+
+    /// <summary>Every third saved recording, a quiet thank-you line pointing at Support. Never a pop-up.</summary>
+    private string SupportNudge()
+    {
+        _settings.RecordingsSaved++; _settings.Save();
+        return _donation.IsConfigured && _settings.RecordingsSaved % 3 == 0
+            ? " · Enjoying KISSIK? It's free and built by one person. Support it with the 🙏 button."
+            : "";
+    }
+
+    private string RecordingFolder() => string.IsNullOrWhiteSpace(_settings.RecordingFolder)
+        ? AppPaths.Videos
+        : _settings.RecordingFolder;
+
+    /// <summary>Joins pieces left by a recording that was cut off by a crash or power loss.</summary>
+    private async Task RecoverRecordingsAsync()
+    {
+        try
+        {
+            var saved = await SegmentedRecorder.RecoverAsync(RecordingFolder());
+            if (saved.Count > 0) Status($"Recovered {saved.Count} interrupted recording(s): {string.Join(", ", saved.Select(Path.GetFileName))}");
+        }
+        catch { /* recovery is best effort */ }
     }
 
     private async Task StopRecordingAsync()
@@ -806,19 +1136,32 @@ public sealed partial class MainPage : Page
         if (rec is null) return;
         _recorder = null; // stop feeding first
         _recordClock.Stop();
-        RecordLabel.Text = "Record"; RecordIcon.Glyph = "";
+        _recPaused = false; PauseBtn.Visibility = Visibility.Collapsed;
         RecordBtn.ClearValue(Control.BackgroundProperty);
         RecordBtn.ClearValue(Control.ForegroundProperty);
         RecPill.Visibility = Visibility.Collapsed;
-        AutomationProperties.SetName(RecordBtn, "● Record");
-        Status("Finishing recording…");
+        // Joining a long recording takes a while; a press meanwhile would start a new one on top of it.
+        _savingRecording = true; RecordBtn.IsEnabled = false;
+        RecordLabel.Text = "Saving…"; AutomationProperties.SetName(RecordBtn, "Saving the recording");
+        Status("Finishing recording… joining the pieces");
         try
         {
             await rec.StopAsync();
+            string vertical = await StopVerticalAsync();
             Status($"Recording saved: {rec.Path} — {rec.FramesWritten} frames, {_recordClock.Elapsed:mm\\:ss}" +
-                   (rec.FramesDropped > 0 ? $", {rec.FramesDropped} dropped (encoder busy)" : ""));
+                   (rec.FramesDropped > 0 ? $", {rec.FramesDropped} dropped (encoder busy)" : "") + vertical + SupportNudge());
         }
         catch (Exception ex) { Status("Recording failed while saving: " + ex.Message); }
-        finally { await rec.DisposeAsync(); }
+        finally
+        {
+            await rec.DisposeAsync();
+            _savingRecording = false; _recordingSavedAt = DateTime.UtcNow;
+            RecordLabel.Text = "Record"; RecordIcon.Glyph = "";
+            AutomationProperties.SetName(RecordBtn, "● Record");
+            RecordBtn.IsEnabled = _session is not null;
+        }
     }
+
+    private bool _savingRecording;
+    private DateTime _recordingSavedAt;
 }

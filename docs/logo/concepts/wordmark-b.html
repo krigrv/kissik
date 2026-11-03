@@ -1,0 +1,40 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Lens o variations</title>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#141414;--gold:#FFD36B;--deep:#E5A82E}
+body{margin:0;background:#fff;color:var(--ink);font:15px Sora,system-ui,sans-serif;padding:28px 18px}
+h1{font-size:20px;font-weight:600;margin:0 0 6px}.sub{color:#777;margin:0 0 24px}
+.g{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px}
+.c{border:1px solid #ebe7de;border-radius:20px;overflow:hidden}
+.s{padding:44px 18px;display:grid;place-items:center;gap:18px}
+.n{padding:12px 18px;border-top:1px solid #eee;color:#666;font-size:13px;line-height:1.5}.n b{color:var(--ink)}
+.wm{font-weight:700;font-size:48px;letter-spacing:-.045em;line-height:1;display:inline-flex;align-items:baseline;white-space:nowrap}
+.o{width:.58em;height:.58em;margin-right:.03em;flex:none;display:inline-block;vertical-align:baseline}
+.o svg{width:100%;height:100%;display:block;overflow:visible}
+.mini{display:flex;gap:14px;align-items:center}
+.mini .wm{font-size:20px}
+.ic{width:56px;height:56px;border-radius:14px;background:var(--ink);display:grid;place-items:center}.ic svg{width:60%;height:60%}
+</style></head><body>
+<h1>Lens "o" — ten treatments</h1>
+<p class="sub">Same word, different inner logo. Each card shows the big wordmark, a small one, and the "o" alone as an app icon.</p>
+<div class="g" id="g"></div>
+<script>
+const G='#FFD36B',D='#E5A82E',K='#141414',W='#fff';
+const V=[
+['1 · Solid (current B)','Gold disc, ink pupil, white glint.',`<circle cx="50" cy="50" r="50" fill="${G}"/><circle cx="50" cy="50" r="24" fill="${K}"/><circle cx="43" cy="43" r="7" fill="${W}"/>`],
+['2 · Ink border','A thin ink outline around the gold, so it sits with the black letters.',`<circle cx="50" cy="50" r="46" fill="${G}" stroke="${K}" stroke-width="8"/><circle cx="50" cy="50" r="22" fill="${K}"/><circle cx="43" cy="43" r="6" fill="${W}"/>`],
+['3 · White gap ring','Gold outer ring, white gap, ink lens — like a ring light around a lens.',`<circle cx="50" cy="50" r="50" fill="${G}"/><circle cx="50" cy="50" r="34" fill="${W}"/><circle cx="50" cy="50" r="26" fill="${K}"/><circle cx="42" cy="42" r="6" fill="${W}"/>`],
+['4 · Outline only','Gold ring stroke matching the letter weight, ink dot inside. Lightest.',`<circle cx="50" cy="50" r="40" fill="none" stroke="${G}" stroke-width="20"/><circle cx="50" cy="50" r="12" fill="${K}"/>`],
+['5 · Double ring','Two gold rings with an ink core: lens elements stacked.',`<circle cx="50" cy="50" r="50" fill="${G}"/><circle cx="50" cy="50" r="38" fill="${K}"/><circle cx="50" cy="50" r="30" fill="${G}"/><circle cx="50" cy="50" r="18" fill="${K}"/><circle cx="44" cy="44" r="5" fill="${W}"/>`],
+['6 · Aperture','Six iris blades in the pupil.',`<circle cx="50" cy="50" r="50" fill="${G}"/><circle cx="50" cy="50" r="30" fill="${K}"/>${[0,60,120,180,240,300].map(a=>`<path d="M50 24 L60 44 L40 50Z" fill="${D}" transform="rotate(${a} 50 50)"/>`).join('')}<circle cx="50" cy="50" r="7" fill="${K}"/>`],
+['7 · Glint as a crescent','Highlight drawn as a curved reflection instead of a dot.',`<circle cx="50" cy="50" r="50" fill="${G}"/><circle cx="50" cy="50" r="25" fill="${K}"/><path d="M36 44a16 16 0 0 1 14-13" stroke="${W}" stroke-width="5" stroke-linecap="round" fill="none"/>`],
+['8 · Gradient gold','Warm light-to-deep gradient, gives depth like real glass.',`<defs><radialGradient id="rg" cx="35%" cy="30%"><stop offset="0" stop-color="#FFF2C4"/><stop offset=".45" stop-color="${G}"/><stop offset="1" stop-color="#C98A1E"/></radialGradient></defs><circle cx="50" cy="50" r="50" fill="url(#rg)"/><circle cx="50" cy="50" r="24" fill="${K}"/><circle cx="43" cy="43" r="7" fill="${W}"/>`],
+['9 · Open ring light','Gold ring with a small opening at the top — "open".',`<path d="M38 6A45 45 0 1 0 62 6" fill="none" stroke="${G}" stroke-width="12" stroke-linecap="round"/><circle cx="50" cy="52" r="20" fill="${K}"/><circle cx="44" cy="46" r="5" fill="${W}"/>`],
+['10 · Ticks bezel','Gold bezel with focus ticks around it, ink lens inside.',`<circle cx="50" cy="50" r="50" fill="${G}"/>${Array.from({length:24},(_, i)=>`<line x1="50" y1="4" x2="50" y2="${i%6?10:14}" stroke="${K}" stroke-width="3" transform="rotate(${i*15} 50 50)"/>`).join('')}<circle cx="50" cy="50" r="27" fill="${K}"/><circle cx="43" cy="43" r="6" fill="${W}"/>`],
+];
+const svg=b=>`<svg viewBox="0 0 100 100">${b}</svg>`;
+document.getElementById('g').innerHTML=V.map(([t,d,b])=>`<div class="c"><div class="s"><span class="wm"><span class="o">${svg(b)}</span>penkamera</span>
+<div class="mini"><span class="wm"><span class="o">${svg(b)}</span>penkamera</span><span class="ic">${svg(b)}</span></div></div>
+<div class="n"><b>${t}.</b> ${d}</div></div>`).join('');
+</script>
+</body></html>

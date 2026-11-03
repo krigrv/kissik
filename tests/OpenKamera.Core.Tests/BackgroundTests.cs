@@ -3,6 +3,7 @@ using Xunit.Abstractions;
 
 namespace OpenKamera.Core.Tests;
 
+[Collection("Timing")]
 public class BackgroundTests(ITestOutputHelper output)
 {
     private static byte[] Solid(int w, int h, byte b, byte g, byte r)
@@ -133,6 +134,7 @@ public class BackgroundTests(ITestOutputHelper output)
     /// <summary>
     /// Speed gate from the plan: ≥ 15 fps at 720p for the Fast path. Logs both qualities; GPU when present.
     /// </summary>
+    [Trait("Category", "Hardware")] // speed depends on a real GPU; cloud machines only have a software one
     [Fact]
     public void Pipeline_720p_Throughput()
     {

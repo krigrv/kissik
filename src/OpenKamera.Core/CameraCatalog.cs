@@ -8,8 +8,12 @@ public sealed class CameraCatalog
     public async Task<IReadOnlyList<CameraDeviceInfo>> GetCamerasAsync()
     {
         var infos = await DeviceInformation.FindAllAsync(DeviceClass.VideoCapture);
-        return infos.Select(d => new CameraDeviceInfo(d.Id, d.Name)).ToList();
+        // KISSIK's own meeting camera is never offered as an input: it would show KISSIK's output looping on itself.
+        return infos.Where(d => !IsOwnCamera(d.Name)).Select(d => new CameraDeviceInfo(d.Id, d.Name)).ToList();
     }
+
+    public static bool IsOwnCamera(string name) =>
+        name.Equals("KISSIK", StringComparison.OrdinalIgnoreCase) || name.StartsWith("KISSIK ", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>Watches for camera hot-plug; invoke <paramref name="changed"/> on any add/remove/update.</summary>
     public DeviceWatcher CreateWatcher(Action changed)

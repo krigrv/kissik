@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
@@ -8,19 +8,40 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="GpuEffects.hlsl" LogicalName="OpenKamera.Core.GpuEffects.hlsl" />
+  </ItemGroup>
+
+  <ItemGroup>
     <InternalsVisibleTo Include="OpenKamera.Core.Tests" />
   </ItemGroup>
 
   <ItemGroup>
     <!-- Same Windows ML build the Windows App SDK ships: managed ONNX Runtime + DirectML. -->
     <PackageReference Include="Microsoft.Windows.AI.MachineLearning" Version="2.4.89" />
+    <PackageReference Include="NAudio.Wasapi" Version="2.2.1" />
     <!-- QR codes for the UPI donation link (MIT). -->
     <PackageReference Include="QRCoder" Version="1.6.0" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="9.0.0" />
+    <!-- Direct3D 11 compute for the GPU frame path (MIT). -->
+    <PackageReference Include="Vortice.D3DCompiler" Version="3.8.3" />
+    <PackageReference Include="Vortice.Direct3D11" Version="3.8.3" />
+    <PackageReference Include="Vortice.MediaFoundation" Version="3.8.3" />
+    <PackageReference Include="Vosk" Version="0.3.38" />
+    <PackageReference Include="Whisper.net" Version="1.9.1" />
+    <PackageReference Include="Whisper.net.Runtime" Version="1.9.1" />
   </ItemGroup>
 
   <ItemGroup>
     <!-- Segmentation models (Apache-2.0, see THIRD_PARTY.md). -->
     <None Include="Models\*.onnx" CopyToOutputDirectory="PreserveNewest" Link="Models\%(Filename)%(Extension)" />
+    <!-- Voice noise removal (see THIRD_PARTY.md): RNNoise (BSD-3-Clause) and DeepFilterNet 3 low latency (MIT/Apache-2.0). -->
+    <None Include="Models\DeepFilterNet3_ll_onnx.tar.gz" CopyToOutputDirectory="PreserveNewest" Link="Models\%(Filename)%(Extension)" />
+    <None Include="Native\x64\*.dll" CopyToOutputDirectory="PreserveNewest" Link="voice\x64\%(Filename)%(Extension)" />
+    <None Include="Native\x86\*.dll" CopyToOutputDirectory="PreserveNewest" Link="voice\x86\%(Filename)%(Extension)" />
+    <None Include="Native\arm64\*.dll" CopyToOutputDirectory="PreserveNewest" Link="voice\arm64\%(Filename)%(Extension)" />
   </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="ScenePack.json" LogicalName="OpenKamera.Core.ScenePack.json" />
+  </ItemGroup>
 </Project>

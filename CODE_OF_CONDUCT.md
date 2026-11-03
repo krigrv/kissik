@@ -1,6 +1,6 @@
 # Code of Conduct
 
-OpenKamera adopts the **Contributor Covenant, version 2.1**:
+KISSIK adopts the **Contributor Covenant, version 2.1**:
 https://www.contributor-covenant.org/version/2/1/code_of_conduct/
 
 In short: be welcoming and respectful, assume good intent, give and accept

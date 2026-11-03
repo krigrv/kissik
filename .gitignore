@@ -26,3 +26,14 @@ OpenKamera-*.mp4
 # Secrets
 *.pfx
 .env
+
+# Copied in at build time
+src/OpenKamera.App/VirtualCamera/
+src/OpenKamera.MediaSource/bin/
+
+# Private research notes (cite other products by name; never published)
+docs/research/
+artifacts/
+
+# Claude Code session data and worktrees
+.claude/

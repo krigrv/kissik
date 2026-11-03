@@ -9,18 +9,20 @@ namespace OpenKamera.Core;
 public sealed class DonationInfo
 {
     public string PayPalUrl { get; set; } = "";
+    public string KoFiUrl { get; set; } = "";
     public string UpiId { get; set; } = "";
     public string UpiName { get; set; } = "";
     public string Message { get; set; } = "";
 
     public bool HasPayPal => Uri.TryCreate(PayPalUrl, UriKind.Absolute, out var u) && u.Scheme == Uri.UriSchemeHttps;
+    public bool HasKoFi => Uri.TryCreate(KoFiUrl, UriKind.Absolute, out var k) && k.Scheme == Uri.UriSchemeHttps;
     public bool HasUpi => IsValidUpiId(UpiId);
-    public bool IsConfigured => HasPayPal || HasUpi;
+    public bool IsConfigured => HasPayPal || HasKoFi || HasUpi;
 
     /// <summary>UPI deep link any UPI app understands (GPay, PhonePe, Paytm, BHIM). Amount left to the donor.</summary>
     public string UpiUri =>
         // pa stays literal (handle@psp): several UPI apps reject a percent-encoded '@'. IsValidUpiId guarantees it is URL-safe.
-        $"upi://pay?pa={UpiId}&pn={Uri.EscapeDataString(UpiName)}&cu=INR&tn={Uri.EscapeDataString("OpenKamera donation")}";
+        $"upi://pay?pa={UpiId}&pn={Uri.EscapeDataString(UpiName)}&cu=INR&tn={Uri.EscapeDataString("KISSIK donation")}";
 
     /// <summary>handle@psp — letters, digits, dot, dash, underscore; PSP letters only.</summary>
     public static bool IsValidUpiId(string id) =>

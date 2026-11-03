@@ -1,7 +1,8 @@
 namespace OpenKamera.Core;
 
 /// <summary>Built-in colour looks (Enhance → Filters).</summary>
-public enum FilterPreset { None, BlackAndWhite, Warm, Cool, Bleach, Cinematic, Vivid, Fade }
+// New looks are added at the end so saved choices keep their meaning.
+public enum FilterPreset { None, BlackAndWhite, Warm, Cool, Bleach, Cinematic, Vivid, Fade, GoldenHour, TealOrange, FilmPrint, Punchy, Noir, Pastel }
 
 /// <summary>Software image adjustments on BGRA32 pixel data (Enhance panel).</summary>
 public static class ImageFilters
@@ -53,7 +54,7 @@ public static class ImageFilters
     }
 
     /// <summary>Brightness, contrast and gamma folded into one 256-entry curve.</summary>
-    private static float[] BuildToneCurve(Adjustments adj)
+    internal static float[] BuildToneCurve(Adjustments adj)
     {
         var curve = new float[256];
         for (int v = 0; v < 256; v++)
@@ -98,15 +99,20 @@ public static class ImageFilters
 
     private static void RotateHue(ref float r, ref float g, ref float b, double degrees)
     {
-        // Rotation about the grey axis in RGB space.
+        var m = HueMatrix(degrees);
+        float nr = r * m[0] + g * m[1] + b * m[2], ng = r * m[3] + g * m[4] + b * m[5], nb = r * m[6] + g * m[7] + b * m[8];
+        r = nr; g = ng; b = nb;
+    }
+
+    /// <summary>Row-major 3×3 rotation about the grey axis in RGB space.</summary>
+    internal static float[] HueMatrix(double degrees)
+    {
         double a = degrees * Math.PI / 180.0;
         float c = (float)Math.Cos(a), s = (float)Math.Sin(a);
         const float k = 1f / 3f; float sq = MathF.Sqrt(k);
-        float m00 = c + (1 - c) * k, m01 = k * (1 - c) - sq * s, m02 = k * (1 - c) + sq * s;
-        float m10 = k * (1 - c) + sq * s, m11 = c + k * (1 - c), m12 = k * (1 - c) - sq * s;
-        float m20 = k * (1 - c) - sq * s, m21 = k * (1 - c) + sq * s, m22 = c + k * (1 - c);
-        float nr = r * m00 + g * m01 + b * m02, ng = r * m10 + g * m11 + b * m12, nb = r * m20 + g * m21 + b * m22;
-        r = nr; g = ng; b = nb;
+        return [c + (1 - c) * k, k * (1 - c) - sq * s, k * (1 - c) + sq * s,
+                k * (1 - c) + sq * s, c + k * (1 - c), k * (1 - c) - sq * s,
+                k * (1 - c) - sq * s, k * (1 - c) + sq * s, c + k * (1 - c)];
     }
 
     private static void ApplyPreset(FilterPreset f, ref float r, ref float g, ref float b)
@@ -132,6 +138,25 @@ public static class ImageFilters
             case FilterPreset.Vivid:
                 r = gray + (r - gray) * 1.35f; g = gray + (g - gray) * 1.35f; b = gray + (b - gray) * 1.35f;
                 r = Curve(r, 1.1f); g = Curve(g, 1.1f); b = Curve(b, 1.1f); break;
+            case FilterPreset.GoldenHour:
+                // Late-afternoon sun: warm, slightly lifted shadows, gentle contrast.
+                r = Curve(r * 1.1f + 0.03f, 1.05f); g = Curve(g * 1.03f + 0.015f, 1.05f); b = Curve(b * 0.85f, 1.05f); break;
+            case FilterPreset.TealOrange:
+                // Skin pushed toward orange, shadows and blues toward teal.
+                float t = gray - 0.5f;
+                r = r + t * 0.10f + 0.02f; g = g + 0.01f; b = b - t * 0.16f;
+                r = Curve(r, 1.08f); g = Curve(g, 1.05f); b = Curve(b, 1.08f); break;
+            case FilterPreset.FilmPrint:
+                // Soft roll-off, warm mids, cool blacks: a print-film feel.
+                r = 0.06f + r * 0.9f; g = 0.05f + g * 0.88f; b = 0.08f + b * 0.82f;
+                r = gray + (r - gray) * 0.9f; g = gray + (g - gray) * 0.9f; b = gray + (b - gray) * 0.9f; break;
+            case FilterPreset.Punchy:
+                r = Curve(gray + (r - gray) * 1.2f, 1.22f); g = Curve(gray + (g - gray) * 1.2f, 1.22f); b = Curve(gray + (b - gray) * 1.2f, 1.22f); break;
+            case FilterPreset.Noir:
+                float n = Curve(gray, 1.45f) - 0.03f; r = g = b = n; break;
+            case FilterPreset.Pastel:
+                r = 0.15f + r * 0.8f; g = 0.15f + g * 0.8f; b = 0.17f + b * 0.8f;
+                r = gray + (r - gray) * 0.7f; g = gray + (g - gray) * 0.7f; b = gray + (b - gray) * 0.7f; break;
             case FilterPreset.Fade:
                 r = r * 0.82f + 0.1f; g = g * 0.82f + 0.1f; b = b * 0.82f + 0.12f;
                 r = gray + (r - gray) * 0.8f; g = gray + (g - gray) * 0.8f; b = gray + (b - gray) * 0.8f; break;

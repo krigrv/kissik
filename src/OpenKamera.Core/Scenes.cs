@@ -14,6 +14,8 @@ public sealed class SceneLayer
     public string Kind { get; set; } = "text"; // text | image | shape | camera
     public string Name { get; set; } = "";
     public bool Visible { get; set; } = true;
+    /// <summary>Drawn behind the person (in front of the background): needs the person cut-out.</summary>
+    public bool Behind { get; set; }
     public double X { get; set; } = 0.05;
     public double Y { get; set; } = 0.05;
     public double W { get; set; } = 0.4;
@@ -41,10 +43,12 @@ public sealed class SceneLayer
     {
         "text" => "", "image" => "", "camera" => "", _ => Shape == "ellipse" ? "" : "",
     };
-    [JsonIgnore] public string DisplayName => !string.IsNullOrWhiteSpace(Name) ? Name : Kind switch
+    // Text layers are listed by what they say, so editing the words renames the layer too.
+    [JsonIgnore] public string DisplayName => Kind == "text" && !string.IsNullOrWhiteSpace(Text) ? Text.Split((char)10)[0].Trim()
+        : !string.IsNullOrWhiteSpace(Name) ? Name : Kind switch
     {
         "text" => string.IsNullOrWhiteSpace(Text) ? "Text" : Text,
-        "image" => "Image", "camera" => "Video source", _ => Shape == "ellipse" ? "Circle" : "Shape",
+        "image" => "Image", "camera" => "Video source", "camera2" => "Second camera", _ => Shape == "ellipse" ? "Circle" : "Shape",
     };
 
     [JsonIgnore] public string EyeGlyph => Visible ? "" : "";
@@ -55,6 +59,9 @@ public sealed class SceneLayer
 
 public sealed class SceneDocument
 {
+    /// <summary>What screen readers announce for a scene card.</summary>
+    public override string ToString() => string.IsNullOrWhiteSpace(Category) ? Name : $"{Name}, {Category}";
+
     public string Id { get; set; } = "user-" + Guid.NewGuid().ToString("N")[..10];
     public string Name { get; set; } = "Untitled";
     public string Category { get; set; } = "Utility"; // Professional | Social | Streaming | Utility
@@ -67,6 +74,7 @@ public sealed class SceneDocument
     /// <summary>Ctrl+N shortcut shown on the scene rail (1-based), set by the UI.</summary>
     [JsonIgnore] public int Shortcut { get; set; }
     /// <summary>1 when the scene has a Ctrl+1…9 shortcut, else 0 (badge opacity).</summary>
+    [JsonIgnore] public string ShortcutText => Shortcut is >= 1 and <= 9 ? $"Ctrl {Shortcut}" : "";
     [JsonIgnore] public double ShortcutOpacity => Shortcut is >= 1 and <= 9 ? 1 : 0;
     [JsonIgnore] public bool IsTemplate => Templates.Any(t => t.Id == Id);
     /// <summary>Folder that holds this scene's assets (null for unsaved templates).</summary>
@@ -110,40 +118,55 @@ public sealed class SceneDocument
         bool bold = false, string color = "#FFFFFF", string align = "left", string fill = "", string name = "") =>
         new() { Kind = "text", Text = text, X = x, Y = y, W = w, H = h, FontSize = size, Bold = bold, Color = color, Align = align, Fill = fill, Name = name };
 
-    public static IReadOnlyList<SceneDocument> Templates { get; } =
+    public static IReadOnlyList<SceneDocument> Templates { get; } = BuiltIn().Concat(LoadPack()).ToList();
+
+    private static List<SceneDocument> BuiltIn() =>
     [
         new() { Id = "blank", Name = "Blank", Category = "Utility", Layers = [] },
+        new()
+        {
+            // Just your name, small and quiet in the corner: no branding, no handles, no watermark.
+            Id = "just-my-name", Name = "Just my name", Category = "Professional",
+            Layers =
+            [
+                T("Your Name", 0.03, 0.87, 0.3, 0.07, 0.036, bold: true, fill: "#B3101214", name: "Name"),
+            ],
+        },
         new()
         {
             Id = "lower-third", Name = "Lower Third", Category = "Professional",
             Layers =
             [
-                new() { Kind = "shape", Name = "Bar", X = 0, Y = 0.80, W = 0.62, H = 0.16, Color = "#E6141618", CornerRadius = 0 },
-                new() { Kind = "shape", Name = "Accent", X = 0.035, Y = 0.83, W = 0.006, H = 0.10, Color = "#FF2EA3F2" },
-                T("Your Name", 0.055, 0.815, 0.55, 0.07, 0.055, bold: true, name: "Name"),
-                T("Title or topic", 0.055, 0.885, 0.55, 0.05, 0.034, color: "#FFC9CDD0", name: "Title"),
+                // A floating panel inset from the edge (a full-bleed bar read as TV news), KISSIK orange accent.
+                new() { Kind = "shape", Name = "Panel", X = 0.03, Y = 0.795, W = 0.44, H = 0.135, Color = "#D9101215", CornerRadius = 0.016 },
+                new() { Kind = "shape", Name = "Accent", X = 0.03, Y = 0.795, W = 0.006, H = 0.135, Color = "#FFFF7A1A" },
+                T("Your Name", 0.052, 0.812, 0.41, 0.06, 0.046, bold: true, name: "Name"),
+                T("Title or topic", 0.052, 0.872, 0.41, 0.045, 0.029, color: "#FFC9CDD2", name: "Title"),
             ],
         },
         new()
         {
+            // A compact contact card in the lower left: readable on any room, never covering the face.
             Id = "name-card", Name = "Name Card", Category = "Professional",
             Layers =
             [
-                new() { Kind = "shape", Name = "Badge", X = 0.03, Y = 0.05, W = 0.07, H = 0.124, Shape = "ellipse", Color = "#FF2EA3F2" },
-                T("YN", 0.03, 0.078, 0.07, 0.07, 0.05, bold: true, align: "center", name: "Initials"),
-                T("Your Name", 0.115, 0.045, 0.6, 0.09, 0.075, bold: true, name: "Name"),
-                T("@yourhandle", 0.115, 0.125, 0.6, 0.06, 0.042, color: "#FFDDE3E8", name: "Handle"),
-                T("you@example.com", 0.03, 0.22, 0.6, 0.05, 0.034, name: "Email"),
-                T("City, Country", 0.03, 0.275, 0.6, 0.05, 0.034, name: "Location"),
+                new() { Kind = "shape", Name = "Card", X = 0.03, Y = 0.765, W = 0.36, H = 0.175, Color = "#D9101215", CornerRadius = 0.02 },
+                new() { Kind = "shape", Name = "Badge", X = 0.045, Y = 0.79, W = 0.05, H = 0.089, Shape = "ellipse", Color = "#FFFF7A1A" },
+                T("YN", 0.045, 0.808, 0.05, 0.05, 0.034, bold: true, align: "center", name: "Initials"),
+                T("Your Name", 0.107, 0.785, 0.275, 0.055, 0.04, bold: true, name: "Name"),
+                T("@yourhandle", 0.107, 0.838, 0.275, 0.04, 0.026, color: "#FFFFB27A", name: "Handle"),
+                T("you@example.com", 0.045, 0.888, 0.2, 0.035, 0.023, color: "#FFC9CDD2", name: "Email"),
+                T("City, Country", 0.25, 0.888, 0.13, 0.035, 0.023, color: "#FFC9CDD2", align: "right", name: "Location"),
             ],
         },
         new()
         {
-            Id = "framed", Name = "Framed", Category = "Social",
+            // Your picture inset on a deep gradient with rounded corners: a gallery-print look that reads at a glance.
+            Id = "framed", Name = "Framed", Category = "Social", Background = "#FF23262D", Background2 = "#FF0C0D10",
             Layers =
             [
-                new() { Kind = "shape", Name = "Frame", X = 0.02, Y = 0.035, W = 0.96, H = 0.93, Color = "#00000000",
-                        Stroke = "#FFE8A33D", StrokeWidth = 0.008, CornerRadius = 0.03 },
+                new() { Kind = "camera", Name = "Video source", X = 0.045, Y = 0.07, W = 0.91, H = 0.86, CornerRadius = 0.03,
+                        Stroke = "#59FFFFFF", StrokeWidth = 0.004 },
             ],
         },
         new()
@@ -174,17 +197,30 @@ public sealed class SceneDocument
             Id = "corner-logo", Name = "Corner Logo", Category = "Utility",
             Layers =
             [
-                T("YOUR LOGO", 0.78, 0.04, 0.19, 0.06, 0.032, bold: true, align: "center", fill: "#99000000", name: "Logo"),
+                T("YOUR LOGO", 0.73, 0.045, 0.235, 0.085, 0.042, bold: true, align: "center", fill: "#CC000000", name: "Logo"),
             ],
         },
     ];
+
+    /// <summary>KISSIK's scene pack (100 designs across ten categories), shipped inside the app.</summary>
+    private static IEnumerable<SceneDocument> LoadPack()
+    {
+        try
+        {
+            using var stream = typeof(SceneDocument).Assembly.GetManifestResourceStream("OpenKamera.Core.ScenePack.json");
+            if (stream is null) return [];
+            return JsonSerializer.Deserialize<List<SceneDocument>>(stream, Json) ?? [];
+        }
+        catch { return []; }
+    }
+
 }
 
 /// <summary>Scene storage: built-in templates (editable; edits are saved as an override) plus user scenes.</summary>
 public static class SceneLibrary
 {
     public static string Root => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "OpenKamera", "Scenes");
+        AppPaths.Data, "Scenes");
 
     /// <summary>Overrides the folder (tests).</summary>
     public static string? RootOverride { get; set; }
@@ -285,7 +321,7 @@ public static class SceneLibrary
     public static SceneDocument Import(string zipPath)
     {
         using var zip = ZipFile.OpenRead(zipPath);
-        var json = zip.GetEntry("scene.json") ?? throw new InvalidDataException("Not an OpenKamera scene: scene.json missing.");
+        var json = zip.GetEntry("scene.json") ?? throw new InvalidDataException("Not an KISSIK scene: scene.json missing.");
         SceneDocument scene;
         using (var r = new StreamReader(json.Open())) scene = SceneDocument.FromJson(r.ReadToEnd());
         scene.Id = "user-" + Guid.NewGuid().ToString("N")[..10];

@@ -26,8 +26,9 @@ public class SceneTests : IDisposable
         foreach (var t in SceneDocument.Templates)
             foreach (var l in t.Layers)
             {
-                Assert.InRange(l.X, 0, 1); Assert.InRange(l.Y, 0, 1);
-                Assert.InRange(l.X + l.W, 0, 1.0001); Assert.InRange(l.Y + l.H, 0, 1.0001);
+                // Soft glows may bleed past the edge on purpose; every layer must still overlap the canvas.
+                Assert.True(l.X < 1 && l.Y < 1 && l.X + l.W > 0 && l.Y + l.H > 0, $"{t.Id}: {l.Name} is off the canvas");
+                Assert.True(l.X >= -0.5 && l.Y >= -0.5 && l.X + l.W <= 1.5 && l.Y + l.H <= 1.5, $"{t.Id}: {l.Name} is far outside the canvas");
             }
     }
 

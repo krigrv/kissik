@@ -10,7 +10,27 @@
                 <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
                 <!-- Other merged dictionaries here -->
             </ResourceDictionary.MergedDictionaries>
-            <!-- Other app resources here -->
+            <!-- KISSIK orange replaces the Windows accent in every control (switches, sliders, tabs, selection). -->
+            <ResourceDictionary.ThemeDictionaries>
+          <ResourceDictionary x:Key="Default">
+            <Color x:Key="SystemAccentColor">#FFFF7A1A</Color>
+            <Color x:Key="SystemAccentColorLight1">#FFFF9142</Color>
+            <Color x:Key="SystemAccentColorLight2">#FFFFA766</Color>
+            <Color x:Key="SystemAccentColorLight3">#FFFFC08F</Color>
+            <Color x:Key="SystemAccentColorDark1">#FFE5650A</Color>
+            <Color x:Key="SystemAccentColorDark2">#FFC25206</Color>
+            <Color x:Key="SystemAccentColorDark3">#FF9A4004</Color>
+          </ResourceDictionary>
+          <ResourceDictionary x:Key="Light">
+            <Color x:Key="SystemAccentColor">#FFE5650A</Color>
+            <Color x:Key="SystemAccentColorLight1">#FFFF7A1A</Color>
+            <Color x:Key="SystemAccentColorLight2">#FFFF9142</Color>
+            <Color x:Key="SystemAccentColorLight3">#FFFFA766</Color>
+            <Color x:Key="SystemAccentColorDark1">#FFC25206</Color>
+            <Color x:Key="SystemAccentColorDark2">#FF9A4004</Color>
+            <Color x:Key="SystemAccentColorDark3">#FF7A3303</Color>
+          </ResourceDictionary>
+        </ResourceDictionary.ThemeDictionaries>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

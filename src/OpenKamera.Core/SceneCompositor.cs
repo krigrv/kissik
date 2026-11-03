@@ -27,14 +27,26 @@ public static class ColorHex
 /// </summary>
 public static class SceneCompositor
 {
+    /// <summary>Ids of visible layers listed before the camera, which belong under the video (empty when the camera fills the canvas).</summary>
+    public static HashSet<string> UnderCameraIds(SceneDocument scene)
+    {
+        int cam = scene.Layers.FindIndex(l => l.Kind == "camera");
+        if (cam <= 0 || CameraFillsCanvas(scene)) return [];
+        return scene.Layers.Take(cam).Where(l => l.Visible && !l.Behind).Select(l => l.Id).ToHashSet();
+    }
+
     public static bool CameraFillsCanvas(SceneDocument scene)
     {
         var c = scene.Camera;
         return c.Visible && c.X <= 0 && c.Y <= 0 && c.W >= 1 && c.H >= 1 && c.Shape != "ellipse" && c.CornerRadius <= 0;
     }
 
-    /// <summary>Composes in place into <paramref name="camera"/> when the camera fills the canvas, else into a new buffer.</summary>
-    public static byte[] Compose(byte[] camera, int w, int h, SceneDocument scene, byte[]? overlay)
+    /// <summary>
+    /// Composes in place into <paramref name="camera"/> when the camera fills the canvas, else into a new buffer.
+    /// <paramref name="under"/> holds the layers listed before the camera (a photo print, a card): drawn on the
+    /// background, then the camera on top of them, then <paramref name="overlay"/> over everything.
+    /// </summary>
+    public static byte[] Compose(byte[] camera, int w, int h, SceneDocument scene, byte[]? overlay, byte[]? under = null)
     {
         byte[] output;
         if (CameraFillsCanvas(scene))
@@ -46,13 +58,14 @@ public static class SceneCompositor
         {
             output = new byte[w * h * 4];
             FillBackground(output, w, h, scene);
+            if (under is not null && under.Length == output.Length) BlendOver(output, under);
             if (scene.Camera.Visible) PlaceCamera(output, camera, w, h, scene.Camera);
         }
         if (overlay is not null && overlay.Length == output.Length) BlendOver(output, overlay);
         return output;
     }
 
-    private static bool HasTransparency(byte[] px)
+    internal static bool HasTransparency(byte[] px)
     {
         for (int i = 3; i < px.Length; i += 4 * 97) if (px[i] < 255) return true;
         return false;
@@ -80,11 +93,14 @@ public static class SceneCompositor
     }
 
     /// <summary>Cover-fits the camera frame into the layer rectangle, masked to its shape with a soft edge.</summary>
-    internal static void PlaceCamera(byte[] dst, byte[] cam, int w, int h, SceneLayer c)
+    internal static void PlaceCamera(byte[] dst, byte[] cam, int w, int h, SceneLayer c) => PlaceSource(dst, w, h, cam, w, h, c);
+
+    /// <summary>Places any source (e.g. a second camera, sw×sh) into the layer's rectangle of a w×h frame, shaped and cover-fitted.</summary>
+    public static void PlaceSource(byte[] dst, int w, int h, byte[] src, int sw, int sh, SceneLayer c)
     {
         int rx = (int)Math.Round(c.X * w), ry = (int)Math.Round(c.Y * h);
         int rw = Math.Max(1, (int)Math.Round(c.W * w)), rh = Math.Max(1, (int)Math.Round(c.H * h));
-        var (fit, _, _) = OutputFit.Cover(cam, w, h, rw, rh);
+        var (fit, _, _) = OutputFit.Cover(src, sw, sh, rw, rh);
         bool ellipse = c.Shape == "ellipse";
         float radius = (float)(c.CornerRadius * h);
         float opacity = (float)Math.Clamp(c.Opacity, 0, 1);
@@ -129,6 +145,44 @@ public static class SceneCompositor
     }
 
     /// <summary>Premultiplied source-over: dst = src + dst × (1 − srcA).</summary>
+    /// <summary>
+    /// Draws a premultiplied overlay over the frame everywhere except where the person is (alpha 1 = person),
+    /// so the layer appears between the person and the background.
+    /// </summary>
+    public static void BlendBehind(byte[] frame, byte[] overlay, float[] personAlpha)
+    {
+        int n = Math.Min(personAlpha.Length, frame.Length / 4);
+        Parallel.For(0, Math.Max(1, n / 4096 + 1), chunk =>
+        {
+            int start = chunk * 4096, end = Math.Min(n, start + 4096);
+            for (int p = start; p < end; p++)
+            {
+                int i = p * 4; int oa = overlay[i + 3]; if (oa == 0) continue;
+                float show = (1 - personAlpha[p]) * oa / 255f;   // how much of the layer to show here
+                if (show <= 0) continue;
+                float keep = 1 - show;
+                for (int c = 0; c < 3; c++)
+                {
+                    float layer = oa > 0 ? overlay[i + c] * 255f / oa : 0; // un-premultiply
+                    frame[i + c] = (byte)Math.Clamp(frame[i + c] * keep + layer * show, 0, 255);
+                }
+            }
+        });
+    }
+
+    /// <summary>Cross-fade: <paramref name="dst"/> = from·(1−t) + dst·t, eased so it starts and ends gently.</summary>
+    public static void CrossFade(byte[] dst, byte[] from, double t)
+    {
+        if (from.Length != dst.Length) return;
+        double e = t * t * (3 - 2 * t); // smoothstep
+        int k = (int)Math.Clamp(e * 256, 0, 256), ik = 256 - k;
+        Parallel.For(0, dst.Length / 65536 + 1, chunk =>
+        {
+            int start = chunk * 65536, end = Math.Min(dst.Length, start + 65536);
+            for (int i = start; i < end; i++) dst[i] = (byte)((from[i] * ik + dst[i] * k) >> 8);
+        });
+    }
+
     public static void BlendOver(byte[] dst, byte[] src)
     {
         int n = dst.Length / 4;

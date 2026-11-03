@@ -6,15 +6,22 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:local="using:OpenKamera_App"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    Title="OpenKamera"
+    Title="KISSIK"
     mc:Ignorable="d">
 
-    <!-- Darkroom Glass: the page (live video) fills the whole window, title bar included. -->
-    <Grid Background="Black">
-        <Frame x:Name="RootFrame" />
-        <!-- Drag region: a strip at the top-left, clear of the floating capsule. Caption buttons are drawn by the system. -->
-        <Grid x:Name="AppTitleBar" Height="40" Width="300" HorizontalAlignment="Left" VerticalAlignment="Top" Background="Transparent">
-            <TextBlock Text="OpenKamera" FontSize="12" Foreground="#A8F4F5F7" Margin="16,0,0,0" VerticalAlignment="Center" />
+    <!-- Plain Windows window: a standard title bar with icon and name, the app below it. -->
+
+    <Grid Background="{ThemeResource SolidBackgroundFillColorBaseBrush}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="48" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <Grid x:Name="AppTitleBar" Background="Transparent">
+            <StackPanel Orientation="Horizontal" Spacing="12" Margin="16,0,0,0" VerticalAlignment="Center">
+                <Image Source="ms-appx:///Assets/Square44x44Logo.scale-200.png" Width="18" Height="18" />
+                <TextBlock Text="KISSIK" Style="{StaticResource CaptionTextBlockStyle}" VerticalAlignment="Center" />
+            </StackPanel>
         </Grid>
+        <Frame x:Name="RootFrame" Grid.Row="1" />
     </Grid>
 </Window>

@@ -52,7 +52,7 @@ public sealed partial class MainPage
         LookStrip.Children.Add(new StackPanel { Spacing = 4, Children = { add, new TextBlock { Text = "LUT", FontSize = 12, HorizontalAlignment = HorizontalAlignment.Center } } });
 
         _lookTimer = DispatcherQueue.CreateTimer();
-        _lookTimer.Interval = TimeSpan.FromSeconds(2);
+        _lookTimer.Interval = TimeSpan.FromSeconds(ReduceMotion ? 10 : 2); // reduce motion: previews barely move
         _lookTimer.Tick += (_, _) => RefreshLookThumbs();
         _lookTimer.Start();
         RefreshLookThumbs();
@@ -93,14 +93,22 @@ public sealed partial class MainPage
     /// <summary>Saves the app window (not the desktop) as a PNG — handy for bug reports and docs.</summary>
     private async void SaveWindowPicture_Click(object sender, RoutedEventArgs e)
     {
+        // The menu that asked for this hands focus back to its button; hide that focus outline for the picture.
+        var focused = Microsoft.UI.Xaml.Input.FocusManager.GetFocusedElement(XamlRoot) as Control;
+        bool visuals = focused?.UseSystemFocusVisuals ?? false;
         try
         {
+            if (focused is not null) focused.UseSystemFocusVisuals = false;
+            await Task.Delay(250); // let the menu finish closing
+            SidebarTabs.Focus(FocusState.Pointer); // focus somewhere that draws no outline
+            await Task.Delay(50);
             var rtb = new RenderTargetBitmap();
             await rtb.RenderAsync(Root);
+            if (focused is not null) focused.UseSystemFocusVisuals = visuals;
             var px = (await rtb.GetPixelsAsync()).ToArray();
-            string folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "OpenKamera");
+            string folder = AppPaths.Pictures;
             Directory.CreateDirectory(folder);
-            string path = Path.Combine(folder, $"OpenKamera-window-{DateTime.Now:yyyyMMdd-HHmmss}.png");
+            string path = Path.Combine(folder, $"KISSIK-window-{DateTime.Now:yyyyMMdd-HHmmss}.png");
             var file = await (await Windows.Storage.StorageFolder.GetFolderFromPathAsync(folder)).CreateFileAsync(Path.GetFileName(path));
             using var stream = await file.OpenAsync(Windows.Storage.FileAccessMode.ReadWrite);
             var enc = await Windows.Graphics.Imaging.BitmapEncoder.CreateAsync(Windows.Graphics.Imaging.BitmapEncoder.PngEncoderId, stream);
@@ -110,17 +118,18 @@ public sealed partial class MainPage
             Status("Window picture saved: " + file.Path);
         }
         catch (Exception ex) { Status("Window picture failed: " + ex.Message); }
+        finally { if (focused is not null) focused.UseSystemFocusVisuals = visuals; }
     }
 
     private void SyncLookTiles()
     {
         if (_lookTiles.Count == 0) return;
         var current = (FilterPreset)Math.Max(0, FilterBox.SelectedIndex);
-        var accent = (Brush)Resources["DgAccentBrush"];
+        var accent = Token("DgAccentBrush");
         foreach (var (f, frame, _, label) in _lookTiles)
         {
             frame.BorderBrush = f == current ? accent : new SolidColorBrush(Microsoft.UI.Colors.Transparent);
-            label.Foreground = f == current ? (Brush)Resources["DgText"] : (Brush)Resources["DgDim"];
+            label.Foreground = f == current ? Token("DgText") : Token("DgDim");
         }
         string look = LookName(current);
         if (LutBox.SelectedItem is string lut) look = current == FilterPreset.None ? lut : $"{look} + {lut}";

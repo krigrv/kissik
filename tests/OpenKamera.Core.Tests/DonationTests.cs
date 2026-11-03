@@ -18,11 +18,11 @@ public class DonationTests
         var d = DonationInfo.Load(RepoFile("src", "OpenKamera.App", "donate.json"));
         Assert.True(d.HasPayPal);
         Assert.True(d.HasUpi);
-        Assert.StartsWith("upi://pay?pa=krigrv@upi&pn=Krishna%20Gaurav&cu=INR", d.UpiUri);
+        Assert.StartsWith("upi://pay?pa=kri.grv@okaxis&pn=Krishna%20Gaurav&cu=INR", d.UpiUri);
     }
 
     [Theory]
-    [InlineData("krigrv@upi", true)]
+    [InlineData("kri.grv@okaxis", true)]
     [InlineData("name.surname@okhdfcbank", true)]
     [InlineData("no-at-sign", false)]
     [InlineData("bad@psp1", false)]
@@ -32,7 +32,7 @@ public class DonationTests
     [Fact]
     public void QrPng_IsAPng()
     {
-        var png = new DonationInfo { UpiId = "krigrv@upi", UpiName = "Krishna Gaurav" }.UpiQrPng();
+        var png = new DonationInfo { UpiId = "kri.grv@okaxis", UpiName = "Krishna Gaurav" }.UpiQrPng();
         Assert.True(png.Length > 200);
         Assert.Equal(new byte[] { 0x89, 0x50, 0x4E, 0x47 }, png[..4]);
     }

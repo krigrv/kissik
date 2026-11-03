@@ -25,9 +25,12 @@
     <Content Include="Assets\Square44x44Logo.targetsize-48_altform-lightunplated.png" />
     <Content Include="Assets\StoreLogo.png" />
     <Content Include="Assets\AppIcon.ico" />
+    <Content Include="Assets\Backgrounds\*.jpg" />
     <Content Include="Assets\Wide310x150Logo.scale-200.png" />
     <!-- Donation links; forks edit this file, not code. -->
     <Content Include="donate.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Virtual camera media source (built by src/OpenKamera.MediaSource/build.ps1). -->
+    <Content Include="VirtualCamera\OpenKamera.VirtualCamera.dll" Link="OpenKamera.VirtualCamera.dll" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>
@@ -76,6 +79,12 @@
   <ItemGroup>
     <ProjectReference Include="..\OpenKamera.Core\OpenKamera.Core.csproj" />
   </ItemGroup>
+
+  <!-- The MSIX packager only takes content from inside this project: copy the media source DLL in first. -->
+  <Target Name="CopyVirtualCameraDll" BeforeTargets="PrepareForBuild">
+    <Copy SourceFiles="..\OpenKamera.MediaSource\bin\Release\OpenKamera.VirtualCamera.dll" DestinationFolder="VirtualCamera"
+          SkipUnchangedFiles="true" Condition="Exists('..\OpenKamera.MediaSource\bin\Release\OpenKamera.VirtualCamera.dll')" />
+  </Target>
 
 </Project>
 

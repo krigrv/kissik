@@ -1,0 +1,38 @@
+name: Build and test
+
+on:
+  push:
+    branches: [main, kissik-studio]
+  pull_request:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Build the app
+        run: dotnet build src/OpenKamera.App -c Release -p:Platform=x64
+      - name: Run the tests
+        # Cloud machines have no sound device or GPU: tests marked Hardware run on real PCs only.
+        run: dotnet test tests/OpenKamera.Core.Tests -c Release --filter "Category!=Hardware"
+
+  android:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - name: Build the phone app
+        run: chmod +x gradlew && ./gradlew assembleDebug --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kissik-camera-debug-apk
+          path: android/app/build/outputs/apk/debug/*.apk

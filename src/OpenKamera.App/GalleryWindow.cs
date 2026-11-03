@@ -29,7 +29,7 @@ public sealed class GalleryWindow : Window
     public GalleryWindow(MainPage main)
     {
         _main = main;
-        Title = "OpenKamera Gallery";
+        Title = "KISSIK Gallery";
         SystemBackdrop = new MicaBackdrop();
         AppWindow.Resize(new Windows.Graphics.SizeInt32(1180, 760));
 
@@ -127,7 +127,7 @@ public sealed class GalleryWindow : Window
                 _actions.Children.Add(ActionButton("", "Add a background", async () =>
                 {
                     var picker = new Windows.Storage.Pickers.FileOpenPicker();
-                    foreach (var ext in new[] { ".png", ".jpg", ".jpeg" }) picker.FileTypeFilter.Add(ext);
+                    foreach (var ext in BackgroundLibrary.ImageExtensions.Concat(BackgroundLibrary.VideoExtensions)) picker.FileTypeFilter.Add(ext); // pictures and looping videos
                     WinRT.Interop.InitializeWithWindow.Initialize(picker, WinRT.Interop.WindowNative.GetWindowHandle(this));
                     if (await picker.PickSingleFileAsync() is not { } f) return;
                     BackgroundLibrary.Import(f.Path);
@@ -201,7 +201,7 @@ public sealed class GalleryWindow : Window
             menu.Items.Add(Item("Export…", "", async () =>
             {
                 var picker = new Windows.Storage.Pickers.FileSavePicker { SuggestedFileName = s.Name };
-                picker.FileTypeChoices.Add("OpenKamera scene", [".okscene"]);
+                picker.FileTypeChoices.Add("KISSIK scene", [".okscene"]);
                 WinRT.Interop.InitializeWithWindow.Initialize(picker, WinRT.Interop.WindowNative.GetWindowHandle(this));
                 if (await picker.PickSaveFileAsync() is { } f) SceneLibrary.Export(s, f.Path);
             }));
@@ -222,7 +222,7 @@ public sealed class GalleryWindow : Window
         {
             string key = "bg:" + b.Id;
             if (!InCollection(key, b.Category)) continue;
-            var thumb = Bitmap(BackgroundLibrary.Render(b.Id, ThumbW, ThumbH));
+            var thumb = Bitmap(BackgroundLibrary.IsVideo(b.Id) ? null : BackgroundLibrary.Render(b.Id, ThumbW, ThumbH)); // videos show a plain tile
             var menu = new MenuFlyout();
             menu.Items.Add(Item("Use as background", "", () => _main.UseBackground(b.Id)));
             menu.Items.Add(Item(IsFav(key) ? "Remove from favourites" : "Add to favourites", "", () => ToggleFav(key)));
