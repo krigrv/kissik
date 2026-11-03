@@ -56,7 +56,7 @@ header .btn{height:36px;padding:0 18px;font-size:14px}
 .hero{background:var(--ink);color:#fff;padding:8px max(8px,env(safe-area-inset-left,0px)) 0 max(8px,env(safe-area-inset-right,0px))}
 .grid{display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(2,minmax(150px,23vh)) auto repeat(1,minmax(150px,23vh));gap:8px}
 .t{position:relative;border-radius:12px;overflow:hidden;background:var(--tile);opacity:0;transform:scale(.96);animation:in .7s cubic-bezier(.2,.8,.2,1) forwards}
-.t img{width:100%;height:100%;object-fit:cover}
+.t img,.t video{width:100%;height:100%;object-fit:cover;display:block}
 .t .nm{position:absolute;left:8px;bottom:8px;display:flex;gap:6px;align-items:center;font:600 12px var(--font);background:rgba(0,0,0,.58);padding:4px 9px;border-radius:6px;backdrop-filter:blur(6px)}
 .src{position:absolute;right:8px;top:8px;font:600 11px var(--font);padding:3px 8px;border-radius:5px;background:rgba(0,0,0,.58)}
 .src.ph{background:var(--o);color:#fff}
@@ -141,6 +141,31 @@ header .btn{height:36px;padding:0 18px;font-size:14px}
 .story .scn{margin-top:18px;font-size:14px;color:var(--muted)}.story .scn b{color:var(--text)}
 
 /* features */
+.shots{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:32px}
+.shots figure{margin:0;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#000}
+.shots figure.big{grid-column:1/-1}
+.shots img{display:block;width:100%;height:auto}
+.shots figcaption{padding:10px 14px;font-size:14px;color:var(--muted);background:var(--bg)}
+@media(max-width:760px){.shots{grid-template-columns:1fr 1fr}}
+@media(max-width:480px){.shots{grid-template-columns:1fr}}
+.cmp{width:100%;border-collapse:collapse;margin-top:32px;font-size:16px}
+.cmp th,.cmp td{padding:14px 12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+.cmp thead th{font:600 15px var(--display);color:var(--muted)}
+.cmp thead th.k{color:var(--o)}
+.cmp td.k{font-weight:600}
+.cmp td.o{color:var(--muted)}
+@media(max-width:600px){.cmp{font-size:14px}.cmp th,.cmp td{padding:10px 6px}}
+.views{display:grid;grid-template-columns:1.6fr 1fr;gap:14px;margin-top:32px}
+.feat2{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:14px}
+.feat2 figure{margin:0;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#1c1c1c;display:flex;flex-direction:column}
+.feat2 .pic{flex:1;display:flex;align-items:center;justify-content:center;padding:14px;min-height:180px}
+.feat2 .pic img{max-width:100%;max-height:260px;width:auto;border-radius:6px}
+.feat2 figcaption{padding:12px 14px;background:var(--bg);font-size:15px;line-height:1.45}
+.feat2 figcaption b{display:block;margin-bottom:2px}
+@media(max-width:900px){.feat2{grid-template-columns:1fr 1fr}}
+@media(max-width:760px){.views{grid-template-columns:1fr}}
+@media(max-width:520px){.feat2{grid-template-columns:1fr}}
+.fg .fv{display:block;width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:10px;margin-bottom:18px;background:#111}
 .feats{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:16px;overflow:hidden;margin-top:40px}
 .fg{background:var(--bg);padding:26px 26px 28px}
 .fg .ic{width:40px;height:40px;border-radius:10px;background:var(--bg-2);display:grid;place-items:center;color:var(--o-text);margin-bottom:14px}
@@ -230,17 +255,17 @@ footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
 <body>
 <header><div class="wrap">
   <a class="brand" href="#top"><img src="assets/kissik-icon-512.png" alt="">KISSIK</a>
-  <nav><a href="#cameras">Webcam &amp; phone</a><a href="#proof">Before &amp; after</a><a href="#features">Features</a><a href="#free">Free</a><a href="#support">Support</a><a href="#faq">FAQ</a></nav>
+  <nav><a href="#cameras">Webcam &amp; phone</a><a href="#proof">Before &amp; after</a><a href="#app">The app</a><a href="#features">Features</a><a href="#compare">Why KISSIK</a><a href="#free">Free</a><a href="#support">Support</a><a href="#faq">FAQ</a></nav>
   <a class="btn o" href="https://github.com/">Download</a>
 </div></header>
 
 <main id="top">
 <section class="hero" style="padding-block:8px 0">
   <div class="grid">
-    <div class="t" style="animation-delay:.05s"><img src="assets/person/education.jpg" alt=""><span class="src">Webcam</span><span class="nm"><i class="mic"></i>Mei · Lesson</span></div>
-    <div class="t spk" style="animation-delay:0s"><img src="assets/person/professional.jpg" alt="Amara on a call using the KISSIK Executive scene"><span class="src ph">Phone camera</span><div class="lt"><b>Amara Okafor</b><i>VP Operations</i></div></div>
-    <div class="t" style="animation-delay:.1s"><img src="assets/person/podcast.jpg" alt=""><span class="src ph">Phone camera</span><span class="nm"><i class="mic"></i>Omar · Deep Dive</span></div>
-    <div class="t" style="animation-delay:.15s"><img src="assets/person/streaming.jpg" alt=""><span class="src ph">Phone camera</span><span class="nm"><i class="mic"></i>Riya · Just Chatting</span></div>
+    <div class="t" style="animation-delay:.05s"><video src="video-clips/education.mp4" poster="video-clips/education.jpg" autoplay muted loop playsinline preload="metadata" aria-hidden="true"></video><span class="src">Webcam</span><span class="nm"><i class="mic"></i>Mei · Lesson</span></div>
+    <div class="t spk" style="animation-delay:0s"><video src="video-clips/professional.mp4" poster="video-clips/professional.jpg" autoplay muted loop playsinline preload="metadata" aria-label="Amara on a call using the KISSIK Executive scene"></video><span class="src ph">Phone camera</span><div class="lt"><b>Amara Okafor</b><i>VP Operations</i></div></div>
+    <div class="t" style="animation-delay:.1s"><video src="video-clips/podcast.mp4" poster="video-clips/podcast.jpg" autoplay muted loop playsinline preload="metadata" aria-hidden="true"></video><span class="src ph">Phone camera</span><span class="nm"><i class="mic"></i>Omar · Deep Dive</span></div>
+    <div class="t" style="animation-delay:.15s"><video src="video-clips/streaming.mp4" poster="video-clips/streaming.jpg" autoplay muted loop playsinline preload="metadata" aria-hidden="true"></video><span class="src ph">Phone camera</span><span class="nm"><i class="mic"></i>Riya · Just Chatting</span></div>
     <div class="t" style="animation-delay:.2s"><img src="assets/person/wellness.jpg" alt=""><span class="src">Webcam</span><span class="nm"><i class="mic"></i>Helen · Breathe</span></div>
     <div class="say">
       <div><h1>Any camera.<br>Studio look. <span>Free.</span></h1></div>
@@ -248,9 +273,9 @@ footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
         <div class="ctas"><a class="btn o" href="https://github.com/">Download for Windows 11</a><a class="btn" href="#cameras">Use your phone too</a></div>
         <small>No account · No watermark · Open source</small></div>
     </div>
-    <div class="t hide-m" style="animation-delay:.25s"><img src="assets/person/business.jpg" alt=""><span class="src">Webcam</span><span class="nm"><i class="mic"></i>Diego · Big Number</span></div>
+    <div class="t hide-m" style="animation-delay:.25s"><video src="video-clips/business.mp4" poster="video-clips/business.jpg" autoplay muted loop playsinline preload="metadata" aria-hidden="true"></video><span class="src">Webcam</span><span class="nm"><i class="mic"></i>Diego · Big Number</span></div>
     <div class="t" style="animation-delay:.3s"><img src="assets/person/gaming.jpg" alt=""><span class="src">Webcam</span><span class="nm"><i class="mic"></i>Jake · Facecam</span></div>
-    <div class="t hide-m" style="animation-delay:.35s"><img src="assets/person/creative.jpg" alt=""><span class="src ph">Phone camera</span><span class="nm"><i class="mic"></i>Kofi · Music Session</span></div>
+    <div class="t hide-m" style="animation-delay:.35s"><video src="video-clips/creative.mp4" poster="video-clips/creative.jpg" autoplay muted loop playsinline preload="metadata" aria-hidden="true"></video><span class="src ph">Phone camera</span><span class="nm"><i class="mic"></i>Kofi · Music Session</span></div>
     <div class="t" style="animation-delay:.4s"><img src="assets/person/events.jpg" alt=""><span class="src ph">Phone camera</span><span class="nm"><i class="mic"></i>The Sharmas · Diwali</span></div>
   </div>
   <div class="callbar" aria-hidden="true">
@@ -311,11 +336,29 @@ footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
  </div>
 </section>
 
+<section id="app" class="wrap">
+  <div class="rv" style="max-width:760px"><div class="kick">The app</div><h2>Studio when you want control. Simple when you don't.</h2><p class="lead" style="margin-top:14px">Studio view puts camera, sound and layers on the left, framing on the right and scenes along the bottom. Simple view is just you and five big buttons. Switch any time from the menu.</p></div>
+  <div class="views">
+    <figure class="rv"><img src="assets/screens/studio.jpg" alt="KISSIK Studio view with camera controls, framing panel and the scene strip" loading="lazy"><figcaption>Studio view</figcaption></figure>
+    <figure class="rv"><img src="assets/screens/simple.jpg" alt="KISSIK Simple view with five big buttons under the picture" loading="lazy"><figcaption>Simple view</figcaption></figure>
+  </div>
+  <div class="feat2"><figure class="rv"><div class="pic"><img src="assets/screens/f-background.jpg" alt="Background buttons: Off, Blur, Replace, Remove" loading="lazy"></div><figcaption><b>Background in one tap</b>Blur a messy room or swap it for a picture, no green screen needed.</figcaption></figure><figure class="rv"><div class="pic"><img src="assets/screens/f-framing.jpg" alt="Framing panel with zoom, pan and Smart framing" loading="lazy"></div><figcaption><b>Framing that follows you</b>Zoom and centre yourself, or let Smart framing keep you in shot as you move.</figcaption></figure><figure class="rv"><div class="pic"><img src="assets/screens/f-scenes.jpg" alt="Scene strip ending in All scenes and + New" loading="lazy"></div><figcaption><b>Scenes at your fingertips</b>Switch scenes with Ctrl+1 to 9, open All scenes, or make a new one with + New.</figcaption></figure><figure class="rv"><div class="pic"><img src="assets/screens/f-audio.jpg" alt="Audio panel with limiter, echo removal and low cut" loading="lazy"></div><figcaption><b>Sound people can hear</b>Echo removal, low cut and a limiter make a laptop mic sound clear.</figcaption></figure><figure class="rv"><div class="pic"><img src="assets/screens/f-namecard.jpg" alt="Name Card scene showing Daniel Reyes, handle, email and city" loading="lazy"></div><figcaption><b>Your name, done once</b>Fill in your name, pronouns, logo and your own fields once. Every scene uses them.</figcaption></figure><figure class="rv"><div class="pic"><img src="assets/screens/f-simple.jpg" alt="Simple mode's five big buttons" loading="lazy"></div><figcaption><b>Simple when you want it</b>Five big buttons for camera, background, record, meeting camera and hiding.</figcaption></figure></div>
+  <div class="shots">
+    <figure class="rv"><img src="assets/screens/camera.jpg" alt="Background blur on a musician" loading="lazy"><figcaption>Background blur</figcaption></figure>
+    <figure class="rv"><img src="assets/screens/lower-third.jpg" alt="Lower Third scene for a creator" loading="lazy"><figcaption>Lower Third</figcaption></figure>
+    <figure class="rv"><img src="assets/screens/bubble-cam.jpg" alt="Bubble Cam scene with a round camera" loading="lazy"><figcaption>Bubble Cam</figcaption></figure>
+    <figure class="rv"><img src="assets/screens/first-screen.jpg" alt="The first screen guides you to connect a webcam or phone" loading="lazy"><figcaption>Guided first screen</figcaption></figure>
+  </div>
+</section>
 <section id="features" class="wrap">
   <div class="rv" style="max-width:760px"><div class="kick">Everything in KISSIK</div><h2>A whole studio. Every part of it free.</h2><p class="lead" style="margin-top:14px">Over 40 tools in one app, worked out on your own graphics card.</p></div>
-  <div class="feats"><div class="fg rv"><div class="ic"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="m16 10 5-3v10l-5-3"/></svg></div><h3>Cameras</h3><ul><li>Any webcam, with its real focus, zoom and exposure controls</li><li>Your phone as a camera: QR pairing, Wi-Fi or USB</li><li>Phone pro controls and phone mic</li><li>Auto best picture for your camera</li><li>720p to 4K, 30 or 60 fps, vertical 9:16</li></ul></div><div class="fg rv"><div class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="9" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg></div><h3>Background</h3><ul><li>Blur, from portrait to full privacy</li><li>Replace with a picture or a looping video</li><li>Remove, or use a green screen</li><li>Clean hair edges and light wrap</li><li>Spotlight and gentle retouch</li></ul></div><div class="fg rv"><div class="ic"><svg viewBox="0 0 24 24"><path d="M3 8V5a2 2 0 0 1 2-2h3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M8 21H5a2 2 0 0 1-2-2v-3"/><circle cx="12" cy="12" r="3"/></svg></div><h3>Framing & look</h3><ul><li>Auto-framing that moves like a camera operator</li><li>Zoom, pan, mirror and rotate</li><li>Colour, temperature and sharpness controls</li><li>Built-in filters and your own LUTs</li><li>Screen light: ring, bars or frame, 2200–9000 K</li></ul></div><div class="fg rv"><div class="ic"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M6 14h7"/></svg></div><h3>Scenes</h3><ul><li>100 scenes in 10 groups, from Boardroom to Diwali</li><li>Drag-and-drop editor with undo</li><li>Text, logos, shapes and a placed camera</li><li>Smooth transitions between scenes</li><li>Share scenes as a single file</li></ul></div><div class="fg rv"><div class="ic"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></div><h3>Sound</h3><ul><li>On-device noise removal</li><li>Low cut, de-esser and auto level</li><li>Mixer with meters, EQ and limiter</li><li>Mix in system sound</li><li>Watchdog restarts a mic that drops</li></ul></div><div class="fg rv"><div class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3" fill="currentColor"/></svg></div><h3>Record</h3><ul><li>Record exactly what you see, with sound</li><li>Recordings survive a crash</li><li>Replay buffer: save the last moments</li><li>Snapshots as PNG</li></ul></div><div class="fg rv"><div class="ic"><svg viewBox="0 0 24 24"><path d="M4 5h16M4 10h16M4 15h10"/></svg></div><h3>Present</h3><ul><li>Teleprompter next to the lens</li><li>Live captions, checked on this PC</li><li>Presets per app</li></ul></div><div class="fg rv"><div class="ic"><svg viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></div><h3>Privacy</h3><ul><li>Everything runs on your PC</li><li>Privacy shutter and guard</li><li>Encrypted phone pairing</li><li>No account, nothing uploaded</li></ul></div><div class="fg rv"><div class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="2"/><path d="M5 9h14M12 9v12M8 21l4-7 4 7"/></svg></div><h3>Easy for everyone</h3><ul><li>Simple mode or full Studio mode</li><li>Large controls and reduced motion</li><li>High contrast and screen-reader support</li><li>Light and dark mode</li></ul></div></div>
+  <div class="feats"><div class="fg rv"><video class="fv" src="video-clips/social.mp4" poster="video-clips/social.jpg" autoplay muted loop playsinline preload="metadata" aria-label="A creator filming with a phone"></video><div class="ic"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="m16 10 5-3v10l-5-3"/></svg></div><h3>Cameras</h3><ul><li>Any webcam, with its real focus, zoom and exposure controls</li><li>Your phone as a camera: QR pairing, Wi-Fi or USB</li><li>Phone pro controls and phone mic</li><li>Phone screen dims while it films; forget a phone in one click</li><li>Auto best picture for your camera</li><li>720p to 4K, 30 or 60 fps, vertical 9:16</li><li>Save your own output profiles</li></ul></div><div class="fg rv"><div class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="9" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg></div><h3>Background</h3><ul><li>Blur, from portrait to full privacy</li><li>Replace with a picture or a looping video</li><li>Remove, or use a green screen</li><li>Clean hair edges and light wrap</li><li>Spotlight and gentle retouch</li></ul></div><div class="fg rv"><div class="ic"><svg viewBox="0 0 24 24"><path d="M3 8V5a2 2 0 0 1 2-2h3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M8 21H5a2 2 0 0 1-2-2v-3"/><circle cx="12" cy="12" r="3"/></svg></div><h3>Framing & look</h3><ul><li>Auto-framing that moves like a camera operator</li><li>Zoom, pan, mirror and rotate</li><li>Colour, temperature and sharpness controls</li><li>Built-in filters and your own LUTs</li><li>Screen light: ring, bars or frame, 2200–9000 K</li></ul></div><div class="fg rv"><video class="fv" src="video-clips/business.mp4" poster="video-clips/business.jpg" autoplay muted loop playsinline preload="metadata" aria-label="A founder on a call"></video><div class="ic"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M6 14h7"/></svg></div><h3>Scenes</h3><ul><li>100 scenes in 10 groups, from Boardroom to Diwali</li><li>New Name Card, Lower Third and Just my name</li><li>Your name, pronouns, logo and own fields, filled in once</li><li>All scenes and + New right in the scene strip</li><li>Drag-and-drop editor with undo</li><li>Text, logos, shapes and a placed camera</li><li>Smooth transitions between scenes</li><li>Share scenes as a single file</li></ul></div><div class="fg rv"><video class="fv" src="video-clips/podcast.mp4" poster="video-clips/podcast.jpg" autoplay muted loop playsinline preload="metadata" aria-label="A podcaster talking into a microphone"></video><div class="ic"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></div><h3>Sound</h3><ul><li>On-device noise removal</li><li>Low cut, de-esser and auto level</li><li>Mixer with meters, EQ and limiter</li><li>Mix in system sound</li><li>Watchdog restarts a mic that drops</li></ul></div><div class="fg rv"><div class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3" fill="currentColor"/></svg></div><h3>Record</h3><ul><li>Record exactly what you see, with sound</li><li>A calm Record button that stays still while recording</li><li>Recordings survive a crash</li><li>Replay buffer: save the last moments</li><li>Snapshots as PNG</li></ul></div><div class="fg rv"><video class="fv" src="video-clips/education.mp4" poster="video-clips/education.jpg" autoplay muted loop playsinline preload="metadata" aria-label="A teacher explaining to the class"></video><div class="ic"><svg viewBox="0 0 24 24"><path d="M4 5h16M4 10h16M4 15h10"/></svg></div><h3>Present</h3><ul><li>Teleprompter next to the lens</li><li>Live captions, checked on this PC</li><li>Presets per app</li></ul></div><div class="fg rv"><div class="ic"><svg viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></div><h3>Privacy</h3><ul><li>Everything runs on your PC</li><li>Privacy shutter and guard</li><li>Encrypted phone pairing</li><li>No account, nothing uploaded</li></ul></div><div class="fg rv"><div class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="2"/><path d="M5 9h14M12 9v12M8 21l4-7 4 7"/></svg></div><h3>Easy for everyone</h3><ul><li>Simple mode or full Studio mode</li><li>Large controls and reduced motion</li><li>High contrast and screen-reader support</li><li>Light and dark mode</li><li>Start with Windows; Ctrl+Alt+K brings KISSIK forward</li></ul></div></div>
 </section>
 
+<section id="compare" class="wrap">
+  <div class="rv" style="max-width:760px"><div class="kick">Why KISSIK</div><h2>Everything the paid camera apps charge for. Free.</h2><p class="lead" style="margin-top:14px">Most camera apps lock 4K, scenes or the phone camera behind a subscription. KISSIK doesn't.</p></div>
+  <div class="rv" style="overflow-x:auto"><table class="cmp"><thead><tr><th></th><th class="k" scope="col">KISSIK</th><th scope="col">Typical camera apps</th></tr></thead><tbody><tr><th scope="row">Price</th><td class="k">Free, every feature</td><td class="o">Monthly subscription for the good parts</td></tr><tr><th scope="row">Watermark</th><td class="k">Never</td><td class="o">Often, until you pay</td></tr><tr><th scope="row">Account</th><td class="k">None</td><td class="o">Usually required</td></tr><tr><th scope="row">4K and 60 fps</th><td class="k">Free</td><td class="o">Paid tier</td></tr><tr><th scope="row">Webcam and phone</th><td class="k">Both, in one app</td><td class="o">Often phone only, or webcam only</td></tr><tr><th scope="row">Scenes</th><td class="k">100 built in, with your name, pronouns and logo</td><td class="o">A few, or sold as packs</td></tr><tr><th scope="row">Background, framing, light, sound</th><td class="k">All in one window</td><td class="o">Spread over several apps</td></tr><tr><th scope="row">Your video</th><td class="k">Stays on your PC</td><td class="o">May be sent to the cloud</td></tr><tr><th scope="row">Source code</th><td class="k">Open source</td><td class="o">Closed</td></tr></tbody></table></div>
+</section>
 <section id="free" class="free">
  <div class="wrap row">
   <div class="rv"><h2>Free means free.</h2><p style="margin-top:16px;font-size:18px;opacity:.92;max-width:420px">Nothing is held back to make you pay. No trial, no tiers, no catch. KISSIK is open source.</p></div>
@@ -345,7 +388,7 @@ footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
   <div class="rv" style="max-width:720px"><div class="kick">Set up in a minute</div><h2>Three steps, then forget about it.</h2></div>
   <div class="steps">
     <div class="step rv"><div class="n">1</div><h3>Install KISSIK</h3><p>Download for Windows 11 and open it. No sign-up.</p></div>
-    <div class="step rv"><div class="n">2</div><h3>Pick KISSIK as your camera</h3><p>In your meeting, streaming or browser app, choose "KISSIK" in the camera list.</p></div>
+    <div class="step rv"><div class="n">2</div><h3>Pick KISSIK as your camera</h3><p>In your meeting, streaming or browser app, choose "KISSIK" in the camera list. It shows up by that name in Zoom, Teams and Meet.</p></div>
     <div class="step rv"><div class="n">3</div><h3>Add your phone <span class="opt">Optional</span></h3><p>Open the KISSIK phone app and scan the QR code on your PC.</p></div>
   </div>
 </section>
@@ -365,7 +408,7 @@ footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
   <details class="rv"><summary>Is it really free?</summary><p>Yes. Every feature is free, including 4K, the phone camera and all 100 scenes, on as many PCs as you like.</p></details>
   <details class="rv"><summary>Do I need a phone?</summary><p>No. KISSIK works with any webcam. The phone is an option when you want a better camera.</p></details>
   <details class="rv"><summary>Does my video go to a server?</summary><p>No. Everything runs on your own computer, and there's no account.</p></details>
-  <details class="rv"><summary>Which apps can I use it in?</summary><p>KISSIK appears as a camera in meeting apps, streaming apps and browsers.</p></details>
+  <details class="rv"><summary>Which apps can I use it in?</summary><p>KISSIK appears as a camera named "KISSIK" in meeting apps like Zoom, Teams and Meet, in streaming apps and in browsers.</p></details>
   <details class="rv"><summary>When are Mac, iPhone and Linux coming?</summary><p>Android is in testing now. macOS, Linux and iPhone are planned.</p></details>
 </section>
 
@@ -394,6 +437,9 @@ knob.addEventListener('keydown',e=>{const v=+knob.getAttribute('aria-valuenow');
 document.getElementById('cp').onclick=e=>{const t=document.getElementById('upi').textContent;navigator.clipboard.writeText(t).then(()=>e.target.textContent='Copied',()=>{const r=document.createRange();r.selectNodeContents(document.getElementById('upi'));getSelection().removeAllRanges();getSelection().addRange(r)})};
 const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target)}}),{threshold:.12});
 document.querySelectorAll('.rv').forEach(el=>io.observe(el));
+</script>
+<script>
+try{if(matchMedia('(prefers-reduced-motion: reduce)').matches)document.querySelectorAll('video[autoplay]').forEach(v=>{v.removeAttribute('autoplay');v.pause();v.preload='none'})}catch(e){}
 </script>
 </body>
 </html>
