@@ -164,11 +164,17 @@ public static class MaskOps
     /// <summary>The full-size person matte for a frame: the model mask upsampled, then snapped to the picture's edges.</summary>
     public static float[] Matte(PersonMask m, byte[] bgra, int w, int h)
     {
-        // A wide soft ramp keeps faint hair in play; the colour guide then decides what is person.
+        // A wide soft ramp keeps faint hair in play; the colour guide then decides what is person. A wide pass first
+        // reaches room the model swallowed (gaps between locs, between arm and body), then a fine pass sets the edge.
         var alpha = Upsample(m, w, h, 0.1f, 0.9f);
-        GuidedRefine(alpha, bgra, w, h, scale: GuideScale(w));
+        int scale = GuideScale(w);
+        GuidedRefine(alpha, bgra, w, h, scale, WideRadius, carve: true);
+        GuidedRefine(alpha, bgra, w, h, scale, FineRadius);
         return alpha;
     }
+
+    /// <summary>Guide window radii (on the 1/scale grid) of the two refine passes.</summary>
+    public const int WideRadius = 24, FineRadius = 8;
 
     /// <summary>The guide's downscale for a frame width: half size at 1080p, so single strands still register.</summary>
     public static int GuideScale(int w) => Math.Max(2, w / 960);
@@ -214,9 +220,12 @@ public static class MaskOps
     /// Fast colour guided filter (He et al.): snaps the upsampled mask to the real edges in the full-resolution
     /// picture, so hair and shoulders follow the image instead of the blocky model grid. Guided by colour, not just
     /// brightness, so a room with the hair's brightness but another colour does not stick to the outline. Works at
-    /// 1/scale size, then applies the per-pixel linear model at full size, only on edge pixels.
+    /// 1/scale size, then applies the per-pixel linear model at full size: on the edge band, or (carve) on the solid inside, so room the
+    /// model swallowed whole (gaps between locs, between arm and body) is still caught where its colour says room.
     /// </summary>
-    public static void GuidedRefine(float[] alpha, byte[] bgra, int w, int h, int scale = 4, int radius = 6, float eps = 0.001f)
+    /// <param name="carve">Only lower the solid inside (alpha 1) where the colour says room, leaving the edge band to a
+    /// later fine pass. Otherwise refine the edge band and leave solid areas alone.</param>
+    public static void GuidedRefine(float[] alpha, byte[] bgra, int w, int h, int scale = 4, int radius = 6, float eps = 0.001f, bool carve = false)
     {
         int sw = Math.Max(1, w / scale), sh = Math.Max(1, h / scale), n = sw * sh;
         // Guide planes: r, g, b, p, then r·p, g·p, b·p, then rr, rg, rb, gg, gb, bb.
@@ -254,14 +263,16 @@ public static class MaskOps
             {
                 int k = y * w + x;
                 float o = alpha[k];
-                if (o <= 0.001f || o >= 0.999f) continue; // solid inside or outside: nothing to refine
+                if (carve ? o < 0.999f : o <= 0.001f || o >= 0.999f) continue;
                 float gx = Math.Clamp((x + 0.5f) * fx - 0.5f, 0, sw - 1); int x0 = (int)gx, x1 = Math.Min(x0 + 1, sw - 1); float dx = gx - x0;
                 int i = k * 4;
                 float v = Lerp2(mab[0], sw, x0, x1, y0, y1, dx, dy) * (bgra[i + 2] / 255f)
                         + Lerp2(mab[1], sw, x0, x1, y0, y1, dx, dy) * (bgra[i + 1] / 255f)
                         + Lerp2(mab[2], sw, x0, x1, y0, y1, dx, dy) * (bgra[i] / 255f)
                         + Lerp2(mab[3], sw, x0, x1, y0, y1, dx, dy);
-                v = Math.Clamp((v - 0.05f) / 0.9f, 0, 1); // firm up the soft band a little (smoothstep 0.05..0.95)
+                // Carve: only clear room comes out (under 0.4), so a colour merely close to the room (a guitar) stays.
+                // Edge band: firmed up a little (smoothstep 0.05..0.95).
+                v = carve ? Math.Clamp((v - 0.1f) / 0.3f, 0, 1) : Math.Clamp((v - 0.05f) / 0.9f, 0, 1);
                 alpha[k] = v * v * (3 - 2 * v);
             }
         });

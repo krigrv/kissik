@@ -6,7 +6,7 @@ cbuffer Params : register(b0)
 {
     int4 I0;   // w, h, maskW, maskH
     int4 I1;   // blurW, blurH, blurRadius, mode (0 none, 1 blur, 2 replace, 3 remove)
-    int4 I2;   // flags, filter, lutSize, 0
+    int4 I2;   // flags, filter, lutSize, 0 (during edge refinement: carve)
     int4 I3;   // camera rect x, y, w, h; during edge refinement: guide w, h, scale, radius
     int4 I4;   // scene flags
     float4 F0; // spotlight, retouch, lutStrength, sharpness
@@ -241,14 +241,16 @@ void GuideAB(uint3 id : SV_DispatchThreadID)
     AccOut[q] = float4(ar, ag, ab, mp - ar * mr - ag * mg - ab * mb);
 }
 
-// Applies the smoothed model at full size on edge pixels only, then firms up the band (smoothstep 0.05..0.95).
+// Applies the smoothed model at full size on the edge band, then firms it up (smoothstep 0.05..0.95). With I2.w set
+// (carve), only on the solid inside, where only clear room comes out (smoothstep 0.1..0.4).
 [numthreads(256, 1, 1)]
 void GuideApply(uint3 id : SV_DispatchThreadID)
 {
     uint k = Index(id);
     if (k >= (uint)(W * H)) return;
+    bool carve = I2.w != 0;
     float o = AlphaOut[k];
-    if (o <= 0.001f || o >= 0.999f) return;
+    if (carve ? o < 0.999f : o <= 0.001f || o >= 0.999f) return;
     int x = k % W, y = k / W;
     float gy = clamp((y + 0.5f) * ((float)GH / H) - 0.5f, 0, GH - 1);
     int y0 = (int)gy, y1 = min(y0 + 1, GH - 1); float dy = gy - y0;
@@ -259,7 +261,7 @@ void GuideApply(uint3 id : SV_DispatchThreadID)
     float4 ab = t + (u - t) * dy;
     float3 c = Rgb01(Src[k]);
     float v = ab.x * c.x + ab.y * c.y + ab.z * c.z + ab.w;
-    v = clamp((v - 0.05f) / 0.9f, 0, 1);
+    v = carve ? clamp((v - 0.1f) / 0.3f, 0, 1) : clamp((v - 0.05f) / 0.9f, 0, 1);
     AlphaOut[k] = v * v * (3 - 2 * v);
 }
 

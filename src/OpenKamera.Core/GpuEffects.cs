@@ -448,7 +448,8 @@ public sealed class GpuEffects : IDisposable
             Ensure("alpha", n * 4, 4);
             SetParams(p);
             Run("Upsample", n, srv: [("maskLow", 6)], uav: [("alpha", 1)]);
-            GuidedRefine(input, w, h, ref p);
+            GuidedRefine(input, w, h, MaskOps.WideRadius, carve: true, ref p);
+            GuidedRefine(input, w, h, MaskOps.FineRadius, carve: false, ref p);
         }
         else Ensure("alpha", 4, 4);
 
@@ -573,11 +574,12 @@ public sealed class GpuEffects : IDisposable
         return cur;
     }
 
-    /// <summary>MaskOps.GuidedRefine (colour guide) on the GPU, with the scale MaskOps.Matte uses.</summary>
-    private void GuidedRefine(string frame, int w, int h, ref Params p)
+    /// <summary>One MaskOps.GuidedRefine pass (colour guide) on the GPU, with the scale MaskOps.Matte uses.</summary>
+    private void GuidedRefine(string frame, int w, int h, int radius, bool carve, ref Params p)
     {
         int n = w * h;
-        const int radius = 6;
+        int flags = p.I2.W;
+        p.I2.W = carve ? 1 : 0;
         int scale = MaskOps.GuideScale(w), gw = Math.Max(1, w / scale), gh = Math.Max(1, h / scale), q = gw * gh;
         p.I3 = new(gw, gh, scale, radius);
         SetParams(p);
@@ -590,7 +592,7 @@ public sealed class GpuEffects : IDisposable
         Run("GuideBoxH", q, srv: [("guideT", 7)], uav: [("guide0", 2)]);
         Run("GuideBoxV", q, srv: [("guide0", 7)], uav: [("guideT", 2)]);
         Run("GuideApply", n, srv: [(frame, 0), ("guideT", 7)], uav: [("alpha", 1)]);
-        p.I3 = default;
+        p.I3 = default; p.I2.W = flags;
 
         void Box(string g)
         {

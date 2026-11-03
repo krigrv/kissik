@@ -45,6 +45,70 @@ public class EdgeQualityTests(ITestOutputHelper log)
         Assert.True(bleed < Limits.Bleed, $"bleed {bleed:F2}");
     }
 
+    /// <summary>
+    /// The beige room seen through the gaps between locs (left of the head) and along the shoulder must not survive
+    /// a Replace with Studio Grey. Counts pixels the result left as the old room: unchanged from the photo, close to
+    /// the nearby room colour and clearly not the new background.
+    /// </summary>
+    [Theory]
+    [InlineData("creative", SegmentationQuality.Fast)]
+    [InlineData("streaming", SegmentationQuality.Fast)]
+    [InlineData("social", SegmentationQuality.Fast)]
+    [InlineData("creative", SegmentationQuality.High)]
+    [InlineData("streaming", SegmentationQuality.High)]
+    [InlineData("social", SegmentationQuality.High)]
+    public async Task NoRoomShowsBetweenStrandsOnReplace(string name, SegmentationQuality q)
+    {
+        var (px, alpha) = await Cut(name, q);
+        var grey = BackgroundLibrary.Render("studio-grey", W, H)!;
+        var result = (byte[])px.Clone();
+        BackgroundEffects.Apply(result, W, H, alpha, new BackgroundSettings(BackgroundMode.Replace, BackgroundId: "studio-grey"), grey);
+        var (left, total) = RoomLeft(px, result, grey, alpha);
+        log.WriteLine($"{name} ({q}): {left} old-room pixels left round the person ({(double)left / total:P2} of the edge zone)");
+        Save(name, $"grey-{q}", result, alpha);
+        Assert.True((double)left / total < Limits.RoomLeft, $"{left} of {total}");
+    }
+
+    /// <summary>Old-room pixels in the zone within 40 px of the person, and the zone's size.</summary>
+    internal static (int Left, int Total) RoomLeft(byte[] orig, byte[] result, byte[] bg, float[] alpha)
+    {
+        const int r = 40, step = 8;
+        // The room colour: per 8×8 cell, the mean of the photo where the cut-out says room (alpha < 0.02) within r.
+        int cw = W / step + 1, ch = H / step + 1;
+        var room = new float[cw * ch * 3]; var has = new bool[cw * ch];
+        Parallel.For(0, ch, cy =>
+        {
+            for (int cx = 0; cx < cw; cx++)
+            {
+                double s0 = 0, s1 = 0, s2 = 0; int n = 0;
+                for (int y = Math.Max(0, cy * step - r); y < Math.Min(H, cy * step + r); y += 3)
+                    for (int x = Math.Max(0, cx * step - r); x < Math.Min(W, cx * step + r); x += 3)
+                    {
+                        int k = y * W + x;
+                        if (alpha[k] >= 0.02f) continue;
+                        s0 += orig[k * 4]; s1 += orig[k * 4 + 1]; s2 += orig[k * 4 + 2]; n++;
+                    }
+                int c = cy * cw + cx;
+                if (n < 20) continue;
+                has[c] = true; room[c * 3] = (float)(s0 / n); room[c * 3 + 1] = (float)(s1 / n); room[c * 3 + 2] = (float)(s2 / n);
+            }
+        });
+        var ring = Ring(alpha, r);
+        int left = 0, total = 0;
+        for (int y = 0; y < H; y++)
+            for (int x = 0; x < W; x++)
+            {
+                int k = y * W + x, c = (y / step) * cw + x / step;
+                if (!(ring[k] || alpha[k] is > 0.02f and < 0.999f) || !has[c]) continue;
+                total++;
+                int i = k * 4;
+                double dRoom = 0, dBg = 0;
+                for (int j = 0; j < 3; j++) { dRoom += Math.Abs(result[i + j] - room[c * 3 + j]); dBg += Math.Abs(result[i + j] - bg[i + j]); }
+                if (dRoom < 30 && dBg > 60) left++;
+            }
+        return (left, Math.Max(1, total));
+    }
+
     [Fact]
     public async Task EdgeHoldsStillOnAStillPicture()
     {
@@ -148,7 +212,8 @@ public class EdgeQualityTests(ITestOutputHelper log)
     {
         // Measured on this change (old pipeline in brackets): halo 26-46% (37-49%), bleed 0.8-2.4 (2.3-11.7),
         // flicker 0.12 (0.34), busy-room halo 4-15% (4-20%), busy-room edge error 0.13-0.34 (0.29-0.41).
-        public const double Halo = 0.5, Bleed = 4, Flicker = 0.18, BusyHalo = 0.18, EdgeError = 0.37;
+        public const double Halo = 0.5, Bleed = 4, Flicker = 0.18, BusyHalo = 0.18, EdgeError = 0.37,
+            RoomLeft = 0.012; // 0.02-0.86% now (the rest is mostly a chair the model counts as person); the Fast model let 0.3-1% through before
     }
 
     private static readonly byte[] Green = [64, 177, 0]; // B, G, R
@@ -245,14 +310,15 @@ public class EdgeQualityTests(ITestOutputHelper log)
 
     private static readonly Dictionary<string, (byte[], float[])> _cuts = [];
 
-    /// <summary>The photo at 1080p and its cut-out (High model on the CPU, refined as the pipeline does).</summary>
-    private static async Task<(byte[] Px, float[] Alpha)> Cut(string name)
+    /// <summary>The photo at 1080p and its cut-out (on the CPU, refined as the pipeline does).</summary>
+    private static async Task<(byte[] Px, float[] Alpha)> Cut(string name, SegmentationQuality q = SegmentationQuality.High)
     {
-        lock (_cuts) if (_cuts.TryGetValue(name, out var c)) return ((byte[])c.Item1.Clone(), c.Item2);
+        string key = $"{name}/{q}";
+        lock (_cuts) if (_cuts.TryGetValue(key, out var c)) return ((byte[])c.Item1.Clone(), c.Item2);
         var px = await Load(name);
-        using var seg = new PersonSegmenter(SegmentationQuality.High, preferGpu: false);
+        using var seg = new PersonSegmenter(q, preferGpu: false);
         var alpha = MaskOps.Matte(seg.Segment(px, W, H), px, W, H);
-        lock (_cuts) _cuts[name] = (px, alpha);
+        lock (_cuts) _cuts[key] = (px, alpha);
         return ((byte[])px.Clone(), alpha);
     }
 
