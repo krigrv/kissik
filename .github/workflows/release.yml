@@ -1,8 +1,9 @@
 name: Release
 
 # Push a tag like v1.0.0 to publish a release. GitHub writes the notes from the merged pull requests
-# (see .github/release.yml) and attaches the KISSIK Camera Android app. Attach the signed Windows
-# package yourself (tools/make-store-package.ps1): it needs your code-signing certificate.
+# (see .github/release.yml) and attaches the KISSIK Camera Android app, signed with the project's permanent key
+# (repository secrets) so every version installs over the last one. The Windows app ships through the
+# Microsoft Store (tools/make-store-package.ps1).
 on:
   push:
     tags: ["v*"]
@@ -19,11 +20,17 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
-      - name: Build the phone app
+      - name: Unpack the signing key
+        run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/kissik.jks"
+      - name: Build the signed phone app
         working-directory: android
-        run: chmod +x gradlew && ./gradlew assembleDebug --no-daemon
+        env:
+          KISSIK_KEYSTORE: ${{ runner.temp }}/kissik.jks
+          KISSIK_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KISSIK_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: chmod +x gradlew && ./gradlew assembleRelease --no-daemon
       - name: Name it for the release
-        run: cp android/app/build/outputs/apk/debug/app-debug.apk "KISSIK-Camera-${GITHUB_REF_NAME}.apk"
+        run: cp android/app/build/outputs/apk/release/app-release.apk "KISSIK-Camera-${GITHUB_REF_NAME}.apk"
       - name: Publish the release
         uses: softprops/action-gh-release@v2
         with:
