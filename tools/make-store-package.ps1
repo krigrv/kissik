@@ -26,9 +26,11 @@ try {
   if (-not $env:DOTNET_ROOT) { $env:DOTNET_ROOT = "C:\Users\Krishna Gaurav\GitHub\tools\dotnet10" }
   $dotnet = Join-Path $env:DOTNET_ROOT 'dotnet.exe'
   New-Item -ItemType Directory -Force $Out | Out-Null
+  # A full path ending in "/" (not "\", which would escape the closing quote when the path has spaces).
+  $Out = [IO.Path]::GetFullPath($Out).TrimEnd('\') + '/'
   & $dotnet publish (Join-Path $root 'src\OpenKamera.App\OpenKamera.App.csproj') -c Release -r win-x64 `
       -p:GenerateAppxPackageOnBuild=true -p:UapAppxPackageBuildMode=StoreUpload -p:AppxBundle=Never `
-      -p:AppxPackageSigningEnabled=false -p:AppxPackageDir="$Out\" -p:AppxSymbolPackageEnabled=false
+      -p:AppxPackageSigningEnabled=false -p:AppxPackageDir="$Out" -p:AppxSymbolPackageEnabled=false
   if ($LASTEXITCODE -ne 0) { throw "Build failed ($LASTEXITCODE)." }
   $upload = Get-ChildItem $Out -Recurse -Include *.msixupload, *.appxupload | Sort-Object LastWriteTime -Descending | Select-Object -First 1
   if (-not $upload) { throw "No .msixupload was produced; check the build output above." }
