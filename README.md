@@ -149,6 +149,7 @@ Please read the [Contributing Guide](CONTRIBUTING.md) and [Code of Conduct](CODE
 
 KISSIK is free and stays free. If it helps you, you can help keep it going.
 
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-Support-ff7a1a?style=for-the-badge&logo=kofi&logoColor=white&labelColor=0d1117)](https://ko-fi.com/krishnagaurav)
 [![PayPal](https://img.shields.io/badge/PayPal-Donate-ff7a1a?style=for-the-badge&logo=paypal&logoColor=white&labelColor=0d1117)](https://paypal.me/krishnagaurav)
 [![UPI](https://img.shields.io/badge/UPI-kri.grv%40okaxis-ff7a1a?style=for-the-badge&labelColor=0d1117)](docs/donate-upi-qr.png)
 

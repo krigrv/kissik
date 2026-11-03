@@ -1037,6 +1037,14 @@ public sealed partial class MainPage : Page
             });
         }
 
+        if (d.HasKoFi)
+        {
+            var kofi = new Button { HorizontalAlignment = HorizontalAlignment.Stretch, Content = "Support on Ko-fi" };
+            AutomationProperties.SetName(kofi, "Support on Ko-fi");
+            kofi.Click += async (_, _) => await Windows.System.Launcher.LaunchUriAsync(new Uri(d.KoFiUrl));
+            body.Children.Add(kofi);
+        }
+
         if (d.HasUpi)
         {
             body.Children.Add(new TextBlock { Text = "UPI (India)", FontWeight = Microsoft.UI.Text.FontWeights.SemiBold });

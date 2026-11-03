@@ -9,13 +9,15 @@ namespace OpenKamera.Core;
 public sealed class DonationInfo
 {
     public string PayPalUrl { get; set; } = "";
+    public string KoFiUrl { get; set; } = "";
     public string UpiId { get; set; } = "";
     public string UpiName { get; set; } = "";
     public string Message { get; set; } = "";
 
     public bool HasPayPal => Uri.TryCreate(PayPalUrl, UriKind.Absolute, out var u) && u.Scheme == Uri.UriSchemeHttps;
+    public bool HasKoFi => Uri.TryCreate(KoFiUrl, UriKind.Absolute, out var k) && k.Scheme == Uri.UriSchemeHttps;
     public bool HasUpi => IsValidUpiId(UpiId);
-    public bool IsConfigured => HasPayPal || HasUpi;
+    public bool IsConfigured => HasPayPal || HasKoFi || HasUpi;
 
     /// <summary>UPI deep link any UPI app understands (GPay, PhonePe, Paytm, BHIM). Amount left to the donor.</summary>
     public string UpiUri =>
