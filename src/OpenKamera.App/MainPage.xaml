@@ -153,16 +153,46 @@
                    FontSize="160" FontWeight="SemiBold" Foreground="White" IsHitTestVisible="False"
                    AutomationProperties.LiveSetting="Assertive" />
 
-        <!-- Empty state -->
-        <StackPanel x:Name="EmptyText" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="10">
-            <FontIcon Glyph="&#xE714;" FontSize="48" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-            <TextBlock x:Name="EmptyTitle" Foreground="{ThemeResource TextFillColorPrimaryBrush}" FontSize="22" HorizontalAlignment="Center" Text="No camera connected" />
-            <TextBlock x:Name="EmptyHint" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="14" HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center" MaxWidth="460"
-                       Text="Pick a device in the Camera panel and press Connect." />
-            <TextBlock x:Name="EmptyBusy" Foreground="{ThemeResource SystemFillColorCriticalBrush}" FontSize="13" HorizontalAlignment="Center" TextWrapping="Wrap" MaxWidth="420" />
-            <Button x:Name="EmptyConnectBtn" Content="Connect camera" Click="EmptyConnect_Click" HorizontalAlignment="Center"
-                    Style="{StaticResource AccentButtonStyle}" CornerRadius="12" Padding="22,9" FontSize="15"
-                    AutomationProperties.Name="Connect camera" />
+        <!-- Empty state: how to get a picture, pointing at where to click. -->
+        <StackPanel x:Name="EmptyText" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="14" MaxWidth="760" Margin="340,0,260,0">
+            <TextBlock x:Name="EmptyTitle" Foreground="{ThemeResource TextFillColorPrimaryBrush}" FontSize="24" FontWeight="SemiBold" HorizontalAlignment="Center" Text="Let's get your camera on" />
+            <TextBlock x:Name="EmptyHint" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="14" HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center" MaxWidth="560"
+                       Text="Use a webcam plugged into this PC, or your phone's camera." />
+            <TextBlock x:Name="EmptyBusy" Foreground="{ThemeResource SystemFillColorCriticalBrush}" FontSize="13" HorizontalAlignment="Center" TextWrapping="Wrap" MaxWidth="520" />
+            <Grid x:Name="EmptyCards" ColumnSpacing="14">
+                <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition /></Grid.ColumnDefinitions>
+                <!-- Webcam -->
+                <Border Style="{StaticResource Glass}" Padding="18" CornerRadius="12">
+                    <StackPanel Spacing="10">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <FontIcon Glyph="&#xE714;" FontSize="22" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                            <TextBlock Text="Webcam" FontSize="17" FontWeight="SemiBold" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <FontIcon Glyph="&#xE72B;" FontSize="16" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                            <TextBlock TextWrapping="Wrap" MaxWidth="260" Text="1. Pick your camera under Source, in the panel on the left." />
+                        </StackPanel>
+                        <TextBlock TextWrapping="Wrap" Margin="24,0,0,0" Text="2. Press Connect camera." />
+                        <Button x:Name="EmptyConnectBtn" Content="Connect camera" Click="EmptyConnect_Click" HorizontalAlignment="Stretch"
+                                Style="{StaticResource AccentButtonStyle}" CornerRadius="10" Padding="16,9" FontSize="15"
+                                AutomationProperties.Name="Connect camera" />
+                    </StackPanel>
+                </Border>
+                <!-- Phone -->
+                <Border x:Name="EmptyPhoneCard" Grid.Column="1" Style="{StaticResource Glass}" Padding="18" CornerRadius="12">
+                    <StackPanel Spacing="10">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <FontIcon Glyph="&#xE8EA;" FontSize="22" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                            <TextBlock Text="Phone" FontSize="17" FontWeight="SemiBold" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <TextBlock TextWrapping="Wrap" Text="1. Install KISSIK Camera on your Android phone." />
+                        <TextBlock TextWrapping="Wrap" Text="2. Same Wi-Fi as this PC, or plug in with a USB cable." />
+                        <TextBlock TextWrapping="Wrap" Text="3. Press Use my phone, then scan the code with KISSIK Camera." />
+                        <Button x:Name="EmptyPhoneBtn" Content="Use my phone" Click="EmptyPhone_Click" HorizontalAlignment="Stretch"
+                                CornerRadius="10" Padding="16,9" FontSize="15" AutomationProperties.Name="Use my phone as the camera" />
+                    </StackPanel>
+                </Border>
+            </Grid>
         </StackPanel>
 
         <!-- ═══ Top capsule ═══ -->

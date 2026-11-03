@@ -22,6 +22,7 @@ public sealed partial class MainPage
             var since = _lastFrameAt > _connectedAt ? _lastFrameAt : _connectedAt;
             if (now - since < TimeSpan.FromSeconds(3)) { if (_pictureMissing) PictureBack(); return; }
 
+            if (DeviceBox.SelectedItem == PictureDevice) return; // frames come from the picture timer
             bool phone = DeviceBox.SelectedItem == PhoneDevice;
             string name = (DeviceBox.SelectedItem as CameraDeviceInfo)?.Name ?? "the camera";
             var busy = phone ? [] : DeviceUsage.InUseBy(PrivacyDevice.Camera).Distinct().ToList();
@@ -32,7 +33,7 @@ public sealed partial class MainPage
                     ? $"Another app is using your camera: {string.Join(", ", busy)}. Close the camera there; KISSIK tries again every few seconds."
                     : "The camera isn't sending a picture. KISSIK tries again every few seconds. If it stays black, unplug and replug the camera.";
             EmptyBusy.Text = "";
-            EmptyConnectBtn.Visibility = Visibility.Collapsed;
+            EmptyCards.Visibility = Visibility.Collapsed;
             EmptyText.Visibility = Visibility.Visible;
             if (!_pictureMissing) { _pictureMissing = true; Status(EmptyTitle.Text + ". " + EmptyHint.Text); }
 
@@ -49,9 +50,9 @@ public sealed partial class MainPage
     private void PictureBack()
     {
         _pictureMissing = false;
-        EmptyTitle.Text = "No camera connected";
-        EmptyHint.Text = "Pick a device in the Camera panel and press Connect.";
-        EmptyConnectBtn.Visibility = Visibility.Visible;
+        EmptyTitle.Text = "Let's get your camera on";
+        EmptyHint.Text = "Use a webcam plugged into this PC, or your phone's camera.";
+        EmptyCards.Visibility = Visibility.Visible;
         if (_session is not null) { EmptyText.Visibility = Visibility.Collapsed; Status("Picture is back."); }
     }
 }

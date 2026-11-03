@@ -61,7 +61,7 @@ public sealed partial class MainPage : Page
         await RefreshMicrophonesAsync();
         await RefreshDevicesAsync();
         // Don't make people press Connect every time: open the last camera straight away.
-        if (_session is null && DeviceBox.SelectedItem is CameraDeviceInfo c && c != PhoneDevice) await ConnectAsync();
+        if (_session is null && DeviceBox.SelectedItem is CameraDeviceInfo c && c != PhoneDevice && c != PictureDevice) await ConnectAsync();
         StartConnectWatch();
         StartSceneThumbs();
         StartAudioWatchdog();
@@ -346,16 +346,17 @@ public sealed partial class MainPage : Page
         {
             var cams = (await _catalog.GetCamerasAsync()).ToList();
             cams.Add(PhoneDevice);
+            cams.Add(PictureDevice);
             DeviceBox.ItemsSource = cams;
             // Keep what's running; otherwise go back to the last source, including the phone.
             if (_session is null || DeviceBox.SelectedItem is null)
             {
                 var last = _settings.LastDeviceId == PhoneDevice.Id ? PhoneDevice
-                    : cams.FirstOrDefault(c => c.Id == _settings.LastDeviceId && c != PhoneDevice) ?? cams.FirstOrDefault();
+                    : cams.FirstOrDefault(c => c.Id == _settings.LastDeviceId && c != PhoneDevice && c != PictureDevice) ?? cams.FirstOrDefault();
                 DeviceBox.SelectedItem = last;
             }
-            EmptyText.Visibility = cams.Count <= 1 ? Visibility.Visible : Visibility.Collapsed;
-            Status($"Found {cams.Count - 1} camera(s), plus your phone.");
+            EmptyText.Visibility = cams.Count <= 2 ? Visibility.Visible : Visibility.Collapsed;
+            Status($"Found {cams.Count - 2} camera(s), plus your phone and a picture source.");
         }
         catch (Exception ex) { Status("Camera enumeration failed: " + ex.Message); }
     }
@@ -368,6 +369,14 @@ public sealed partial class MainPage : Page
 
     private async void EmptyConnect_Click(object sender, RoutedEventArgs e) => await ConnectAsync();
 
+    /// <summary>Switches the source to the phone and connects, which shows the pairing code.</summary>
+    private async void EmptyPhone_Click(object sender, RoutedEventArgs e)
+    {
+        if (_session is not null) await ConnectAsync(toggle: true);
+        DeviceBox.SelectedItem = PhoneDevice;
+        await ConnectAsync();
+    }
+
     private async Task ConnectAsync(bool toggle = false)
     {
         if (!toggle && _session is not null) return;
@@ -378,6 +387,7 @@ public sealed partial class MainPage : Page
             PhoneControls.Visibility = Visibility.Collapsed;
             PhonePro.Visibility = Visibility.Collapsed;
             if (DeviceBox.SelectedItem == PhoneDevice) StopPhoneH264();
+            StopPicture();
             await _session.DisposeAsync();
             _session = null; _controller = null;
             ConnectBtn.Content = "Connect";
@@ -406,8 +416,18 @@ public sealed partial class MainPage : Page
             _session = new CaptureSession { KeepYuv = FrameProcessor.GpuActive };
             _session.FrameAvailable += OnFrame;
             if (cam == PhoneDevice) { await _session.StartExternalAsync(); await StartPhoneAsync(); }
+            else if (cam == PictureDevice)
+            {
+                await _session.StartExternalAsync();
+                if (!await StartPictureAsync(_session))
+                {
+                    await _session.DisposeAsync(); _session = null;
+                    Status("No picture chosen.");
+                    return;
+                }
+            }
             else await _session.StartAsync(cam.Id, _profile);
-            if (cam != PhoneDevice) WatchCamera(_session, cam);
+            if (cam != PhoneDevice && cam != PictureDevice) WatchCamera(_session, cam);
             _controller = _session.Controls is { } c ? new CameraController(c) : null;
             _settings.LastDeviceId = cam.Id; // the phone too, so turning the camera off and on comes back to it
             _settings.Save();

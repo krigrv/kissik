@@ -1,4 +1,4 @@
-<p align="center"><img src="docs/logo/openkamera-logo-512.png" width="128" alt="KISSIK logo"></p>
+<p align="center"><img src="docs/logo/kissik-logo-512.png" width="128" alt="KISSIK logo"></p>
 
 # KISSIK
 

@@ -93,10 +93,16 @@ public sealed partial class MainPage
     /// <summary>Saves the app window (not the desktop) as a PNG — handy for bug reports and docs.</summary>
     private async void SaveWindowPicture_Click(object sender, RoutedEventArgs e)
     {
+        // The menu that asked for this hands focus back to its button; hide that focus outline for the picture.
+        var focused = Microsoft.UI.Xaml.Input.FocusManager.GetFocusedElement(XamlRoot) as Control;
+        bool visuals = focused?.UseSystemFocusVisuals ?? false;
         try
         {
+            if (focused is not null) focused.UseSystemFocusVisuals = false;
+            await Task.Delay(250); // let the menu finish closing
             var rtb = new RenderTargetBitmap();
             await rtb.RenderAsync(Root);
+            if (focused is not null) focused.UseSystemFocusVisuals = visuals;
             var px = (await rtb.GetPixelsAsync()).ToArray();
             string folder = AppPaths.Pictures;
             Directory.CreateDirectory(folder);
@@ -110,6 +116,7 @@ public sealed partial class MainPage
             Status("Window picture saved: " + file.Path);
         }
         catch (Exception ex) { Status("Window picture failed: " + ex.Message); }
+        finally { if (focused is not null) focused.UseSystemFocusVisuals = visuals; }
     }
 
     private void SyncLookTiles()
