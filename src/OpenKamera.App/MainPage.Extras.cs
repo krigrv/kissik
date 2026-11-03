@@ -118,8 +118,11 @@ public sealed partial class MainPage
             PrimaryButtonText = "Add", CloseButtonText = "Cancel", DefaultButton = ContentDialogButton.Primary,
         }.ShowAsync();
         if (res != ContentDialogResult.Primary) return;
-        int width = (int)Math.Clamp(double.IsNaN(w.Value) ? 1920 : w.Value, 160, 3840) / 2 * 2;
-        int height = (int)Math.Clamp(double.IsNaN(h.Value) ? 1080 : h.Value, 160, 3840) / 2 * 2;
+        // What's typed counts even if the box hasn't committed it yet (a number box only commits when it loses focus).
+        static double Read(NumberBox b, double fallback) =>
+            double.TryParse(b.Text, out var typed) ? typed : double.IsNaN(b.Value) ? fallback : b.Value;
+        int width = (int)Math.Clamp(Read(w, 1920), 160, 3840) / 2 * 2;
+        int height = (int)Math.Clamp(Read(h, 1080), 160, 3840) / 2 * 2;
         string n = string.IsNullOrWhiteSpace(name.Text) ? $"Custom {width}x{height}" : name.Text.Trim();
         if (AllProfiles.Any(p => p.Name.Equals(n, StringComparison.OrdinalIgnoreCase))) n += " (2)";
         var profile = new OutputProfile(n, width, height, fps.SelectedItem is int f ? f : 30);
