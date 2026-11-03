@@ -182,10 +182,18 @@ header .btn{height:36px;padding:0 18px;font-size:14px}
 .hero2 .ctas{display:flex;justify-content:center;flex-wrap:wrap;gap:12px;margin-top:28px}
 .hero2 .btn.gh{display:inline-flex;gap:8px;align-items:center}.hero2 .btn.gh svg{width:18px;height:18px}
 .hero2 small{display:block;margin-top:16px;opacity:.6}
-.hero2 .stage{max-width:1400px;margin:48px auto 0;padding:0 16px}
-.hero2 .stage video{display:block;width:100%;aspect-ratio:16/9;border-radius:20px 20px 0 0;-webkit-mask-image:linear-gradient(#000 80%,transparent);mask-image:linear-gradient(#000 80%,transparent)}
-@media(max-width:600px){.hero2{padding-top:44px}.hero2 .stage{padding:0;margin-top:32px}.hero2 .stage video{border-radius:0}}
 .hero2 small.soon{display:inline-flex;align-items:center;gap:8px;opacity:.65;margin-top:18px;font-size:14px}.hero2 small.soon .dot{width:7px;height:7px;border-radius:4px;background:#ffb020}
+.hero2{position:relative;padding-bottom:56px}
+.hero2::after{content:"";position:absolute;left:0;right:0;bottom:0;height:120px;background:linear-gradient(transparent,var(--bg));pointer-events:none}
+.hstage{position:relative;width:min(1400px,calc(100% - 96px));margin:56px auto 0;perspective:1800px}
+.hstage::before{content:"";position:absolute;inset:8% 6% -4%;background:radial-gradient(closest-side,rgba(255,138,61,.55),rgba(124,92,255,.35) 55%,transparent 75%);filter:blur(70px);z-index:0}
+.hframe{position:relative;z-index:1;border-radius:22px;padding:1px;background:linear-gradient(160deg,rgba(255,255,255,.35),rgba(255,255,255,.04) 40%,rgba(255,138,61,.4));box-shadow:0 60px 160px rgba(0,0,0,.7);transform-origin:50% 0;transform:rotateX(var(--tilt,14deg)) scale(var(--sc,.94));will-change:transform}
+.hframe video{display:block;width:100%;aspect-ratio:16/9;border-radius:21px;background:#07070a}
+.works{position:relative;z-index:2;display:flex;flex-wrap:wrap;justify-content:center;gap:10px 28px;margin:44px auto 0;padding:0 16px;max-width:1100px;font-size:15px;color:rgba(255,255,255,.5)}
+.works span{width:100%;font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.4)}
+.works b{font:600 18px var(--display);color:rgba(255,255,255,.72)}
+@media(max-width:600px){.hero2{padding-top:44px}.hstage{width:100%;margin-top:32px}.hframe{border-radius:0;padding:0}.hframe video{border-radius:0}.works b{font-size:15px}}
+@media (prefers-reduced-motion:reduce){.hframe{transform:none}}
 .feats{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:16px;overflow:hidden;margin-top:40px}
 .fg{background:var(--bg);padding:26px 26px 28px}
 .fg .ic{width:40px;height:40px;border-radius:10px;background:var(--bg-2);display:grid;place-items:center;color:var(--o-text);margin-bottom:14px}
@@ -289,7 +297,8 @@ footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
     <small class="soon"><span class="dot"></span>Windows app coming soon to the Microsoft Store</small>
     <small>No account · No watermark · Open source</small>
   </div>
-  <div class="stage"><video src="video-clips/hero.mp4" poster="video-clips/hero.jpg" autoplay muted loop playsinline preload="auto" aria-label="KISSIK studio: a live camera picture gets a name card in one click, then podcasts, classes, music, streams and a phone camera all come through KISSIK"></video></div>
+  <div class="hstage"><div class="hframe"><video src="video-clips/hero.mp4" poster="video-clips/hero.jpg" autoplay muted loop playsinline preload="auto" aria-label="KISSIK studio: a live camera picture gets a name card in one click, then podcasts, classes, music, streams and a phone camera all come through KISSIK"></video></div></div>
+  <div class="works"><span>Shows up as “KISSIK” in</span><b>Zoom</b><b>Microsoft Teams</b><b>Google Meet</b><b>OBS Studio</b><b>Discord</b><b>Webex</b><b>Slack</b><b>Any browser</b></div>
 </section>
 
 <section id="cameras" class="wrap">
@@ -454,6 +463,9 @@ document.querySelectorAll('.rv').forEach(el=>io.observe(el));
 </script>
 <script>
 try{if(matchMedia('(prefers-reduced-motion: reduce)').matches)document.querySelectorAll('video[autoplay]').forEach(v=>{v.removeAttribute('autoplay');v.pause();v.preload='none'})}catch(e){}
+</script>
+<script>
+(()=>{try{if(matchMedia('(prefers-reduced-motion: reduce)').matches)return;const f=document.querySelector('.hframe');if(!f)return;let q=0;const u=()=>{q=0;const r=f.getBoundingClientRect(),vh=innerHeight;const p=Math.min(1,Math.max(0,(vh-r.top)/(vh*0.9)));f.style.setProperty('--tilt',(14*(1-p)).toFixed(2)+'deg');f.style.setProperty('--sc',(0.94+0.06*p).toFixed(3))};addEventListener('scroll',()=>{if(!q){q=1;requestAnimationFrame(u)}},{passive:true});addEventListener('resize',u);u()}catch(e){}})();
 </script>
 </body>
 </html>
