@@ -99,6 +99,7 @@ public class AudioWatchdogTests
         Assert.False(e.NeedsRestart(DateTime.UtcNow.AddHours(1), TimeSpan.FromSeconds(3)));
     }
 
+    [Trait("Category", "Hardware")] // needs a real sound device or desktop CPU; CI skips it
     [Fact]
     public async Task RunningEngine_HasAHeartbeat_AndAStallIsDetected()
     {

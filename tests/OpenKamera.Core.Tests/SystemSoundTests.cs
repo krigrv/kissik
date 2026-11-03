@@ -23,6 +23,7 @@ public class SystemSoundTests
         Assert.All(o, v => Assert.Equal(0.5f, v, 3));
     }
 
+    [Trait("Category", "Hardware")] // needs a real sound device or desktop CPU; CI skips it
     [Fact]
     public void LiveLoopback_StartsAndStops()
     {

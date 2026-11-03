@@ -16,8 +16,8 @@ jobs:
       - name: Build the app
         run: dotnet build src/OpenKamera.App -c Release -p:Platform=x64
       - name: Run the tests
-        # GPU, camera and microphone tests skip themselves on machines without them.
-        run: dotnet test tests/OpenKamera.Core.Tests -c Release
+        # Cloud machines have no sound device or GPU: tests marked Hardware run on real PCs only.
+        run: dotnet test tests/OpenKamera.Core.Tests -c Release --filter "Category!=Hardware"
 
   android:
     runs-on: ubuntu-latest
@@ -30,7 +30,6 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
-      - uses: android-actions/setup-android@v3
       - name: Build the phone app
         run: chmod +x gradlew && ./gradlew assembleDebug --no-daemon
       - uses: actions/upload-artifact@v4

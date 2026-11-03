@@ -220,6 +220,7 @@ public class VoiceTests(ITestOutputHelper output)
         return best;
     }
 
+    [Trait("Category", "Hardware")] // needs a real sound device or desktop CPU; CI skips it
     [Theory]
     [InlineData(NoiseRemoval.Light, 12)]
     [InlineData(NoiseRemoval.Studio, 20)]
