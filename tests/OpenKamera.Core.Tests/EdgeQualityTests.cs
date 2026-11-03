@@ -67,6 +67,7 @@ public class EdgeQualityTests(ITestOutputHelper log)
         Assert.True(flicker < Limits.Flicker, $"flicker {flicker:F4}");
     }
 
+    [Trait("Category", "Hardware")] // speed depends on a real GPU; cloud machines only have a software one
     [Fact]
     public async Task MatteAndBlurFitTheFrameBudget()
     {
