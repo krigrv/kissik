@@ -7,6 +7,7 @@ namespace OpenKamera.Core.Tests;
 
 /// <summary>Recording straight from GPU textures: the texture holds the baked frame, and the MP4 plays back.</summary>
 [Collection("Timing")]
+[Trait("Category", "Hardware")] // real-time encoding needs a real GPU; cloud machines only have a software one
 public class GpuRecorderTests(ITestOutputHelper log)
 {
     private const int W = 640, H = 360, Fps = 30;
