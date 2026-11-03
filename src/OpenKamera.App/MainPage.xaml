@@ -153,6 +153,9 @@
                    FontSize="160" FontWeight="SemiBold" Foreground="White" IsHitTestVisible="False"
                    AutomationProperties.LiveSetting="Assertive" />
 
+        <TeachingTip x:Name="SourceTip" Target="{x:Bind DeviceBox}" PreferredPlacement="Right" IsLightDismissEnabled="False"
+                     Title="Pick your camera here" Subtitle="Choose your webcam (or your phone), then press Connect next to it."
+                     CloseButtonContent="Got it" />
         <!-- Empty state: how to get a picture, pointing at where to click. -->
         <StackPanel x:Name="EmptyText" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="14" MaxWidth="760" Margin="340,0,260,0">
             <TextBlock x:Name="EmptyTitle" Foreground="{ThemeResource TextFillColorPrimaryBrush}" FontSize="24" FontWeight="SemiBold" HorizontalAlignment="Center" Text="Let's get your camera on" />
@@ -168,11 +171,8 @@
                             <FontIcon Glyph="&#xE714;" FontSize="22" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
                             <TextBlock Text="Webcam" FontSize="17" FontWeight="SemiBold" VerticalAlignment="Center" />
                         </StackPanel>
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                            <FontIcon Glyph="&#xE72B;" FontSize="16" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
-                            <TextBlock TextWrapping="Wrap" MaxWidth="260" Text="1. Pick your camera under Source, in the panel on the left." />
-                        </StackPanel>
-                        <TextBlock TextWrapping="Wrap" Margin="24,0,0,0" Text="2. Press Connect camera." />
+                        <TextBlock TextWrapping="Wrap" Text="1. Pick your camera where the orange bubble points, under Source on the left." />
+                        <TextBlock TextWrapping="Wrap" Text="2. Press Connect camera." />
                         <Button x:Name="EmptyConnectBtn" Content="Connect camera" Click="EmptyConnect_Click" HorizontalAlignment="Stretch"
                                 Style="{StaticResource AccentButtonStyle}" CornerRadius="10" Padding="16,9" FontSize="15"
                                 AutomationProperties.Name="Connect camera" />

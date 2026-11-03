@@ -10,8 +10,14 @@ public sealed partial class MainPage
 {
     private IEnumerable<OutputProfile> AllProfiles => OutputProfile.All.Concat(_settings.CustomProfiles);
 
+    private bool _sourceTipClosed;
+
     private async void InitExtras()
     {
+        // While there's no picture: point at the Source picker, and hide the scene's text so nothing shows behind the steps.
+        SourceTip.Closed += (_, _) => _sourceTipClosed = true;
+        EmptyText.RegisterPropertyChangedCallback(VisibilityProperty, (_, _) => UpdateEmptyHelp());
+        UpdateEmptyHelp();
         PhoneDimToggle.IsChecked = _settings.PhoneDim;
         try
         {
@@ -19,6 +25,13 @@ public sealed partial class MainPage
             StartupToggle.IsChecked = task.State is Windows.ApplicationModel.StartupTaskState.Enabled or Windows.ApplicationModel.StartupTaskState.EnabledByPolicy;
         }
         catch { StartupToggle.IsEnabled = false; }
+    }
+
+    private void UpdateEmptyHelp()
+    {
+        bool empty = EmptyText.Visibility == Visibility.Visible;
+        OverlayCanvas.Opacity = empty ? 0 : 1;
+        SourceTip.IsOpen = empty && _session is null && !_sourceTipClosed;
     }
 
     private async void StartupToggle_Click(object sender, RoutedEventArgs e)

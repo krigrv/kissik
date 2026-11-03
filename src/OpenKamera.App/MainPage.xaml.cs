@@ -429,7 +429,7 @@ public sealed partial class MainPage : Page
             else await _session.StartAsync(cam.Id, _profile);
             if (cam != PhoneDevice && cam != PictureDevice) WatchCamera(_session, cam);
             _controller = _session.Controls is { } c ? new CameraController(c) : null;
-            _settings.LastDeviceId = cam.Id; // the phone too, so turning the camera off and on comes back to it
+            if (cam != PictureDevice) _settings.LastDeviceId = cam.Id; // the phone too, so turning the camera off and on comes back to it
             _settings.Save();
             BuildControls();
             var focus = _controller?.GetProperties().FirstOrDefault(p => p.Name == "Focus");
