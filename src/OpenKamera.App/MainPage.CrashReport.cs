@@ -77,7 +77,7 @@ public sealed partial class MainPage
         data.SetText("KISSIK error report\n\n" + CrashReports.Scrub(copy));
         Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(data);
         if (res == ContentDialogResult.Primary)
-            await Windows.System.Launcher.LaunchUriAsync(new Uri("https://github.com/krigrv/OpenKamera/issues/new"));
+            await Windows.System.Launcher.LaunchUriAsync(new Uri("https://github.com/krigrv/kissik/issues/new"));
         Status("Error report copied. Paste it into the bug report.");
     }
 

@@ -40,4 +40,4 @@ time in Settings and help → Send crash reports automatically.
 KISSIK does not collect personal information from anyone, including children.
 
 ## Contact
-Questions: open an issue at https://github.com/krigrv/OpenKamera/issues
+Questions: open an issue at https://github.com/krigrv/kissik/issues

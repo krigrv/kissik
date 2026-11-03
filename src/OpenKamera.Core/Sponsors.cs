@@ -19,7 +19,7 @@ public sealed record SponsorContext(int CameraHeight, bool LowLight, bool HasMic
 /// </summary>
 public static class Sponsors
 {
-    public const string FeedUrl = "https://raw.githubusercontent.com/krigrv/OpenKamera/main/website/sponsors.json";
+    public const string FeedUrl = "https://raw.githubusercontent.com/krigrv/kissik/main/website/sponsors.json";
 
     public static IReadOnlyList<SponsorPick> Parse(string json)
     {

@@ -10,10 +10,10 @@
 
 <br/>
 
-[![Latest release](https://img.shields.io/github/v/release/krigrv/Kissik--Camera-Studio-App?style=for-the-badge&labelColor=0d1117&color=ff7a1a)](https://github.com/krigrv/Kissik--Camera-Studio-App/releases)
-[![Licence](https://img.shields.io/github/license/krigrv/Kissik--Camera-Studio-App?style=for-the-badge&labelColor=0d1117&color=ff7a1a)](LICENSE)
-[![Downloads](https://img.shields.io/github/downloads/krigrv/Kissik--Camera-Studio-App/total?style=for-the-badge&labelColor=0d1117&color=ff7a1a)](https://github.com/krigrv/Kissik--Camera-Studio-App/releases)
-[![Build](https://img.shields.io/github/actions/workflow/status/krigrv/Kissik--Camera-Studio-App/build.yml?style=for-the-badge&labelColor=0d1117&label=build)](https://github.com/krigrv/Kissik--Camera-Studio-App/actions)
+[![Latest release](https://img.shields.io/github/v/release/krigrv/kissik?style=for-the-badge&labelColor=0d1117&color=ff7a1a)](https://github.com/krigrv/kissik/releases)
+[![Licence](https://img.shields.io/github/license/krigrv/kissik?style=for-the-badge&labelColor=0d1117&color=ff7a1a)](LICENSE)
+[![Downloads](https://img.shields.io/github/downloads/krigrv/kissik/total?style=for-the-badge&labelColor=0d1117&color=ff7a1a)](https://github.com/krigrv/kissik/releases)
+[![Build](https://img.shields.io/github/actions/workflow/status/krigrv/kissik/build.yml?style=for-the-badge&labelColor=0d1117&label=build)](https://github.com/krigrv/kissik/actions)
 
 <br/>
 
@@ -96,7 +96,7 @@ name and logo, record, go live, and show up in Meet, Zoom and Teams.
 
 **Windows 10 1809 or later** (Windows 11 recommended), x64 or ARM64.
 
-Get the latest version from [**Releases**](https://github.com/krigrv/Kissik--Camera-Studio-App/releases):
+Get the latest version from [**Releases**](https://github.com/krigrv/kissik/releases):
 the Windows installer and the **KISSIK Camera** Android app.
 
 </div>
@@ -128,15 +128,15 @@ Start it with `dotnet run` (it registers the app) rather than the `.exe`. The An
 Bug reports, ideas, code, translations and scene templates are all welcome.
 Please read the [Contributing Guide](CONTRIBUTING.md) and [Code of Conduct](CODE_OF_CONDUCT.md) first.
 
-[**Report a bug**](https://github.com/krigrv/Kissik--Camera-Studio-App/issues/new?template=bug_report.yml) ·
-[**Suggest a feature**](https://github.com/krigrv/Kissik--Camera-Studio-App/issues/new?template=feature_request.yml) ·
-[**Ask a question**](https://github.com/krigrv/Kissik--Camera-Studio-App/discussions) ·
+[**Report a bug**](https://github.com/krigrv/kissik/issues/new?template=bug_report.yml) ·
+[**Suggest a feature**](https://github.com/krigrv/kissik/issues/new?template=feature_request.yml) ·
+[**Ask a question**](https://github.com/krigrv/kissik/discussions) ·
 [**Roadmap**](ROADMAP.md)
 
 ### Thanks to everyone who helps ❤
 
-<a href="https://github.com/krigrv/Kissik--Camera-Studio-App/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=krigrv/Kissik--Camera-Studio-App" alt="Contributors" />
+<a href="https://github.com/krigrv/kissik/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=krigrv/kissik" alt="Contributors" />
 </a>
 
 </div>

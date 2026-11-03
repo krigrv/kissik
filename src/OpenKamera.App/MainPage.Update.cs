@@ -9,8 +9,8 @@ namespace OpenKamera_App;
 // "Update available" and a status line says so; clicking opens the download page. Nothing installs by itself.
 public sealed partial class MainPage
 {
-    private const string ReleasesApi = "https://api.github.com/repos/krigrv/OpenKamera/releases/latest";
-    private const string ReleasesPage = "https://github.com/krigrv/OpenKamera/releases/latest";
+    private const string ReleasesApi = "https://api.github.com/repos/krigrv/kissik/releases/latest";
+    private const string ReleasesPage = "https://github.com/krigrv/kissik/releases/latest";
     private string? _updateUrl;
 
     private static Version CurrentVersion()
