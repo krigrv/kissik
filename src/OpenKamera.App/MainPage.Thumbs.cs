@@ -34,7 +34,7 @@ public sealed partial class MainPage
                 ++_thumbTick;
                 if (!ReduceMotion || _thumbTick % 10 == 0)
                 {
-                    var (small, _, _) = await Task.Run(() => OutputFit.Stretch(f.Px, f.W, f.H, 320, 180));
+                    var (small, _, _) = await Task.Run(() => OutputFit.Cover(f.Px, f.W, f.H, 320, 180));
                     using (var stream = System.Runtime.InteropServices.WindowsRuntime.WindowsRuntimeBufferExtensions.AsStream(_thumbSource.PixelBuffer))
                         await stream.WriteAsync(small.AsMemory(0, Math.Min(small.Length, (int)_thumbSource.PixelBuffer.Capacity)));
                     _thumbSource.Invalidate();
@@ -70,8 +70,7 @@ public sealed partial class MainPage
             catch { return; } // the frame was replaced while copying
             buf = _rawBuf;
         }
-        // No fresh camera frame (e.g. the phone, whose frames arrive another way): use the latest picture instead.
-        else if (_lastFrame is { } f) { buf = f.Px; w = f.W; h = f.H; }
+        // No new camera frame since the last refresh: keep what's shown.
         else return;
         // The preview box takes the camera's own shape (4:3 cameras would otherwise look stretched sideways).
         if (Minimap.ActualWidth > 0 && w > 0 && h > 0)
