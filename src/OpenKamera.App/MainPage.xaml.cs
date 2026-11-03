@@ -400,6 +400,7 @@ public sealed partial class MainPage : Page
             FocusMode.IsEnabled = false; FocusRow.Visibility = Visibility.Collapsed;
             EmptyText.Visibility = Visibility.Visible;
             PreviewImage.Source = null;
+            Minimap.Background = Token("ControlFillColorDefaultBrush"); // no stale picture in the framing preview
             HudText.Text = "No device open";
             Status("Disconnected.");
             return;

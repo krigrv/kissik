@@ -69,6 +69,12 @@ public sealed partial class MainPage
         // No fresh camera frame (e.g. the phone, whose frames arrive another way): use the latest picture instead.
         else if (_lastFrame is { } f) { buf = f.Px; w = f.W; h = f.H; }
         else return;
+        // The preview box takes the camera's own shape (4:3 cameras would otherwise look stretched sideways).
+        if (Minimap.ActualWidth > 0 && w > 0 && h > 0)
+        {
+            double want = Math.Round(Minimap.ActualWidth * h / w);
+            if (Math.Abs(Minimap.Height - want) > 1) { Minimap.Height = want; UpdateMinimap(); }
+        }
         var (small, _, _) = await Task.Run(() => OutputFit.Stretch(buf, w, h, 320, 180));
         using (var stream = System.Runtime.InteropServices.WindowsRuntime.WindowsRuntimeBufferExtensions.AsStream(_rawThumb.PixelBuffer))
             await stream.WriteAsync(small.AsMemory(0, Math.Min(small.Length, (int)_rawThumb.PixelBuffer.Capacity)));

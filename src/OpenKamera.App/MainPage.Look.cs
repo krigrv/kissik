@@ -100,6 +100,8 @@ public sealed partial class MainPage
         {
             if (focused is not null) focused.UseSystemFocusVisuals = false;
             await Task.Delay(250); // let the menu finish closing
+            SidebarTabs.Focus(FocusState.Pointer); // focus somewhere that draws no outline
+            await Task.Delay(50);
             var rtb = new RenderTargetBitmap();
             await rtb.RenderAsync(Root);
             if (focused is not null) focused.UseSystemFocusVisuals = visuals;
