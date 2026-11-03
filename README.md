@@ -82,7 +82,7 @@ independent. Everyone taking part follows the
 KISSIK is free. If it helps you, you can donate:
 
 - **PayPal:** https://paypal.me/krishnagaurav
-- **UPI (India):** `krigrv@upi` — or scan [docs/donate-upi-qr.png](docs/donate-upi-qr.png)
+- **UPI (India):** `kri.grv@okaxis` — or scan [docs/donate-upi-qr.png](docs/donate-upi-qr.png)
   with Google Pay, PhonePe, Paytm or BHIM
 
 The in-app **🙏 Donate** button reads these from
