@@ -1,0 +1,40 @@
+name: Bug report
+description: Something in KISSIK doesn't work as it should.
+labels: [bug, needs-triage]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for helping make KISSIK better. Please don't include your face, name or anything private in screenshots.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: "1. Open KISSIK\n2. Pick ...\n3. Press ..."
+  - type: input
+    id: version
+    attributes:
+      label: KISSIK version
+      description: Settings and help → Copy diagnostics shows it.
+  - type: input
+    id: camera
+    attributes:
+      label: Camera or phone
+      placeholder: e.g. Logitech C920, or Pixel 8 with KISSIK Camera
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version
+      placeholder: e.g. Windows 11 24H2
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics (optional)
+      description: Paste from Settings and help → Copy diagnostics.
+      render: text

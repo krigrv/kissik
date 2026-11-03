@@ -1,0 +1,19 @@
+name: Feature idea
+description: Suggest something KISSIK could do.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: Describe the situation, not the solution. "When I present slides, I want ..."
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: Your idea
+  - type: textarea
+    id: other
+    attributes:
+      label: Anything else?

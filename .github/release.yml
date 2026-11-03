@@ -1,0 +1,8 @@
+changelog:
+  categories:
+    - title: New
+      labels: [enhancement]
+    - title: Fixed
+      labels: [bug]
+    - title: Other changes
+      labels: ["*"]
