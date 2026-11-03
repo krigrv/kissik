@@ -12,10 +12,25 @@ android {
         minSdk = 26
         targetSdk = 35
         versionCode = 1
-        versionName = "0.1.0"
+        versionName = "1.0.0"
+    }
+    // Releases are signed with the project's permanent key (GitHub secrets in CI, environment variables locally),
+    // so every version installs over the last one. Without the key, a release build stays unsigned.
+    val keystore = System.getenv("KISSIK_KEYSTORE")
+    signingConfigs {
+        if (keystore != null) create("release") {
+            storeFile = file(keystore)
+            storePassword = System.getenv("KISSIK_KEYSTORE_PASSWORD")
+            keyAlias = System.getenv("KISSIK_KEY_ALIAS") ?: "kissik"
+            keyPassword = System.getenv("KISSIK_KEYSTORE_PASSWORD")
+        }
     }
     buildTypes {
-        release { isMinifyEnabled = true; proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt")) }
+        release {
+            isMinifyEnabled = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
+            if (keystore != null) signingConfig = signingConfigs.getByName("release")
+        }
     }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
     buildFeatures { compose = true }
