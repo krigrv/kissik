@@ -34,13 +34,13 @@ public sealed partial class MainPage
                 ++_thumbTick;
                 if (!ReduceMotion || _thumbTick % 10 == 0)
                 {
-                    var (small, _, _) = await Task.Run(() => OutputFit.Stretch(f.Px, f.W, f.H, 320, 180));
+                    var (small, _, _) = await Task.Run(() => OutputFit.Cover(f.Px, f.W, f.H, 320, 180));
                     using (var stream = System.Runtime.InteropServices.WindowsRuntime.WindowsRuntimeBufferExtensions.AsStream(_thumbSource.PixelBuffer))
                         await stream.WriteAsync(small.AsMemory(0, Math.Min(small.Length, (int)_thumbSource.PixelBuffer.Capacity)));
                     _thumbSource.Invalidate();
                     _thumbFrom = f.Px;
                 }
-                if ((ReduceMotion || _thumbTick % 5 == 0) && Minimap.ActualWidth > 0 && Minimap.XamlRoot is not null) await UpdateMinimapPictureAsync();
+                if (Minimap.ActualWidth > 0 && Minimap.XamlRoot is not null) await UpdateMinimapPictureAsync();
             }
             catch { /* skip a refresh */ }
             finally { _thumbBusy = false; }
@@ -58,16 +58,19 @@ public sealed partial class MainPage
             try
             {
                 if (_rawBuf?.Length != w * h * 4) _rawBuf = new byte[w * h * 4];
-                // The camera may deliver NV12 / YUY2 for the GPU path.
-                using var bgra = raw.BitmapPixelFormat == BitmapPixelFormat.Bgra8 ? null
-                    : SoftwareBitmap.Convert(raw, BitmapPixelFormat.Bgra8, BitmapAlphaMode.Premultiplied);
-                (bgra ?? raw).CopyToBuffer(System.Runtime.InteropServices.WindowsRuntime.WindowsRuntimeBufferExtensions.AsBuffer(_rawBuf));
+                var target = _rawBuf;
+                await Task.Run(() =>
+                {
+                    // The camera may deliver NV12 / YUY2 for the GPU path.
+                    using var bgra = raw.BitmapPixelFormat == BitmapPixelFormat.Bgra8 ? null
+                        : SoftwareBitmap.Convert(raw, BitmapPixelFormat.Bgra8, BitmapAlphaMode.Premultiplied);
+                    (bgra ?? raw).CopyToBuffer(System.Runtime.InteropServices.WindowsRuntime.WindowsRuntimeBufferExtensions.AsBuffer(target));
+                });
             }
             catch { return; } // the frame was replaced while copying
             buf = _rawBuf;
         }
-        // No fresh camera frame (e.g. the phone, whose frames arrive another way): use the latest picture instead.
-        else if (_lastFrame is { } f) { buf = f.Px; w = f.W; h = f.H; }
+        // No new camera frame since the last refresh: keep what's shown.
         else return;
         // The preview box takes the camera's own shape (4:3 cameras would otherwise look stretched sideways).
         if (Minimap.ActualWidth > 0 && w > 0 && h > 0)
