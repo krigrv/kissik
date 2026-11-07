@@ -52,7 +52,7 @@ bool FrameSource::CopyLive(std::vector<BYTE>& bgra, UINT32& w, UINT32& h)
         MemoryBarrier();
         w = hdr->width; h = hdr->height;
         if (w == 0 || h == 0 || w > kMaxWidth || h > kMaxHeight || hdr->stride != w * 4) return false;
-        // Stale after 1.5 s: the app closed or froze, show the slate instead of a frozen picture.
+        // Stale after 1.5 s: no longer a new frame (Fill holds the last one briefly, then shows the slate).
         FILETIME ft; GetSystemTimeAsFileTime(&ft);
         int64_t now = (int64_t(ft.dwHighDateTime) << 32) | ft.dwLowDateTime;
         if (now - hdr->timestamp > 15'000'000) return false;
@@ -71,7 +71,7 @@ const std::vector<BYTE>& FrameSource::Slate(UINT32 width, UINT32 height)
     _slateW = width; _slateH = height;
     _slate.assign(size_t(width) * height * 4, 0);
 
-    // Dark gradient + the OpenKamera ring + two lines of text, drawn with GDI into a top-down DIB.
+    // Dark gradient + the KISSIK framing mark (orange corners around a lens) + two lines of text, drawn with GDI into a top-down DIB.
     BITMAPINFO bi{}; bi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
     bi.bmiHeader.biWidth = LONG(width); bi.bmiHeader.biHeight = -LONG(height);
     bi.bmiHeader.biPlanes = 1; bi.bmiHeader.biBitCount = 32; bi.bmiHeader.biCompression = BI_RGB;
@@ -88,11 +88,15 @@ const std::vector<BYTE>& FrameSource::Slate(UINT32 width, UINT32 height)
         for (UINT32 x = 0; x < width; x++) { BYTE* p = px + (size_t(y) * width + x) * 4; p[0] = b; p[1] = g; p[2] = r; p[3] = 255; }
     }
     int cx = int(width) / 2, cy = int(height) * 2 / 5, ring = int(height) / 7, band = std::max(4, int(height) / 40);
-    HPEN pen = CreatePen(PS_SOLID, band, RGB(0xFF, 0xD3, 0x6B));
+    HPEN pen = CreatePen(PS_SOLID, band, RGB(0xFF, 0x7A, 0x1A));
     HGDIOBJ oldPen = SelectObject(dc, pen);
     HGDIOBJ oldBrush = SelectObject(dc, GetStockObject(NULL_BRUSH));
-    Ellipse(dc, cx - ring, cy - ring, cx + ring, cy + ring);
-    HBRUSH dot = CreateSolidBrush(RGB(0xFF, 0xD3, 0x6B));
+    int lens = ring / 2, arm = ring * 3 / 4;
+    Ellipse(dc, cx - lens, cy - lens, cx + lens, cy + lens);
+    // Framing corners: top right and bottom left, as on the app icon.
+    MoveToEx(dc, cx + ring - arm, cy - ring, nullptr); LineTo(dc, cx + ring, cy - ring); LineTo(dc, cx + ring, cy - ring + arm);
+    MoveToEx(dc, cx - ring, cy + ring - arm, nullptr); LineTo(dc, cx - ring, cy + ring); LineTo(dc, cx - ring + arm, cy + ring);
+    HBRUSH dot = CreateSolidBrush(RGB(0xFF, 0x7A, 0x1A));
     SelectObject(dc, dot);
     SelectObject(dc, GetStockObject(NULL_PEN));
     int d = std::max(3, ring / 6);
@@ -125,10 +129,19 @@ bool FrameSource::Fill(BYTE* dst, LONG stride, UINT32 width, UINT32 height, cons
     UINT32 w = 0, h = 0;
     ULONGLONG now = GetTickCount64();
     if (CopyLive(_scratch, w, h)) { _live.swap(_scratch); _liveW = w; _liveH = h; _liveAt = now; }
-    // Caught the app mid-write: repeat the last good frame. Showing the slate here made the picture flicker.
-    bool live = _liveAt != 0 && now - _liveAt < 1500;
+    if (_firstFill == 0) _firstFill = now;
+    // A short gap (the app caught mid-write, or switching camera): hold the last good frame, so no card flashes up.
+    bool live = _liveAt != 0 && now - _liveAt < kHoldMs;
+    // Just opened: the app takes a moment to notice the meeting and start sending. Black until then, not the card.
+    bool waiting = _liveAt == 0 && now - _firstFill < kHoldMs;
     const BYTE* src; UINT32 sw, sh;
     if (live) { src = _live.data(); sw = _liveW; sh = _liveH; }
+    else if (waiting)
+    {
+        _black.resize(size_t(width) * height * 4);
+        for (size_t i = 0; i < _black.size(); i += 4) { _black[i] = 0; _black[i + 1] = 0; _black[i + 2] = 0; _black[i + 3] = 255; }
+        src = _black.data(); sw = width; sh = height;
+    }
     else { const auto& s = Slate(width, height); src = s.data(); sw = width; sh = height; }
     if (subtype == MFVideoFormat_NV12) BgraToNv12(src, sw, sh, dst, stride, width, height);
     else BgraToRgb32(src, sw, sh, dst, stride, width, height);
