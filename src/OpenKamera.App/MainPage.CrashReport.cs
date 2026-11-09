@@ -27,6 +27,13 @@ public sealed partial class MainPage
         Status(CrashReportsToggle.IsChecked ? "Crash reports will be sent automatically (error details only)." : "Crash reports won't be sent.");
     }
 
+    /// <summary>An action failed in a way nothing else caught: say so and keep the camera, meeting and recording going.</summary>
+    internal void ReportProblem(Exception ex)
+    {
+        string why = ex.Message;
+        DispatcherQueue.TryEnqueue(() => Status($"That didn't work ({why}). KISSIK kept running, and the details are saved in case you want to report it."));
+    }
+
     private async Task OfferCrashReportAsync()
     {
         string log = Path.Combine(AppPaths.LocalData, "crash.log");

@@ -360,8 +360,17 @@ public sealed class GpuEffects : IDisposable
             if (rot % 90 != 0) throw new ArgumentException("Rotation must be a multiple of 90 degrees.");
             bool swap = rot is 90 or 270;
             int ow = swap ? h : w, oh = swap ? w : h;
-            double zoom = Math.Max(1.0, t.Zoom), cropW = w / zoom, cropH = h / zoom;
-            double left = (w - cropW) / 2 * (1 + Math.Clamp(t.PanX, -1, 1)), top = (h - cropH) / 2 * (1 + Math.Clamp(t.PanY, -1, 1));
+            // FrameTransform.Apply: zoom and pan first, smoothly (OutputFit.Zoom); then mirror and rotation move whole pixels.
+            double zoom = Math.Max(1.0, t.Zoom);
+            if (zoom > 1.0)
+            {
+                var (zl, zt) = t.CropStart(w, h);
+                Resample(src, w, h, w, h, zoom, zoom, "zoomed", zl, zt, OutputFit.ZoomRange(zl, w, zoom), OutputFit.ZoomRange(zt, h, zoom));
+                src = "zoomed";
+            }
+            if (t.Mirror || rot != 0)
+            {
+            double cropW = w, cropH = h, left = 0, top = 0;
             // Same maths as FrameTransform.Apply, per output column and row: [sx(ox), sy(oy), sx(oy), sy(ox) for swapped axes].
             var map = new uint[(ow + oh) * 2];
             for (int o = 0; o < ow; o++) { var (sx, sy) = Source((o + 0.5) / ow, 0.5); map[o] = (uint)(swap ? sy : sx); }
@@ -384,6 +393,7 @@ public sealed class GpuEffects : IDisposable
             Ensure("framed", ow * oh * 4, 4);
             Run("Transform", ow * oh, srv: [(src, 0), ("map", 8)], uav: [("framed", 0)]);
             (src, w, h) = ("framed", ow, oh);
+            }
         }
         if (r.OutputWidth is int fw && r.OutputHeight is int fh && (fw != w || fh != h))
         {
@@ -395,21 +405,24 @@ public sealed class GpuEffects : IDisposable
     }
 
     /// <summary>OutputFit's resample (Cover when the scales match, Stretch when not) into <paramref name="dst"/>.</summary>
-    private void Resample(string src, int w, int h, int fw, int fh, double scaleX, double scaleY, string dst)
+    private void Resample(string src, int w, int h, int fw, int fh, double scaleX, double scaleY, string dst,
+        double? startX = null, double? startY = null, (double Lo, double Hi)? rangeX = null, (double Lo, double Hi)? rangeY = null)
     {
         {
-            double left = (w - fw / scaleX) / 2, top = (h - fh / scaleY) / 2;
+            double left = startX ?? (w - fw / scaleX) / 2, top = startY ?? (h - fh / scaleY) / 2;
+            var (loX, hiX) = rangeX ?? (0, w - 1);
+            var (loY, hiY) = rangeY ?? (0, h - 1);
             // Per column then per row: index, weight as double (two words); then the weights as float for the fallback.
             var map = new uint[(fw + fh) * 4];
-            void Tap(int o, int n, int at, int fl, double pos, int size)
+            void Tap(int o, int n, int at, int fl, double pos, double lo, double hi)
             {
-                double f = Math.Clamp(pos, 0, size - 1), d = f - (int)f;
+                double f = Math.Clamp(pos, lo, hi), d = f - (int)f;
                 ulong bits = BitConverter.DoubleToUInt64Bits(d);
                 map[at + o] = (uint)(int)f; map[at + n + o] = (uint)bits; map[at + 2 * n + o] = (uint)(bits >> 32);
                 map[fl + o] = BitConverter.SingleToUInt32Bits((float)d);
             }
-            for (int o = 0; o < fw; o++) Tap(o, fw, 0, 3 * (fw + fh), left + (o + 0.5) / scaleX - 0.5, w);
-            for (int o = 0; o < fh; o++) Tap(o, fh, 3 * fw, 3 * (fw + fh) + fw, top + (o + 0.5) / scaleY - 0.5, h);
+            for (int o = 0; o < fw; o++) Tap(o, fw, 0, 3 * (fw + fh), left + (o + 0.5) / scaleX - 0.5, loX, hiX);
+            for (int o = 0; o < fh; o++) Tap(o, fh, 3 * fw, 3 * (fw + fh) + fw, top + (o + 0.5) / scaleY - 0.5, loY, hiY);
             Upload("map", map, 4);
             SetParams(new Params { I0 = new(fw, fh, 0, 0), I1 = new(w, h, 0, 0) });
             Ensure(dst, fw * fh * 4, 4);
@@ -463,10 +476,13 @@ public sealed class GpuEffects : IDisposable
         }
 
         // Background mode, spotlight, behind-me and colour share one pass.
+        // Replace with no picture ready (a video still loading, a file that has gone): blur the room fully rather
+        // than show it. Someone who chose to hide their room must never see it go out by accident.
+        bool noPicture = s.Mode == BackgroundMode.Replace && !(replacement is { } bg && bg.Length == n * 4);
         int mode = !useMask || !s.NeedsMask ? 0 : s.Mode switch
         {
             BackgroundMode.Blur => 1,
-            BackgroundMode.Replace when replacement is { } bg && bg.Length == n * 4 => 2,
+            BackgroundMode.Replace => noPicture ? 1 : 2,
             BackgroundMode.Remove => 3,
             _ => 0,
         };
@@ -490,7 +506,7 @@ public sealed class GpuEffects : IDisposable
             }
             if (mode == 1)
             {
-                p.I1 = new(bw, bh, 2 + (int)Math.Round(s.BlurStrength * 14), mode);
+                p.I1 = new(bw, bh, 2 + (int)Math.Round((noPicture ? 1 : s.BlurStrength) * 14), mode);
                 SetParams(p);
                 for (int pass = 0; pass < 3; pass++)
                 {

@@ -34,6 +34,19 @@ public sealed partial class MainPage
         DispatcherQueue.TryEnqueue(() => Status(hiding ? "Privacy guard: someone else is in shot, so the meeting sees a blur." : "Privacy guard: you're alone again, back to normal."));
     }
 
+    /// <summary>
+    /// The two mirror switches can't both be on: "mirror for everyone" on top of "mirror my preview only" showed
+    /// you an unmirrored preview while the meeting got a mirrored picture.
+    /// </summary>
+    private void ReconcileMirrors()
+    {
+        if (!_settings.SmartMirror || MirrorToggle.IsChecked != true) return;
+        _settings.SmartMirror = false; SmartMirrorToggle.IsChecked = false;
+        PreviewFlip.ScaleX = 1;
+        _settings.Save();
+        Status("Mirror is on for everyone, so \"Mirror my preview only\" was turned off.");
+    }
+
     private void SmartMirror_Click(object sender, RoutedEventArgs e)
     {
         _settings.SmartMirror = SmartMirrorToggle.IsChecked;

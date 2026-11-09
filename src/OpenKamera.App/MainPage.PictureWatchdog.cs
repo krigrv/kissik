@@ -17,6 +17,7 @@ public sealed partial class MainPage
         _pictureWatch.Interval = TimeSpan.FromSeconds(1);
         _pictureWatch.Tick += async (_, _) =>
         {
+            if (_session is null && !_pictureRetrying) await RetryLostCameraAsync();
             if (_session is null || _pictureRetrying) { if (_pictureMissing) PictureBack(); return; }
             var now = DateTime.UtcNow;
             var since = _lastFrameAt > _connectedAt ? _lastFrameAt : _connectedAt;

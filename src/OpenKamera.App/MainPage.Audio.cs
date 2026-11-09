@@ -29,7 +29,16 @@ public sealed partial class MainPage
         var eq = new[] { Eq0, Eq1, Eq2, Eq3 };
         for (int i = 0; i < 4; i++) eq[i].Value = Mix.EqDb.ElementAtOrDefault(i);
         AudioOnToggle.IsOn = _settings.AudioOn;
-        _audio.MixReady += samples => { if (!_recPaused) { _recorder?.PushAudio(samples, _recordClock.Elapsed); _vertical?.PushAudio(samples, _recordClock.Elapsed); } _live?.PushAudio(samples); _replay?.PushAudio(samples, _replayClock.Elapsed); FeedCaptions(samples); };
+        _audioDelay.Samples = AudioDelay.SamplesFor(_settings.AudioDelayMs);
+        _audio.MixReady += samples =>
+        {
+            // Recordings, streams and replays get the sound delayed by the amount set in Settings, so it lands with
+            // the picture. Captions listen to it as it happens.
+            var timed = _audioDelay.Process(samples);
+            if (!_recPaused) { _recorder?.PushAudio(timed, _recordClock.Elapsed); _vertical?.PushAudio(timed, _recordClock.Elapsed); }
+            _live?.PushAudio(timed); _replay?.PushAudio(timed, _replayClock.Elapsed);
+            FeedCaptions(samples);
+        };
 
         _meterTimer = DispatcherQueue.CreateTimer();
         _meterTimer.Interval = TimeSpan.FromMilliseconds(50);
@@ -133,7 +142,8 @@ public sealed partial class MainPage
                 Grid.SetColumn(mute, 1);
                 row.Children.Add(vol); row.Children.Add(mute);
                 card.Children.Add(row);
-                card.Children.Add(NoisePicker(id, name, track));
+                if (track.IsVoice) card.Children.Add(NoisePicker(id, name, track));
+                else card.Children.Add(new TextBlock { Text = "In recordings and streams only. Meetings don't hear it.", FontSize = 12, TextWrapping = TextWrapping.Wrap, Foreground = Token("DgDim") });
             }
             else if (included)
             {

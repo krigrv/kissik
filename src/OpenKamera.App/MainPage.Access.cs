@@ -178,9 +178,10 @@ public sealed partial class MainPage
     private void SyncSimple()
     {
         if (SimplePanel.Visibility != Visibility.Visible) return;
+        SyncSimpleSource();
         SetSimple(SimpleCameraBtn, SimpleCameraLabel, _session is null ? "Turn camera on" : "Turn camera off");
         SetSimple(SimpleRecordBtn, SimpleRecordLabel, _recorder is not null ? "Stop recording" : "Record");
-        SimpleRecordBtn.IsEnabled = _session is not null;
+        SimpleRecordBtn.IsEnabled = _session is not null || _recorder is not null;
         SetSimple(SimpleHideBtn, SimpleHideLabel, _shutter == ShutterMode.Off ? "Hide me" : "Show me");
         string bg = BgMode.SelectedItem == BgBlur ? "Background: blur" : BgMode.SelectedItem == BgReplace ? "Background: picture"
             : BgMode.SelectedItem == BgRemove ? "Background: removed" : "Background: off";

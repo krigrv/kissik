@@ -26,7 +26,7 @@ public sealed partial class MainPage
         _thumbTimer.Tick += async (_, _) =>
         {
             bool live = _session is not null && _lastFrame is not null;
-            if (live != _thumbsLive) { _thumbsLive = live; RefreshSceneRail(_scene.Id); } // swap placeholders ↔ picture
+            if (live != _thumbsLive) { _thumbsLive = live; RefreshSceneRail(_scene.Id, reload: false); } // swap placeholders ↔ picture
             if (!live || _thumbBusy || _lastFrame is not { } f) return;
             _thumbBusy = true;
             try

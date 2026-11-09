@@ -23,6 +23,8 @@ namespace OpenKamera_App;
 public partial class App : Application
 {
     private Window? _window;
+    private DateTime _lastUnhandled;
+    private int _unhandledBurst;
 
     /// <summary>The main window, for APIs that need an owner HWND (file pickers).</summary>
     public static Window? MainWindow { get; private set; }
@@ -45,6 +47,14 @@ public partial class App : Application
                 File.AppendAllText(System.IO.Path.Combine(dir, "crash.log"), $"{DateTime.Now:O} {e.Exception}\n\n");
             }
             catch { /* never throw from the crash handler */ }
+            // An error in one button's handler shouldn't end a meeting or a recording: note it, say so, carry on.
+            // A burst of errors means something is badly wrong, so that is still allowed to close the app.
+            var now = DateTime.UtcNow;
+            if (now - _lastUnhandled > TimeSpan.FromSeconds(30)) _unhandledBurst = 0;
+            _lastUnhandled = now;
+            if (++_unhandledBurst > 3) return;
+            e.Handled = true;
+            try { MainPage.Current?.ReportProblem(e.Exception); } catch { }
         };
     }
 

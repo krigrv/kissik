@@ -18,6 +18,8 @@ public sealed class AppSettings
     public bool MeAsked { get; set; }
     public string RecordingFolder { get; set; } = "";
     public string ImageFolder { get; set; } = "";
+    /// <summary>Milliseconds the sound is held back in recordings, streams and replays so it lands with the picture.</summary>
+    public double AudioDelayMs { get; set; }
     public Dictionary<string, DeviceSettings> Devices { get; set; } = [];
 
     /// <summary>Enhance slider values by slider name.</summary>
@@ -91,26 +93,58 @@ public sealed class AppSettings
     public static AppSettings Load(string? path = null)
     {
         path ??= DefaultPath;
-        try
+        // The file itself, then the copy of the last good save. A damaged file is set aside, not overwritten,
+        // so presets, stream keys and per-camera values can still be rescued by hand.
+        foreach (string candidate in new[] { path, path + BackupSuffix })
         {
-            if (File.Exists(path))
+            try
             {
-                var s = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(path)) ?? new();
+                if (!File.Exists(candidate)) continue;
+                var s = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(candidate));
+                if (s is null) throw new JsonException("empty settings");
                 s.ImageFolder = AppPaths.Remap(s.ImageFolder); // a folder picked inside the old OpenKamera folder
+                s.RestoredFromBackup = candidate != path;
                 return s;
             }
+            catch (JsonException)
+            {
+                try { File.Copy(candidate, candidate + ".damaged", overwrite: true); } catch { }
+            }
+            catch (Exception) { /* unreadable right now: try the backup, then defaults */ }
         }
-        catch (JsonException) { /* fall through to defaults */ }
-        catch (IOException) { /* fall through to defaults */ }
         return new();
     }
+
+    public const string BackupSuffix = ".bak";
+
+    /// <summary>True when the settings file was damaged and the last good copy was loaded instead.</summary>
+    [System.Text.Json.Serialization.JsonIgnore] public bool RestoredFromBackup { get; private set; }
+
+    private static readonly object s_saveLock = new();
+    private static readonly JsonSerializerOptions s_indented = new() { WriteIndented = true };
 
     public void Save(string? path = null)
     {
         path ??= DefaultPath;
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        File.WriteAllText(path, JsonSerializer.Serialize(this,
-            new JsonSerializerOptions { WriteIndented = true }));
+        string json = JsonSerializer.Serialize(this, s_indented);
+        lock (s_saveLock)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            // Write beside the file, then swap: a crash or power cut mid-save leaves the old file whole.
+            string temp = path + ".new";
+            try
+            {
+                File.WriteAllText(temp, json);
+                if (File.Exists(path)) File.Replace(temp, path, path + BackupSuffix, ignoreMetadataErrors: true);
+                else File.Move(temp, path);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or PlatformNotSupportedException)
+            {
+                // Swapping isn't possible here (a scanner holding the file, an odd file system): write it plainly.
+                File.WriteAllText(path, json);
+                try { File.Delete(temp); } catch { }
+            }
+        }
     }
 
     public DeviceSettings ForDevice(string deviceId)

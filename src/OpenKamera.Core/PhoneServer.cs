@@ -173,6 +173,8 @@ public sealed class PhoneServer : IAsyncDisposable
     }
 
     private const int MaxConnections = 16;
+    /// <summary>How long a new connection gets to finish its secure hello and send its request.</summary>
+    internal static readonly TimeSpan HelloTimeout = TimeSpan.FromSeconds(10);
     private int _open;
     private readonly Dictionary<string, (int Count, DateTime Since)> _wrongTries = [];
 
@@ -212,15 +214,21 @@ public sealed class PhoneServer : IAsyncDisposable
         try
         {
             Stream ssl = client.GetStream();
+            // A phone that walks out of Wi-Fi mid-hello, or a browser's spare connection, would otherwise hold one
+            // of the few connection slots until KISSIK restarts; after enough of them no phone could connect.
+            using var hello = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            hello.CancelAfter(HelloTimeout);
             if (tls)
             {
                 var secure = new SslStream(ssl, false);
-                try { await secure.AuthenticateAsServerAsync(new SslServerAuthenticationOptions { ServerCertificate = _cert }, ct); }
+                try { await secure.AuthenticateAsServerAsync(new SslServerAuthenticationOptions { ServerCertificate = _cert }, hello.Token); }
                 catch { TlsFailures++; throw; } // usually the browser refusing our certificate (user tapped Back)
                 ssl = secure;
             }
-            var (method, target, headers) = await ReadRequest(ssl, ct);
+            var (method, target, headers) = await ReadRequest(ssl, hello.Token);
             var (path, query) = SplitTarget(target);
+            // Browsers ask for a tab icon on their own, without the link's key: not a wrong guess at the link.
+            if (path == "/favicon.ico") { await Respond(ssl, 404, "text/plain", "Not found"u8.ToArray(), ct); return; }
             bool authorised = query.TryGetValue("t", out var t) && CryptographicOperations.FixedTimeEquals(Encoding.ASCII.GetBytes(t), Encoding.ASCII.GetBytes(Token));
 
             string? ip = (client.Client.RemoteEndPoint as IPEndPoint)?.Address.ToString();
@@ -425,10 +433,11 @@ public sealed class PhoneServer : IAsyncDisposable
                 try { raw = System.Security.Cryptography.ProtectedData.Unprotect(raw, null, System.Security.Cryptography.DataProtectionScope.CurrentUser); }
                 catch (CryptographicException) { /* written by an older version, unencrypted */ }
                 var c = X509CertificateLoader.LoadPkcs12(raw, null, X509KeyStorageFlags.Exportable);
-                // Reuse it while it's valid and still covers this PC's current addresses.
-                var san = c.Extensions.OfType<X509SubjectAlternativeNameExtension>().FirstOrDefault();
-                var ips = san?.EnumerateIPAddresses().Select(i => i.ToString()).ToHashSet() ?? [];
-                if (c.NotAfter > DateTime.Now.AddDays(7) && addresses.All(ips.Contains)) return c;
+                // Reuse it for as long as it is valid. The phone app trusts this exact certificate (it remembers its
+                // fingerprint when the code is scanned), so a new one means every paired phone must scan again.
+                // It used to be remade whenever this PC gained a network address (a VPN, a virtual switch, Docker),
+                // which broke the pairing although nothing the phone uses had changed.
+                if (StillGood(c, DateTime.Now)) return c;
                 c.Dispose();
             }
             catch { }
@@ -439,6 +448,9 @@ public sealed class PhoneServer : IAsyncDisposable
         return cert;
     }
 
+    /// <summary>A stored certificate is kept until it is within a week of running out.</summary>
+    internal static bool StillGood(X509Certificate2 c, DateTime now) => c.NotAfter > now.AddDays(7) && c.NotBefore <= now.AddDays(1);
+
     internal static X509Certificate2 CreateCertificate(IEnumerable<string> addresses)
     {
         using var rsa = RSA.Create(2048);
@@ -448,7 +460,7 @@ public sealed class PhoneServer : IAsyncDisposable
         foreach (var a in addresses) if (IPAddress.TryParse(a, out var ip)) san.AddIpAddress(ip);
         req.CertificateExtensions.Add(san.Build());
         req.CertificateExtensions.Add(new X509EnhancedKeyUsageExtension([new Oid("1.3.6.1.5.5.7.3.1")], false));
-        using var cert = req.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddYears(1));
+        using var cert = req.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddYears(10));
         // Round-trip through PFX so SslStream on Windows can use the private key.
         return X509CertificateLoader.LoadPkcs12(cert.Export(X509ContentType.Pfx), null, X509KeyStorageFlags.Exportable);
     }

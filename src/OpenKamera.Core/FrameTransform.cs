@@ -32,6 +32,13 @@ public sealed record FrameTransform(bool Mirror = false, int Rotation = 0, doubl
         return (Math.Clamp(left + u / zoom, 0, 1), Math.Clamp(top + v / zoom, 0, 1));
     }
 
+    /// <summary>Top-left corner of the zoom window in a frame of this size, in pixels (may be fractional).</summary>
+    public (double Left, double Top) CropStart(int width, int height)
+    {
+        double zoom = Math.Max(1.0, Zoom);
+        return ((width - width / zoom) / 2 * (1 + Math.Clamp(PanX, -1, 1)), (height - height / zoom) / 2 * (1 + Math.Clamp(PanY, -1, 1)));
+    }
+
     /// <summary>Returns the transformed BGRA buffer and its dimensions (swapped for 90°/270°).</summary>
     public (byte[] Pixels, int Width, int Height) Apply(byte[] src, int width, int height)
     {
@@ -41,11 +48,16 @@ public sealed record FrameTransform(bool Mirror = false, int Rotation = 0, doubl
         bool swap = rot is 90 or 270;
         int outW = swap ? height : width, outH = swap ? width : height;
 
-        // Crop window in source coordinates.
+        // Zoom and pan first, smoothly, in the camera's own orientation; mirror and rotation then move whole
+        // pixels, which is exact.
         double zoom = Math.Max(1.0, Zoom);
-        double cropW = width / zoom, cropH = height / zoom;
-        double left = (width - cropW) / 2 * (1 + Math.Clamp(PanX, -1, 1));
-        double top = (height - cropH) / 2 * (1 + Math.Clamp(PanY, -1, 1));
+        if (zoom > 1.0)
+        {
+            var (zl, zt) = CropStart(width, height);
+            src = OutputFit.Zoom(src, width, height, zl, zt, zoom);
+            if (!Mirror && rot == 0) return (src, width, height);
+        }
+        double cropW = width, cropH = height, left = 0, top = 0;
 
         var dst = new byte[outW * outH * 4];
         Parallel.For(0, outH, oy =>

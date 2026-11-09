@@ -249,7 +249,7 @@
                                 <Button x:Name="MeetCamOnBtn" Content="Make sure it's listed" Click="MeetCamOn_Click" HorizontalAlignment="Stretch" />
                                 <Button x:Name="MeetCamUninstallBtn" Content="Remove the camera" Click="MeetCamUninstall_Click" HorizontalAlignment="Stretch" />
                                 <TextBlock TextWrapping="Wrap" FontSize="12" Opacity="0.7"
-                                           Text="Everything you see here (effects, light, scenes) is what the meeting sees. When KISSIK is closed, meetings show an KISSIK card instead of a black screen." />
+                                           Text="Everything you see here (effects, light, scenes) is what the meeting sees. When KISSIK is closed, meetings show a KISSIK card instead of a black screen." />
                             </StackPanel>
                         </Flyout>
                     </DropDownButton.Flyout>
@@ -303,10 +303,13 @@
                     </StackPanel>
                 </Button>
                 <DropDownButton MinHeight="40" Width="44" CornerRadius="8" Padding="0" Background="Transparent" BorderThickness="0"
-                                AutomationProperties.Name="View options" ToolTipService.ToolTip="View options" AutomationProperties.HelpText="View options">
+                                AutomationProperties.Name="Settings and more" ToolTipService.ToolTip="Settings and more" AutomationProperties.HelpText="Settings, recordings, captions, view and help">
                     <FontIcon Glyph="&#xE713;" FontSize="15" />
                     <DropDownButton.Flyout>
                         <MenuFlyout Placement="BottomEdgeAlignedRight">
+                            <MenuFlyoutItem Text="Settings…" Click="Settings_Click">
+                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE713;" /></MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
                             <MenuFlyoutItem Text="Recordings and snapshots" Click="RecordingsBtn_Click">
                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B2;" /></MenuFlyoutItem.Icon>
                             </MenuFlyoutItem>
@@ -1390,6 +1393,17 @@
 
         <!-- ═══ Simple mode: five big centred buttons (View → Simple). The video stays visible above them. ═══ -->
         <Border x:Name="SimplePanel" Visibility="Collapsed" Style="{StaticResource Glass}" Padding="12" VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="12,0,12,24">
+          <StackPanel Spacing="12">
+            <!-- Which camera, and whether the microphone is on: Simple mode hid both, so there was no way to pick a
+                 camera or to get sound into a recording without leaving it. -->
+            <StackPanel Orientation="Horizontal" Spacing="12" HorizontalAlignment="Center">
+                <ComboBox x:Name="SimpleSource" MinWidth="280" MinHeight="40" VerticalAlignment="Center" PlaceholderText="Choose a camera" SelectionChanged="SimpleSource_SelectionChanged"
+                          AutomationProperties.Name="Camera" ToolTipService.ToolTip="Which camera to use" />
+                <ToggleButton x:Name="SimpleMicBtn" Click="SimpleMic_Click" MinHeight="40" MinWidth="170" CornerRadius="8" VerticalAlignment="Center"
+                              AutomationProperties.Name="Microphone off" ToolTipService.ToolTip="Turn your microphone on for recordings and streams">
+                    <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon x:Name="SimpleMicIcon" Glyph="&#xE720;" FontSize="16" /><TextBlock x:Name="SimpleMicLabel" Text="Microphone off" /></StackPanel>
+                </ToggleButton>
+            </StackPanel>
             <StackPanel x:Name="SimpleRow" Orientation="Horizontal" Spacing="12" HorizontalAlignment="Center" AutomationProperties.Name="Main actions">
                 <Button x:Name="SimpleCameraBtn" Click="SimpleCamera_Click" Style="{StaticResource AccentButtonStyle}" MinWidth="148" MinHeight="96" CornerRadius="8"
                         AutomationProperties.Name="Camera on" AutomationProperties.HelpText="Turn your camera on or off" ToolTipService.ToolTip="Turn your camera on or off">
@@ -1412,12 +1426,37 @@
                     <StackPanel Spacing="8"><FontIcon Glyph="&#xE7B3;" FontSize="28" /><TextBlock x:Name="SimpleHideLabel" Text="Hide me" FontSize="16" HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center" /></StackPanel>
                 </Button>
             </StackPanel>
+          </StackPanel>
         </Border>
 
-        <!-- ═══ Status toast (bottom-right) ═══ -->
-        <Border Background="{ThemeResource SolidBackgroundFillColorQuarternaryBrush}" CornerRadius="12" Padding="12,6" Margin="0,0,12,12" MaxWidth="236"
-                HorizontalAlignment="Right" VerticalAlignment="Bottom" IsHitTestVisible="False">
-            <TextBlock x:Name="StatusText" Text="Ready." AutomationProperties.LiveSetting="Polite" FontSize="12" Foreground="{ThemeResource TextFillColorPrimaryBrush}" TextWrapping="Wrap" MaxLines="3" TextTrimming="CharacterEllipsis" />
+        <!-- ═══ Messages (bottom-right): the latest one, an action when there is something to do about it, and the
+             earlier ones a click away. It used to be a small label that cut long messages off and lost each one
+             as soon as the next arrived. ═══ -->
+        <Border x:Name="MessageArea" Background="{ThemeResource SolidBackgroundFillColorQuarternaryBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                CornerRadius="12" Padding="4" Margin="0,0,12,12" MaxWidth="236" HorizontalAlignment="Right" VerticalAlignment="Bottom">
+            <StackPanel Spacing="2">
+                <Button x:Name="MessageBtn" Click="MessageBtn_Click" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Background="Transparent" BorderThickness="0"
+                        Padding="8,6" MinHeight="40" CornerRadius="8" AutomationProperties.Name="Messages" AutomationProperties.HelpText="Shows the whole message and the earlier ones"
+                        ToolTipService.ToolTip="Show the whole message and earlier ones">
+                    <Grid ColumnSpacing="8">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                        <FontIcon x:Name="MessageIcon" Glyph="&#xE946;" FontSize="14" VerticalAlignment="Top" Margin="0,2,0,0" Foreground="{ThemeResource TextFillColorSecondaryBrush}" AutomationProperties.AccessibilityView="Raw" />
+                        <TextBlock x:Name="StatusText" Grid.Column="1" Text="Ready." AutomationProperties.LiveSetting="Polite" FontSize="12" Foreground="{ThemeResource TextFillColorPrimaryBrush}" TextWrapping="Wrap" MaxLines="3" TextTrimming="CharacterEllipsis" />
+                    </Grid>
+                    <FlyoutBase.AttachedFlyout>
+                        <Flyout Placement="TopEdgeAlignedRight">
+                            <StackPanel Width="380" Spacing="10">
+                                <TextBlock Text="Messages" FontSize="16" FontWeight="SemiBold" />
+                                <TextBlock x:Name="MessageFull" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+                                <ScrollViewer MaxHeight="260" VerticalScrollBarVisibility="Auto">
+                                    <StackPanel x:Name="MessageHistory" Spacing="8" />
+                                </ScrollViewer>
+                            </StackPanel>
+                        </Flyout>
+                    </FlyoutBase.AttachedFlyout>
+                </Button>
+                <Button x:Name="MessageAction" Visibility="Collapsed" Click="MessageAction_Click" HorizontalAlignment="Stretch" MinHeight="40" CornerRadius="8" Style="{StaticResource AccentButtonStyle}" />
+            </StackPanel>
         </Border>
     </Grid>
 </Page>

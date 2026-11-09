@@ -22,14 +22,15 @@ public sealed partial class MainPage
             await live.StartAsync(outputs, withAudio: _audio.IsRunning);
             _live = live;
             _liveClock.Restart();
-            LiveBtn.Background = Token("DgAccentBrush");
-            LiveBtn.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.White);
+            // The accent fill with the text colour made for it: readable in light, dark and high contrast.
+            LiveBtn.Background = Token("AccentFillColorDefaultBrush");
+            LiveBtn.Foreground = Token("TextOnAccentFillColorPrimaryBrush");
             AutomationProperties.SetName(LiveBtn, "Stop the livestream");
             _liveTimer ??= DispatcherQueue.CreateTimer();
             _liveTimer.Interval = TimeSpan.FromSeconds(1);
             _liveTimer.Tick -= LiveTick; _liveTimer.Tick += LiveTick;
             _liveTimer.Start();
-            Status($"Live to {outputs.Count} destination(s) at {live.Width}×{live.Height} {live.Fps} fps.");
+            Status($"Live to {outputs.Count} destination(s) at {live.Width}×{live.Height} {live.Fps} fps." + NoSoundNote("stream"));
         }
         catch (Exception ex) { _live = null; Status("Couldn't go live: " + ex.Message); }
     }
@@ -40,6 +41,9 @@ public sealed partial class MainPage
         if (!live.IsRunning)
         {
             string why = live.Log.Split('\n', StringSplitOptions.RemoveEmptyEntries).LastOrDefault() ?? "the connection closed";
+            // The encoder's messages can quote the address it was sending to, which ends in the stream key.
+            foreach (var d in _settings.StreamDestinations)
+                if (d.Key is { Length: > 3 } key) why = why.Replace(key, "(stream key hidden)");
             await StopLiveAsync();
             Status("The livestream stopped: " + why.Trim() + " Check the stream key and your internet connection.");
             return;

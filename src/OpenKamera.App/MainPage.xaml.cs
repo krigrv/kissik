@@ -81,6 +81,9 @@ public sealed partial class MainPage : Page
         try { InitGlobalHotkeys(); } catch (Exception ex) { Status("Global shortcuts unavailable: " + ex.Message); }
         Unloaded += async (_, _) => await StopPhoneAsync();
         _ = RecoverRecordingsAsync();
+        try { App.MainWindow!.AppWindow.Closing += OnWindowClosing; } catch { }
+        StartCameraWatcher();
+        if (_settings.RestoredFromBackup) Status("Your settings file was damaged, so KISSIK loaded the last good copy.");
     }
 
     /// <summary>Ctrl+1…9 switch scenes, Ctrl+R records, Ctrl+Shift+S takes a snapshot.</summary>
@@ -111,7 +114,7 @@ public sealed partial class MainPage : Page
             acc.Invoked += (_, a) =>
             {
                 // Leave Ctrl+Z / Delete to text boxes while typing.
-                if (Microsoft.UI.Xaml.Input.FocusManager.GetFocusedElement(XamlRoot) is TextBox) return;
+                if (Microsoft.UI.Xaml.Input.FocusManager.GetFocusedElement(XamlRoot) is TextBox or PasswordBox or AutoSuggestBox or NumberBox or RichEditBox) return;
                 act(); a.Handled = true;
             };
             KeyboardAccelerators.Add(acc);
@@ -320,7 +323,8 @@ public sealed partial class MainPage : Page
         RefreshPresetBox(null);
         _restoring = false;
         UpdateBackground();
-        _transform = new FrameTransform(_settings.Mirror, _settings.Rotation);
+        // Zoom and pan stay as the Framing sliders show them (applying a preset used to reset the picture but not the sliders).
+        _transform = _transform with { Mirror = _settings.Mirror, Rotation = _settings.Rotation };
         UpdateAdjustments();
     }
 
@@ -361,13 +365,25 @@ public sealed partial class MainPage : Page
         catch (Exception ex) { Status("Camera enumeration failed: " + ex.Message); }
     }
 
-    private void Status(string msg) { StatusText.Text = msg; Announce(msg); SyncSimple(); }
 
     private void DeviceBox_SelectionChanged(object sender, SelectionChangedEventArgs e) { }
 
     private async void ConnectBtn_Click(object sender, RoutedEventArgs e) => await ConnectAsync(toggle: true);
 
-    private async void EmptyConnect_Click(object sender, RoutedEventArgs e) => await ConnectAsync();
+    private async void EmptyConnect_Click(object sender, RoutedEventArgs e)
+    {
+        // With no webcam plugged in, the list holds only the phone and the picture source. Connecting "the camera"
+        // must not quietly start phone pairing instead.
+        var cams = (DeviceBox.ItemsSource as IEnumerable<CameraDeviceInfo>)?.Where(c => c != PhoneDevice && c != PictureDevice).ToList() ?? [];
+        if (cams.Count == 0)
+        {
+            EmptyBusy.Text = "No webcam found. Plug one in and it will show up here, or use your phone.";
+            Status("No webcam found. Plug one in, or press Use my phone.");
+            return;
+        }
+        if (DeviceBox.SelectedItem is not CameraDeviceInfo sel || sel == PhoneDevice || sel == PictureDevice) DeviceBox.SelectedItem = cams[0];
+        await ConnectAsync();
+    }
 
     /// <summary>Switches the source to the phone and connects, which shows the pairing code.</summary>
     private async void EmptyPhone_Click(object sender, RoutedEventArgs e)
@@ -377,12 +393,14 @@ public sealed partial class MainPage : Page
         await ConnectAsync();
     }
 
-    private async Task ConnectAsync(bool toggle = false)
+    /// <param name="keepOutputs">On disconnect: leave a recording, stream or replay running (the camera was lost, not turned off).</param>
+    private async Task ConnectAsync(bool toggle = false, bool keepOutputs = false)
     {
         if (!toggle && _session is not null) return;
         if (_session is not null)
         {
-            if (_recorder is not null) await StopRecordingAsync();
+            if (!keepOutputs) { _waitingFor = null; _waitingName = null; StopCameraHold(); }
+            if (_recorder is not null && !keepOutputs) await StopRecordingAsync();
             // The phone server keeps running so a paired phone can come back by itself.
             PhoneControls.Visibility = Visibility.Collapsed;
             PhonePro.Visibility = Visibility.Collapsed;
@@ -393,9 +411,10 @@ public sealed partial class MainPage : Page
             ConnectBtn.Content = "Connect";
             SourceDot.Fill = Token("ControlStrongStrokeColorDefaultBrush");
             SourceInfo.Text = "";
-            SnapshotBtn.IsEnabled = RecordBtn.IsEnabled = false;
-            if (_live is not null) await StopLiveAsync();
-            LiveBtn.IsEnabled = false;
+            SnapshotBtn.IsEnabled = false;
+            RecordBtn.IsEnabled = keepOutputs && _recorder is not null; // still there to stop the recording
+            if (_live is not null && !keepOutputs) await StopLiveAsync();
+            LiveBtn.IsEnabled = keepOutputs && _live is not null;
             ControlsPanel.Children.Clear();
             FocusMode.IsEnabled = false; FocusRow.Visibility = Visibility.Collapsed;
             EmptyText.Visibility = Visibility.Visible;
@@ -407,7 +426,7 @@ public sealed partial class MainPage : Page
         }
         if (DeviceBox.SelectedItem is not CameraDeviceInfo cam)
         {
-            Status("No device open! Please connect the webcam!");
+            Status("No camera chosen. Pick one under Source, then press Connect.");
             EmptyText.Visibility = Visibility.Visible;
             return;
         }
@@ -432,6 +451,7 @@ public sealed partial class MainPage : Page
             _controller = _session.Controls is { } c ? new CameraController(c) : null;
             if (cam != PictureDevice) _settings.LastDeviceId = cam.Id; // the phone too, so turning the camera off and on comes back to it
             _settings.Save();
+            if (cam != PhoneDevice && cam != PictureDevice) RestoreCameraValues(cam.Id);
             BuildControls();
             var focus = _controller?.GetProperties().FirstOrDefault(p => p.Name == "Focus");
             FocusMode.IsEnabled = focus is { CanAuto: true };
@@ -445,6 +465,7 @@ public sealed partial class MainPage : Page
             EmptyBusy.Text = "";
             HudText.Text = cam.Name;
             _connectedAt = DateTime.UtcNow; _pictureMissing = false;
+            _waitingFor = null; _waitingName = null; StopCameraHold(); // a camera is feeding the outputs again
             if (CameraCatalog.IsWindowsVirtual(cam.Name))
                 Status($"Connected: {cam.Name}. Tip: if this is your phone, pick Phone (Wi-Fi) with the KISSIK Camera app instead, for up to 4K, pro controls, the phone's mic and less delay.");
             else Status($"Connected: {cam.Name} — camera mode {_session.Mode?.ToString() ?? "default"} for {_profile.Name} ({_profile.Details})" + LimitNote(_session.Mode));
@@ -555,6 +576,33 @@ public sealed partial class MainPage : Page
     {
         if (_smooth.Level < 2) { TrackFace(bmp); StabiliseMeasure(bmp); }
         if (Interlocked.Exchange(ref _processing, 1) == 1) { Interlocked.Increment(ref _skipped); return; }
+        byte[] pixels; int w, h, oh;
+        // Whatever goes wrong inside one frame, the next frame must still be processed: without the finally, a
+        // single exception left the picture frozen for good (phone) or closed the app (webcam).
+        try
+        {
+            if (ProcessFrame(bmp) is not { } done) return;
+            (pixels, w, h, oh) = done;
+        }
+        catch (Exception ex) { NoteFrameError(ex); return; }
+        finally { Volatile.Write(ref _processing, 0); }
+        ShowFrame(pixels, w, h, oh);
+    }
+
+    private DateTime _frameErrorShown;
+
+    /// <summary>Says once (not thirty times a second) that frames are failing, and why.</summary>
+    private void NoteFrameError(Exception ex)
+    {
+        if (DateTime.UtcNow - _frameErrorShown < TimeSpan.FromSeconds(10)) return;
+        _frameErrorShown = DateTime.UtcNow;
+        string why = ex.Message;
+        DispatcherQueue.TryEnqueue(() => Status("A frame couldn't be processed, so it was skipped: " + why));
+    }
+
+    /// <summary>Processes one frame and feeds every output. Null when the frame couldn't be processed.</summary>
+    private (byte[] Pixels, int W, int H, int OutH)? ProcessFrame(SoftwareBitmap bmp)
+    {
         byte[] pixels; int w, h;
         long t0 = System.Diagnostics.Stopwatch.GetTimestamp();
         // On the GPU the outputs' layers (front overlay, scene transition, captions, shutter) are baked there too.
@@ -578,8 +626,12 @@ public sealed partial class MainPage : Page
         FrameOutput output;
         // On the GPU the preview, thumbnails and picture checks get at most 1080p; the outputs keep full size.
         try { output = FrameProcessor.Process(bmp, CurrentRecipe(), _bgPipeline, bake, PreviewMax); (pixels, w, h) = (output.Pixels, output.Width, output.Height); }
-        catch { Volatile.Write(ref _processing, 0); return; }
+        catch { return null; }
         var onGpu = output.Baked;
+        // The recorder takes the GPU frame over below; if anything throws before that, it is freed here.
+        var unclaimed = onGpu?.Texture;
+        try
+        {
         _gpuBaking = onGpu is not null;
         int ow = onGpu?.Width ?? w, oh = onGpu?.Height ?? h; // the outputs' size
         // Smoothed effects time per frame: the delay OpenKamera adds on top of the camera itself.
@@ -625,13 +677,20 @@ public sealed partial class MainPage : Page
         if (onGpu?.Texture is { } tex)
         {
             // The recorder owns the texture from here (it frees it once encoded, or when it drops it).
+            unclaimed = null;
             if (rec is not null) rec.PushTexture(tex, _recordClock.Elapsed); else tex.Dispose();
             if (rec is not null && onGpu.Pixels is { } b) PushVertical(b, ow, oh);
         }
         else if (rec is not null) { var b = Baked(); rec.Push(b, ow, oh, _recordClock.Elapsed); PushVertical(b, ow, oh); }
         replay?.Push(Baked(), ow, oh, _replayClock.Elapsed);
-        Volatile.Write(ref _processing, 0);
+        return (pixels, w, h, oh);
+        }
+        finally { unclaimed?.Dispose(); }
+    }
 
+    /// <summary>Hands the processed frame to the on-screen preview if the UI is free.</summary>
+    private void ShowFrame(byte[] pixels, int w, int h, int oh)
+    {
         if (_updatingPreview) return;
         _updatingPreview = true;
         SoftwareBitmap copy;
@@ -652,12 +711,15 @@ public sealed partial class MainPage : Page
         {
             try
             {
-                var src = new SoftwareBitmapSource();
+                // One picture source for the whole session: a new one per frame held native memory until the
+                // garbage collector got round to it.
+                var src = _previewSource ??= new SoftwareBitmapSource();
                 await src.SetBitmapAsync(copy);
                 // Camera-to-screen delay: from the sensor's capture stamp to the picture handed to the screen.
                 if (_h264 is not null) NotePhoneShown();
                 if (_session?.LastCaptureTime is { } cap) _latencyMs = _latencyMs * 0.9 + (CaptureSession.Now - cap).TotalMilliseconds * 0.1;
-                PreviewImage.Source = src;
+                if (!ReferenceEquals(PreviewImage.Source, src)) PreviewImage.Source = src;
+                NoteEffectsError(_bg.NeedsMask ? _bgPipeline.LastError : null);
                 string fx = _bg.NeedsMask
                     ? (_bgPipeline.LastError is { } err ? $" · effects error: {err}" : $" · effects {_bgPipeline.LastMs:0} ms{(_bgPipeline.UsesGpu ? " GPU" : " CPU")}")
                     : "";
@@ -674,6 +736,22 @@ public sealed partial class MainPage : Page
             finally { copy.Dispose(); _updatingPreview = false; }
         });
         if (!queued) { copy.Dispose(); _updatingPreview = false; }
+    }
+
+    private SoftwareBitmapSource? _previewSource;
+    private string? _effectsErrorShown;
+
+    /// <summary>Tells the user once when the background effect stops working, and once when it is back.</summary>
+    private void NoteEffectsError(string? error)
+    {
+        if (error == _effectsErrorShown) return;
+        bool was = _effectsErrorShown is not null;
+        _effectsErrorShown = error;
+        if (error is not null)
+            Status(BackgroundPipeline.HidesRoom(_bg)
+                ? $"The background effect stopped working ({error}), so the whole picture is hidden to keep your room private. Try Edge quality: Fast, or turn the background off."
+                : $"Spotlight and Retouch stopped working ({error}).");
+        else if (was) Status("The background effect is working again.");
     }
 
     private void BuildControls()
@@ -728,8 +806,32 @@ public sealed partial class MainPage : Page
         bool ok = _controller.TrySet(name, e.NewValue, auto: false);
         var saved = _settings.ForDevice(_settings.LastDeviceId ?? "");
         saved.Values[name] = e.NewValue;
+        saved.Auto[name] = false; // moving the slider takes the control out of auto
         _settings.Save();
         Status($"{name} → {e.NewValue:0} ({(ok ? "applied" : "rejected by device")})");
+    }
+
+    /// <summary>
+    /// Puts back the exposure, white balance and other values chosen for this camera last time. They were saved
+    /// on every change but never read, so each launch started from the camera's own state.
+    /// </summary>
+    private void RestoreCameraValues(string deviceId)
+    {
+        if (_controller is null || !_settings.Devices.TryGetValue(deviceId, out var saved)) return;
+        try
+        {
+            foreach (var p in _controller.GetProperties())
+            {
+                if (p.Name is "Focus" or "Zoom" or "Pan" or "Tilt") continue; // moved by hand each time, not a setting
+                if (p.CanAuto && saved.Auto.TryGetValue(p.Name, out bool auto) && auto)
+                {
+                    if (!p.Auto) _controller.TrySet(p.Name, p.Value, auto: true);
+                }
+                else if (saved.Values.TryGetValue(p.Name, out double v) && v >= p.Min && v <= p.Max && (p.Auto || Math.Abs(v - p.Value) > 1e-6))
+                    _controller.TrySet(p.Name, v, auto: false);
+            }
+        }
+        catch { /* a camera that refuses a value keeps its own */ }
     }
 
     private void Lens_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
@@ -943,7 +1045,7 @@ public sealed partial class MainPage : Page
         SaveLook();
     }
 
-    private void Framing_Changed(object sender, RoutedEventArgs e) => UpdateTransform();
+    private void Framing_Changed(object sender, RoutedEventArgs e) { if (!_restoring) ReconcileMirrors(); UpdateTransform(); }
     private void Framing_ValueChanged(object sender, RangeBaseValueChangedEventArgs e) => UpdateTransform();
 
     private void RotateBtn_Click(object sender, RoutedEventArgs e)
@@ -974,14 +1076,14 @@ public sealed partial class MainPage : Page
             string path = Path.Combine(folder, $"KISSIK-{DateTime.Now:yyyyMMdd-HHmmss}.png");
             await _session.SaveSnapshotAsync(path, CurrentRecipe(withOverlay: true), _bgPipeline);
             _lastSaved = DateTimeOffset.Now;
-            Status("Snapshot saved: " + path);
+            Status("Snapshot saved: " + path, "Show in folder", () => ShowInFolder(path));
         }
         catch (Exception ex) { Status("Snapshot failed: " + ex.Message); }
     }
 
     private async void RecordBtn_Click(object sender, RoutedEventArgs e)
     {
-        if (_session is null) return;
+        if (_session is null && _recorder is null) return; // with the camera lost, the button still stops the recording
         if (_savingRecording) { Status("Still saving the last recording. Record again in a moment."); return; }
         // A double press on Stop shouldn't start a new recording the moment a short one finishes saving.
         if (_recorder is null && DateTime.UtcNow - _recordingSavedAt < TimeSpan.FromSeconds(2)) return;
@@ -1003,8 +1105,8 @@ public sealed partial class MainPage : Page
             RecordBtn.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.White);
             RecPill.Visibility = Visibility.Visible;
             _recPaused = false; PauseBtn.Visibility = Visibility.Visible; SetPauseLook();
-            AutomationProperties.SetName(RecordBtn, "■ Stop");
-            Status($"Recording {rec.Width}×{rec.Height} @ {rec.Fps} fps{(rec.OnGpu ? " (GPU encoder)" : "")}: {rec.Path}");
+            AutomationProperties.SetName(RecordBtn, "Stop recording");
+            Status($"Recording {rec.Width}×{rec.Height} @ {rec.Fps} fps{(rec.OnGpu ? " (GPU encoder)" : "")}: {rec.Path}" + NoSoundNote("recording"));
         }
         catch (Exception ex) { _recorder = null; Status("Record failed: " + ex.Message); }
     }
@@ -1150,8 +1252,10 @@ public sealed partial class MainPage : Page
         {
             await rec.StopAsync();
             string vertical = await StopVerticalAsync();
+            string saved = rec.Path;
             Status($"Recording saved: {rec.Path} — {rec.FramesWritten} frames, {_recordClock.Elapsed:mm\\:ss}" +
-                   (rec.FramesDropped > 0 ? $", {rec.FramesDropped} dropped (encoder busy)" : "") + vertical + SupportNudge());
+                   (rec.FramesDropped > 0 ? $", {rec.FramesDropped} dropped (encoder busy)" : "") + vertical + SupportNudge(),
+                   "Show in folder", () => ShowInFolder(saved));
         }
         catch (Exception ex) { Status("Recording failed while saving: " + ex.Message); }
         finally
@@ -1159,11 +1263,15 @@ public sealed partial class MainPage : Page
             await rec.DisposeAsync();
             _savingRecording = false; _recordingSavedAt = DateTime.UtcNow;
             RecordLabel.Text = "Record"; RecordIcon.Glyph = "";
-            AutomationProperties.SetName(RecordBtn, "● Record");
+            AutomationProperties.SetName(RecordBtn, "Record");
             RecordBtn.IsEnabled = _session is not null;
         }
     }
 
     private bool _savingRecording;
+
+    /// <summary>Audio is off until the user turns it on, so say so the moment a silent recording or stream starts.</summary>
+    private string NoSoundNote(string what) => _audio.IsRunning && _audio.Tracks.Count > 0 ? ""
+        : $" This {what} has NO SOUND: turn Audio on in the Audio tab to add your microphone.";
     private DateTime _recordingSavedAt;
 }

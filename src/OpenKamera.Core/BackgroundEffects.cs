@@ -31,10 +31,12 @@ public static class BackgroundEffects
         {
             // The room right behind the edge, so edge pixels can drop it (unmixing) instead of carrying it onto the
             // new background as a halo. Blur also needs the big blurred room; both come from one masked downsample.
-            int radius = s.Mode == BackgroundMode.Blur ? 2 + (int)Math.Round(s.BlurStrength * 14) : 0; // on a 1/4-scale image
-            var (person, room, blur, bw, bh) = MaskedBlur(px, w, h, alpha, radius);
             byte[]? bg = s.Mode == BackgroundMode.Replace && background is { } r && r.Length == px.Length ? r : null;
-            if (s.Mode != BackgroundMode.Replace || bg is not null) Composite(px, w, h, alpha, person, room, blur, bw, bh, bg, s.Mode == BackgroundMode.Remove);
+            // Replace with no picture ready: blur the room fully rather than show it (see GpuEffects.Effects).
+            bool noPicture = s.Mode == BackgroundMode.Replace && bg is null;
+            int radius = s.Mode == BackgroundMode.Blur ? 2 + (int)Math.Round(s.BlurStrength * 14) : noPicture ? 16 : 0; // on a 1/4-scale image
+            var (person, room, blur, bw, bh) = MaskedBlur(px, w, h, alpha, radius);
+            Composite(px, w, h, alpha, person, room, blur, bw, bh, bg, s.Mode == BackgroundMode.Remove);
         }
 
         if (s.Spotlight > 0) Spotlight(px, w, h, alpha, (float)s.Spotlight);
@@ -63,11 +65,15 @@ public static class BackgroundEffects
                 float fx = Math.Clamp((x + 0.5f) * sx - 0.5f, 0, bw - 1);
                 int x0 = (int)fx, x1 = Math.Min(x0 + 1, bw - 1); float dx = fx - x0;
                 int p00 = r0 + x0 * 3, p01 = r0 + x1 * 3, p10 = r1 + x0 * 3, p11 = r1 + x1 * 3;
+                float f0 = Bilerp(person, p00, p01, p10, p11, dx, dy), f1 = Bilerp(person, p00 + 1, p01 + 1, p10 + 1, p11 + 1, dx, dy), f2 = Bilerp(person, p00 + 2, p01 + 2, p10 + 2, p11 + 2, dx, dy);
+                float m0 = Bilerp(room, p00, p01, p10, p11, dx, dy), m1 = Bilerp(room, p00 + 1, p01 + 1, p10 + 1, p11 + 1, dx, dy), m2 = Bilerp(room, p00 + 2, p01 + 2, p10 + 2, p11 + 2, dx, dy);
+                // Blur keeps the model's edge (a little room left in a blurred room is invisible).
+                if (bg is not null || remove) a = EdgeAlpha(a, px[i], px[i + 1], px[i + 2], f0, f1, f2, m0, m1, m2);
                 float ia = 1 - a;
                 for (int c = 0; c < 3; c++)
                 {
-                    float f = Bilerp(person, p00 + c, p01 + c, p10 + c, p11 + c, dx, dy);
-                    f += a * (px[i + c] - a * f - ia * Bilerp(room, p00 + c, p01 + c, p10 + c, p11 + c, dx, dy));
+                    float f = c == 0 ? f0 : c == 1 ? f1 : f2;
+                    f += a * (px[i + c] - a * f - ia * (c == 0 ? m0 : c == 1 ? m1 : m2));
                     float aF = a * Math.Clamp(f, 0, 255);
                     if (remove) { px[i + c] = (byte)aF; continue; }
                     float b = bg is not null ? bg[i + c] : Bilerp(blur!, p00 + c, p01 + c, p10 + c, p11 + c, dx, dy);
@@ -77,6 +83,31 @@ public static class BackgroundEffects
                 px[i + 3] = remove ? (byte)(a * 255) : (byte)255;
             }
         });
+    }
+
+    /// <summary>How far apart (squared levels) the nearby person and room colours must be before colour is trusted over the model.</summary>
+    internal const float EdgeTrust = 1600;
+    /// <summary>Where colour can't tell person from room, the soft edge is firmed up between these values.</summary>
+    internal const float EdgeFirmLo = 0.25f, EdgeFirmHi = 0.9f;
+
+    /// <summary>
+    /// The cut-out's edge from the model is a few pixels wide and soft, so it marks some pure room as "part person".
+    /// Laid over a new background, that room is then painted in the person's colour: a glow along shoulders and a
+    /// patch between strands of hair. Where the room is being taken away, colour settles it: a pixel sits somewhere
+    /// on the line from the nearby room colour to the nearby person colour, and how far along is how much person it
+    /// holds. The model's value is only ever lowered to that, never raised, and only as far as the two colours are
+    /// different enough to tell apart; so no extra room can be let through, and a shirt the colour of the wall is
+    /// left to the model.
+    /// </summary>
+    internal static float EdgeAlpha(float a, float b, float g, float r, float fb, float fg, float fr, float mb, float mg, float mr)
+    {
+        float db = fb - mb, dg = fg - mg, dr = fr - mr;
+        float dd = db * db + dg * dg + dr * dr;
+        float along = Math.Clamp(((b - mb) * db + (g - mg) * dg + (r - mr) * dr) / (dd + 1), 0, 1);
+        float trust = dd / (dd + EdgeTrust);
+        float firm = Math.Clamp((a - EdgeFirmLo) / (EdgeFirmHi - EdgeFirmLo), 0, 1);
+        firm = Math.Min(a, firm * firm * (3 - 2 * firm)); // only ever down: raising it could let room through
+        return trust * Math.Min(a, along) + (1 - trust) * firm;
     }
 
     private static float Bilerp(float[] g, int p00, int p01, int p10, int p11, float dx, float dy)

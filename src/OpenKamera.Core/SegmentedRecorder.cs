@@ -18,6 +18,7 @@ public sealed class SegmentedRecorder : IAsyncDisposable
     private readonly List<Task> _finishing = [];
     private volatile IRecorderPart? _current;
     private int _rotating;
+    private volatile bool _stopping;
     private TimeSpan _partStart;
     private string _partsDir = "";
     private int _index;
@@ -95,7 +96,7 @@ public sealed class SegmentedRecorder : IAsyncDisposable
 
     private void Rotate(TimeSpan captureTime)
     {
-        if (captureTime - _partStart >= SegmentLength && Interlocked.Exchange(ref _rotating, 1) == 0)
+        if (!_stopping && captureTime - _partStart >= SegmentLength && Interlocked.Exchange(ref _rotating, 1) == 0)
         {
             _partStart = captureTime;
             // Open the next piece first, then switch, so no frame is lost between pieces.
@@ -104,6 +105,13 @@ public sealed class SegmentedRecorder : IAsyncDisposable
                 try
                 {
                     var next = await NewPartAsync();
+                    if (_stopping)
+                    {
+                        // Stop was pressed while this piece was opening: it has nothing in it, so close and remove it.
+                        try { await next.DisposeAsync(); } catch { }
+                        try { File.Delete(next.Path); } catch { }
+                        return;
+                    }
                     var old = _current;
                     _current = next;
                     if (old is not null) lock (_finishing) _finishing.Add(FinishAsync(old));
@@ -131,8 +139,11 @@ public sealed class SegmentedRecorder : IAsyncDisposable
     /// <summary>Finishes the last piece and joins all pieces into <see cref="Path"/>. Pieces are kept if joining fails.</summary>
     public async Task StopAsync()
     {
-        var last = _current; _current = null;
+        // Let a piece change that is under way finish before taking the current piece, or the new piece would
+        // be installed after this and never closed.
+        _stopping = true;
         while (Volatile.Read(ref _rotating) == 1) await Task.Delay(20);
+        var last = _current; _current = null;
         if (last is not null) lock (_finishing) _finishing.Add(FinishAsync(last));
         Task[] all; lock (_finishing) all = [.. _finishing];
         await Task.WhenAll(all);
@@ -140,17 +151,21 @@ public sealed class SegmentedRecorder : IAsyncDisposable
             throw new InvalidOperationException("Nothing was recorded.");
     }
 
+    /// <summary>True when the last join copied the pieces as they were; false when it had to encode them again.</summary>
+    public static bool JoinedByCopy { get; private set; }
+
     /// <summary>Joins the playable pieces in <paramref name="partsDir"/> into <paramref name="output"/>, then deletes them.</summary>
     public static async Task<bool> JoinAsync(string partsDir, string output, int width = 0, int height = 0, int fps = 0)
     {
         var parts = Directory.Exists(partsDir) ? Directory.GetFiles(partsDir, "part*.mp4").Order().ToList() : [];
         var clips = new List<MediaClip>();
+        var playable = new List<string>();
         foreach (var p in parts)
         {
             try
             {
                 var clip = await MediaClip.CreateFromFileAsync(await StorageFile.GetFileFromPathAsync(p));
-                if (clip.OriginalDuration > TimeSpan.Zero) clips.Add(clip);
+                if (clip.OriginalDuration > TimeSpan.Zero) { clips.Add(clip); playable.Add(p); }
             }
             catch { /* the piece being written when the app died: unreadable, skip it */ }
         }
@@ -158,10 +173,17 @@ public sealed class SegmentedRecorder : IAsyncDisposable
 
         if (clips.Count == 1)
         {
-            File.Move(parts.First(p => File.Exists(p)), output, overwrite: true);
+            // The one piece that plays, which is not always the first file in the folder.
+            File.Move(playable[0], output, overwrite: true);
+        }
+        else if (await Task.Run(() => RecordingJoiner.TryCopyJoin(playable, output)))
+        {
+            // Copied as they are: quick, and no second round of compression.
+            JoinedByCopy = true;
         }
         else
         {
+            JoinedByCopy = false;
             var comp = new MediaComposition();
             foreach (var c in clips) comp.Clips.Add(c);
             var folder = await StorageFolder.GetFolderFromPathAsync(System.IO.Path.GetDirectoryName(output)!);
