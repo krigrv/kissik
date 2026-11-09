@@ -157,7 +157,10 @@
                      Title="Pick your camera here" Subtitle="Choose your webcam (or your phone), then press Connect next to it."
                      CloseButtonContent="Got it" />
         <!-- Empty state: how to get a picture, pointing at where to click. -->
-        <StackPanel x:Name="EmptyText" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="14" MaxWidth="760" Margin="340,0,260,0">
+        <!-- Lives in the same space as the picture and shrinks to fit it, so in a small window (or beside the screen
+             light panel) it never spills over the bars and panels around it. -->
+        <Viewbox x:Name="EmptyBox" Stretch="Uniform" StretchDirection="DownOnly" Margin="340,60,260,142">
+        <StackPanel x:Name="EmptyText" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="14" Width="760" Margin="16">
             <TextBlock x:Name="EmptyTitle" Foreground="{ThemeResource TextFillColorPrimaryBrush}" FontSize="24" FontWeight="SemiBold" HorizontalAlignment="Center" Text="Let's get your camera on" />
             <TextBlock x:Name="EmptyHint" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="14" HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center" MaxWidth="560"
                        Text="Use a webcam plugged into this PC, or your phone's camera." />
@@ -194,6 +197,7 @@
                 </Border>
             </Grid>
         </StackPanel>
+        </Viewbox>
 
         <!-- ═══ Top capsule ═══ -->
         <!-- Command bar: docked across the top like a native Windows 11 app. -->
@@ -234,6 +238,7 @@
                                 AutomationProperties.Name="Meeting camera" ToolTipService.ToolTip="Use KISSIK as the camera in Zoom, Teams, Meet, Discord or OBS" AutomationProperties.HelpText="Use KISSIK as the camera in Zoom, Teams, Meet, Discord or OBS">
                     <StackPanel Orientation="Horizontal" Spacing="7">
                         <Ellipse x:Name="MeetCamDot" AutomationProperties.AccessibilityView="Raw" Width="8" Height="8" Fill="{ThemeResource ControlStrongStrokeColorDefaultBrush}" VerticalAlignment="Center" />
+                        <FontIcon x:Name="MeetCamIcon" Glyph="&#xE8AA;" FontSize="15" Visibility="Collapsed" AutomationProperties.AccessibilityView="Raw" />
                         <TextBlock Text="Meeting camera" />
                     </StackPanel>
                     <DropDownButton.Flyout>
@@ -1018,8 +1023,10 @@
         </Border>
 
         <!-- ═══ Right: framing ═══ -->
-        <Border x:Name="RightPane" Style="{StaticResource Glass}" Width="236" Margin="0,60,12,0" Padding="14"
+        <Border x:Name="RightPane" Style="{StaticResource Glass}" Width="236" Margin="0,60,12,116" Padding="14,14,4,14"
                 HorizontalAlignment="Right" VerticalAlignment="Top">
+          <!-- The bottom margin keeps it clear of the messages; in a short window it scrolls instead of hiding its last rows. -->
+          <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,0,10,0">
             <StackPanel Spacing="10">
                 <Grid>
                     <TextBlock Text="Framing" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
@@ -1063,6 +1070,7 @@
                               AutomationProperties.Name="Stabilisation" />
                 </Grid>
             </StackPanel>
+          </ScrollViewer>
         </Border>
 
         <!-- ═══ Bottom centre: scene filmstrip ═══ -->
@@ -1173,13 +1181,14 @@
         </Border>
 
         <!-- ═══ Screen light panel (opens from the capsule) ═══ -->
-        <Border x:Name="LightPanel" Style="{StaticResource Glass}" Width="900" MaxWidth="1100" Padding="20,20,8,20"
-                HorizontalAlignment="Center" VerticalAlignment="Stretch" Margin="0,60,0,144" Visibility="Collapsed">
+        <Border x:Name="LightPanel" Style="{StaticResource Glass}" Width="900" Padding="20,20,8,20"
+                HorizontalAlignment="Left" VerticalAlignment="Stretch" Margin="12,60,0,144" Visibility="Collapsed">
           <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,0,12,0">
             <StackPanel Spacing="16">
-                <Grid>
+                <Grid x:Name="LightHeader" RowSpacing="10">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
                     <TextBlock Text="Screen light" FontSize="20" FontWeight="SemiBold" VerticalAlignment="Center" />
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
+                    <StackPanel x:Name="LightHeaderButtons" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10" Margin="0,0,50,0">
                         <Button x:Name="LightMaxBtn" MinHeight="40" CornerRadius="8" Padding="16,0" Click="LightMax_Click"
                                 Background="{ThemeResource AccentFillColorDefaultBrush}" Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" FontWeight="SemiBold"
                                 AutomationProperties.Name="Max brightness"
@@ -1195,11 +1204,12 @@
                                               AutomationProperties.Name="Lights on" />
                             </StackPanel>
                         </Border>
-                        <Button Style="{StaticResource IconButton}" Click="LightClose_Click" AutomationProperties.Name="Close screen light panel"
-                                ToolTipService.ToolTip="Close (the light stays as it is)" AutomationProperties.HelpText="Close (the light stays as it is)">
-                            <FontIcon Glyph="&#xE711;" FontSize="14" />
-                        </Button>
                     </StackPanel>
+                    <!-- Always on the title's row, so it can't be pushed out of a narrow panel. -->
+                    <Button Style="{StaticResource IconButton}" Click="LightClose_Click" HorizontalAlignment="Right" AutomationProperties.Name="Close screen light panel"
+                            ToolTipService.ToolTip="Close (the light stays as it is)" AutomationProperties.HelpText="Close (the light stays as it is)">
+                        <FontIcon Glyph="&#xE711;" FontSize="14" />
+                    </Button>
                 </Grid>
 
                 <!-- Looks -->
@@ -1207,7 +1217,7 @@
                     <StackPanel x:Name="LightLooks" Orientation="Horizontal" Spacing="12" Padding="0,0,0,8" />
                 </ScrollViewer>
 
-                <Grid ColumnSpacing="14">
+                <Grid x:Name="LightColumns" ColumnSpacing="14" RowSpacing="14">
                     <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition /><ColumnDefinition /></Grid.ColumnDefinitions>
 
                     <!-- Details -->
@@ -1323,7 +1333,7 @@
                 </Grid>
                 <!-- Ring light (shown when the Ring shape is chosen) -->
                 <Border x:Name="RingCard" Background="{ThemeResource ControlFillColorDefaultBrush}" CornerRadius="14" Padding="16">
-                    <Grid ColumnSpacing="24" RowSpacing="6">
+                    <Grid x:Name="RingColumns" ColumnSpacing="24" RowSpacing="12">
                         <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition /></Grid.ColumnDefinitions>
                         <StackPanel Spacing="6">
                             <TextBlock Text="Ring light" FontSize="14" />

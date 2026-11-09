@@ -37,7 +37,7 @@ public sealed partial class MainPage : Page
         InitializeComponent();
         Current = this;
         Loaded += MainPage_Loaded;
-        SizeChanged += (_, _) => FitCapsule();
+        SizeChanged += (_, _) => { FitCapsule(); if (LightPanel.Visibility == Visibility.Visible) UpdateStageMargin(); };
         Unloaded += async (_, _) => { if (_session is not null) await _session.DisposeAsync(); _bgPipeline.Dispose(); };
     }
 
@@ -82,6 +82,7 @@ public sealed partial class MainPage : Page
         Unloaded += async (_, _) => await StopPhoneAsync();
         _ = RecoverRecordingsAsync();
         try { App.MainWindow!.AppWindow.Closing += OnWindowClosing; } catch { }
+        SetMinimumWindowSize();
         StartCameraWatcher();
         if (_settings.RestoredFromBackup) Status("Your settings file was damaged, so KISSIK loaded the last good copy.");
     }
@@ -169,8 +170,12 @@ public sealed partial class MainPage : Page
     private void UpdateStageMargin()
     {
         bool left = LeftPane.Visibility == Visibility.Visible, right = RightPane.Visibility == Visibility.Visible;
-        StageViewbox.Margin = SimplePanel.Visibility == Visibility.Visible ? new Thickness(12, 60, 12, 150)
-            : new Thickness(left ? 340 : 12, 60, right ? 260 : 12, right ? 142 : 12);
+        // The screen light panel takes the left side while it is open; the picture moves over so it stays in view.
+        bool light = LightPanel.Visibility == Visibility.Visible;
+        double leftEdge = light ? LightPanel.Width + 36 : left ? 340 : 12;
+        StageViewbox.Margin = SimplePanel.Visibility == Visibility.Visible ? new Thickness(light ? leftEdge : 12, 60, 12, 210)
+            : new Thickness(leftEdge, 60, right ? 260 : 12, right ? 142 : 12);
+        EmptyBox.Margin = StageViewbox.Margin; // "Let's get your camera on" fills the picture's space, no more
         Filmstrip.Margin = new Thickness(left ? 340 : 12, 0, right ? 260 : 12, 12);
     }
 
@@ -383,7 +388,7 @@ public sealed partial class MainPage : Page
                     : cams.FirstOrDefault(c => c.Id == _settings.LastDeviceId && c != PhoneDevice && c != PictureDevice) ?? cams.FirstOrDefault();
                 DeviceBox.SelectedItem = last;
             }
-            EmptyText.Visibility = cams.Count <= 2 ? Visibility.Visible : Visibility.Collapsed;
+            EmptyText.Visibility = _session is null ? Visibility.Visible : Visibility.Collapsed; // no picture yet: show how to get one
             Status($"Found {cams.Count - 2} camera(s), plus your phone and a picture source.");
         }
         catch (Exception ex) { Status("Camera enumeration failed: " + ex.Message); }
@@ -497,7 +502,10 @@ public sealed partial class MainPage : Page
         catch (UnauthorizedAccessException)
         {
             // Windows camera privacy denied (or never answered) for this app.
-            Status("Camera access is off for KISSIK. Turn it on in Settings → Privacy & security → Camera, then Connect again.");
+            Status("Camera access is off for KISSIK. Turn it on in Settings → Privacy & security → Camera, then Connect again.",
+                "Open camera settings", () => _ = Windows.System.Launcher.LaunchUriAsync(new Uri("ms-settings:privacy-webcam")));
+            EmptyBusy.Text = "Windows is blocking the camera for KISSIK. Turn on Camera access for KISSIK in Windows Settings, then press Connect camera.";
+            EmptyText.Visibility = Visibility.Visible;
             _ = Windows.System.Launcher.LaunchUriAsync(new Uri("ms-settings:privacy-webcam"));
             if (_session is not null) { await _session.DisposeAsync(); _session = null; }
         }

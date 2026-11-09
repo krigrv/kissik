@@ -124,9 +124,10 @@ public sealed partial class MainPage
         {
             if (!ReferenceEquals(SimpleSource.ItemsSource, DeviceBox.ItemsSource)) SimpleSource.ItemsSource = DeviceBox.ItemsSource;
             if (!Equals(SimpleSource.SelectedItem, DeviceBox.SelectedItem)) SimpleSource.SelectedItem = DeviceBox.SelectedItem;
-            bool on = _audio.IsRunning;
+            // "On" only when a microphone is really open: the switch being on with nothing to hear is not on.
+            bool wanted = _audio.IsRunning, on = wanted && _audio.Tracks.Any(t => t.IsVoice);
             SimpleMicBtn.IsChecked = on;
-            SimpleMicLabel.Text = on ? "Microphone on" : "Microphone off";
+            SimpleMicLabel.Text = on ? "Microphone on" : wanted ? "No microphone found" : "Microphone off";
             SimpleMicIcon.Glyph = on ? "\uE720" : "\uF781";
             AutomationProperties.SetName(SimpleMicBtn, SimpleMicLabel.Text);
         }

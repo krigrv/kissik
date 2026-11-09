@@ -36,6 +36,7 @@ public sealed partial class MainPage
         }
         Announce(msg);
         SyncSimple();
+        FitCapsule(); // buttons appear and change words as things start and stop (Pause, the recording timer)
     }
 
     private void MessageAction_Click(object sender, RoutedEventArgs e)

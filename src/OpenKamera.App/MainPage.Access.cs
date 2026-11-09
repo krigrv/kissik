@@ -170,6 +170,12 @@ public sealed partial class MainPage
             _studioOnly.Clear();
         }
         SimplePanel.Visibility = simple ? Visibility.Visible : Visibility.Collapsed;
+        // Simple mode: messages sit in the empty left of the top bar. Bottom-right they covered the "Hide me" button.
+        MessageArea.HorizontalAlignment = simple ? HorizontalAlignment.Left : HorizontalAlignment.Right;
+        MessageArea.VerticalAlignment = simple ? VerticalAlignment.Top : VerticalAlignment.Bottom;
+        MessageArea.Margin = simple ? new Thickness(16, 6, 0, 0) : new Thickness(0, 0, 12, 12);
+        MessageArea.MaxWidth = simple ? 520 : 236;
+        StatusText.MaxLines = simple ? 2 : 3;
         UpdateStageMargin();
         SyncSimple();
     }
