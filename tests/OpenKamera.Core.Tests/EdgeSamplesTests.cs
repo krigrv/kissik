@@ -26,10 +26,15 @@ public class EdgeSamplesTests(ITestOutputHelper log)
             var (px, w, h) = await BackgroundLibrary.DecodeAsync(path);
             var flat = new byte[px.Length];
             for (int i = 0; i < flat.Length; i += 4) { flat[i] = 200; flat[i + 1] = 80; flat[i + 2] = 20; flat[i + 3] = 255; }
-            foreach (var q in new[] { SegmentationQuality.Fast, SegmentationQuality.High })
+            foreach (var q in new[] { SegmentationQuality.Fast, SegmentationQuality.High, SegmentationQuality.Video })
             {
+                if (!File.Exists(PersonSegmenter.ModelPath(q))) continue;
                 using var seg = new PersonSegmenter(q);
                 var mask = seg.Segment(px, w, h);
+                // The video model builds up what it knows over a few frames; a still picture is shown to it several times.
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+                if (q == SegmentationQuality.Video) for (int i = 0; i < 5; i++) mask = seg.Segment(px, w, h);
+                if (q == SegmentationQuality.Video) log.WriteLine($"{name} Video: {sw.Elapsed.TotalMilliseconds / 5:F1} ms per frame, GPU {seg.UsesGpu}");
                 var replace = FrameRecipe.Passthrough with { Background = new BackgroundSettings(BackgroundMode.Replace, BackgroundId: "x", Quality: q) };
                 var remove = FrameRecipe.Passthrough with { Background = new BackgroundSettings(BackgroundMode.Remove, Quality: q) };
 

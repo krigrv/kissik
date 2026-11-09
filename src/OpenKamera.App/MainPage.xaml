@@ -607,6 +607,7 @@
                             <SelectorBar x:Name="BgQuality" HorizontalAlignment="Right" SelectionChanged="BgQuality_SelectionChanged">
                                 <SelectorBarItem x:Name="BgQualityFast" Text="Fast" IsSelected="True" ToolTipService.ToolTip="Lightest on the GPU" AutomationProperties.HelpText="Lightest on the GPU" />
                                 <SelectorBarItem x:Name="BgQualityHigh" Text="High" ToolTipService.ToolTip="Cleaner hair and edges" AutomationProperties.HelpText="Cleaner hair and edges" />
+                                <SelectorBarItem x:Name="BgQualityVideo" Text="Steady" ToolTipService.ToolTip="Follows you from frame to frame and leaves out chairs and stands. Things you hold may be cut out too." AutomationProperties.HelpText="Follows you from frame to frame and leaves out chairs and stands. Things you hold may be cut out too." />
                             </SelectorBar>
                         </Grid>
 

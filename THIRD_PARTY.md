@@ -5,6 +5,7 @@
 | File | Model | Licence | Source | SHA-256 |
 |---|---|---|---|---|
 | `selfie_segmentation_fp16.onnx` (251 KB) | MediaPipe Selfie Segmentation (© Google LLC), ONNX conversion | Apache-2.0 (as stated by the converter; Google's model card governs the original weights — confirm before commercial redistribution) | https://huggingface.co/onnx-community/mediapipe_selfie_segmentation | `3B2A53A26B6E7C00B5E2415443E45DFA8C66C62BD496F7F2EE7DCF9CE47DEA4F` |
+| `rvm_mobilenetv3_fp32.onnx` (15 MB) | Robust Video Matting, MobileNetV3 (Lin et al.), the authors' own ONNX export; "Steady" edge quality | GPL-3.0 (same licence as KISSIK; it rules out shipping this model in a closed build) | https://github.com/PeterL1n/RobustVideoMatting/releases/tag/v1.0.0 | `88D4531297118F595BF2FD60F6F566AEC2E559393802D1F436C380F0CBBD2828` |
 | `modnet_fp16.onnx` (13 MB) | MODNet portrait matting (Ke et al.), ONNX conversion | Apache-2.0 (original repo https://github.com/ZHKKKe/MODNet) | https://huggingface.co/Xenova/modnet | `25F165DA9BFD30830A575F1F0490F1ACD995975CB349BC02F3D79332E1FE5CF6` |
 
 ## Voice noise removal (`src/OpenKamera.Core/Native/{x64,x86,arm64}` and `Models/`)

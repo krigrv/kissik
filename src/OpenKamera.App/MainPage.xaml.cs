@@ -558,7 +558,7 @@ public sealed partial class MainPage : Page
         var p = _profile;
         var overlay = _overlay;
         int level = _smooth.Level;
-        var bg = level >= 1 && _bg.Quality == SegmentationQuality.High ? _bg with { Quality = SegmentationQuality.Fast } : _bg;
+        var bg = level >= 1 && _bg.Quality != SegmentationQuality.Fast ? _bg with { Quality = SegmentationQuality.Fast } : _bg;
         bool steady = _stabilise && level < 2;
         // Level 3 halves the processing size, but never mid-recording and never below 720p.
         bool half = level >= 3 && _recorder is null && p.Height >= 1440;
@@ -993,7 +993,7 @@ public sealed partial class MainPage : Page
             BackgroundMode.Blur => BgBlur, BackgroundMode.Replace => BgReplace, BackgroundMode.Remove => BgRemove, _ => BgOff,
         };
         BgBlurStrength.Value = b.BlurStrength * 100;
-        BgQuality.SelectedItem = b.Quality == SegmentationQuality.High ? BgQualityHigh : BgQualityFast;
+        BgQuality.SelectedItem = b.Quality switch { SegmentationQuality.High => BgQualityHigh, SegmentationQuality.Video => BgQualityVideo, _ => BgQualityFast };
         SpotlightToggle.IsOn = b.Spotlight > 0;
         if (b.Spotlight > 0) SpotlightAmount.Value = b.Spotlight * 100;
         RetouchToggle.IsOn = b.Retouch > 0;
@@ -1034,7 +1034,8 @@ public sealed partial class MainPage : Page
             Spotlight: SpotlightToggle.IsOn ? SpotlightAmount.Value / 100.0 : 0,
             Retouch: RetouchToggle.IsOn ? RetouchAmount.Value / 100.0 : 0,
             BackgroundId: (BgPicker.SelectedItem as BackgroundInfo)?.Id,
-            Quality: BgQuality.SelectedItem == BgQualityHigh ? SegmentationQuality.High : SegmentationQuality.Fast,
+            Quality: BgQuality.SelectedItem == BgQualityHigh ? SegmentationQuality.High
+                   : BgQuality.SelectedItem == BgQualityVideo ? SegmentationQuality.Video : SegmentationQuality.Fast,
             GreenScreen: GreenScreenToggle.IsOn,
             KeyColor: KeyColorBar.SelectedItem == KeyBlue ? BlueKey : GreenKey,
             Similarity: KeySimilarity.Value / 100.0, Smoothness: KeySmoothness.Value / 100.0, Spill: KeySpill.Value / 100.0);

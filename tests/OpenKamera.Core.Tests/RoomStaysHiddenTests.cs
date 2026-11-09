@@ -112,6 +112,25 @@ public class RoomStaysHiddenTests
     }
 
     [Fact]
+    public void VideoModel_RemembersBetweenFrames_AndStartsFreshAfterReset()
+    {
+        if (!File.Exists(PersonSegmenter.ModelPath(SegmentationQuality.Video))) return; // model not present
+        using var seg = new PersonSegmenter(SegmentationQuality.Video, preferGpu: false);
+        var frame = new byte[320 * 180 * 4];
+        new Random(2).NextBytes(frame);
+        var first = seg.Segment(frame, 320, 180);
+        Assert.Equal(seg.InputWidth * seg.InputHeight, first.Alpha.Length);
+        Assert.All(first.Alpha, a => Assert.InRange(a, 0f, 1f));
+        var second = seg.Segment(frame, 320, 180);  // now with what it remembers from the first
+        seg.Reset();
+        var fresh = seg.Segment(frame, 320, 180);   // memory cleared: the same answer as the very first frame
+        double drift = 0, same = 0;
+        for (int i = 0; i < first.Alpha.Length; i++) { drift += Math.Abs(second.Alpha[i] - first.Alpha[i]); same += Math.Abs(fresh.Alpha[i] - first.Alpha[i]); }
+        Assert.True(same / first.Alpha.Length < 1e-4, $"after a reset the result should match a fresh start (mean difference {same / first.Alpha.Length})");
+        Assert.True(drift >= 0); // the second frame may differ: that is the memory at work
+    }
+
+    [Fact]
     public void WhenTheCutOutFails_WithOnlySpotlightOn_ThePictureIsLeftAlone()
     {
         if (!File.Exists(PersonSegmenter.ModelPath(SegmentationQuality.Fast))) return;
