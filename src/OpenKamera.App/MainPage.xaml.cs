@@ -318,6 +318,7 @@ public sealed partial class MainPage : Page
             foreach (var f in Directory.EnumerateFiles(AppSettings.LutFolder, "*.cube"))
                 try { _luts.Add(Lut3D.Load(f)); } catch (Exception ex) { Status($"Skipped LUT {Path.GetFileName(f)}: {ex.Message}"); }
         RefreshLutBox(_settings.LutName);
+        AddSliderResets();
         MirrorToggle.IsChecked = _settings.Mirror;
         RestoreBackground();
         RefreshPresetBox(null);
@@ -328,7 +329,30 @@ public sealed partial class MainPage : Page
         UpdateAdjustments();
     }
 
-    private static string FilterLabel(FilterPreset f) => f switch
+    private bool _sliderResetsAdded;
+
+    /// <summary>
+    /// Double-click a slider to put it back to its normal value. Before, the only way back was the reset button
+    /// for the whole panel, which also cleared the look and every other adjustment.
+    /// </summary>
+    private void AddSliderResets()
+    {
+        if (_sliderResetsAdded) return;
+        _sliderResetsAdded = true;
+        foreach (var (slider, normal) in new (Slider, double)[]
+        {
+            (EnhBrightness, 100), (EnhContrast, 100), (EnhGamma, 100), (EnhSaturation, 100), (EnhVibrance, 0), (EnhHue, 0),
+            (EnhTemperature, 0), (EnhTint, 0), (EnhSharpness, 0), (LutStrength, 100), (FrZoom, 100), (FrPanX, 0), (FrPanY, 0),
+        })
+        {
+            double to = Math.Clamp(normal, slider.Minimum, slider.Maximum);
+            slider.AddHandler(UIElement.DoubleTappedEvent, new Microsoft.UI.Xaml.Input.DoubleTappedEventHandler((_, e) => { slider.Value = to; e.Handled = true; }), true);
+            if (ToolTipService.GetToolTip(slider) is null) ToolTipService.SetToolTip(slider, "Double-click to reset");
+        }
+    }
+
+    /// <summary>The one name each look goes by, wherever it is listed.</summary>
+    internal static string FilterLabel(FilterPreset f) => f switch
     {
         FilterPreset.None => "No filter",
         FilterPreset.BlackAndWhite => "Black & white",

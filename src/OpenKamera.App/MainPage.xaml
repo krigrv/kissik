@@ -28,10 +28,10 @@
 
 
 
-        <!-- Target size: every control at least 36 x 36 (well above the 24 px minimum) unless its own style says more. -->
-        <Style TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}"><Setter Property="MinHeight" Value="36" /><Setter Property="MinWidth" Value="36" /></Style>
-        <Style TargetType="ToggleButton" BasedOn="{StaticResource DefaultToggleButtonStyle}"><Setter Property="MinHeight" Value="36" /><Setter Property="MinWidth" Value="36" /></Style>
-        <Style TargetType="ComboBox" BasedOn="{StaticResource DefaultComboBoxStyle}"><Setter Property="MinHeight" Value="36" /></Style>
+        <!-- Target size: every control at least 40 x 40 unless its own style says more. -->
+        <Style TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}"><Setter Property="MinHeight" Value="40" /><Setter Property="MinWidth" Value="40" /></Style>
+        <Style TargetType="ToggleButton" BasedOn="{StaticResource DefaultToggleButtonStyle}"><Setter Property="MinHeight" Value="40" /><Setter Property="MinWidth" Value="40" /></Style>
+        <Style TargetType="ComboBox" BasedOn="{StaticResource DefaultComboBoxStyle}"><Setter Property="MinHeight" Value="40" /></Style>
         <Style TargetType="ToggleSwitch" BasedOn="{StaticResource DefaultToggleSwitchStyle}"><Setter Property="MinHeight" Value="40" /></Style>
 
         <Style x:Key="Glass" TargetType="Border">

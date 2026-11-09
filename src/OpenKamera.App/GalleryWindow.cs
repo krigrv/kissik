@@ -206,8 +206,12 @@ public sealed class GalleryWindow : Window
                 if (await picker.PickSaveFileAsync() is { } f) SceneLibrary.Export(s, f.Path);
             }));
             if (!s.IsTemplate || SceneLibrary.HasEdits(s.Id))
-                menu.Items.Add(Item(s.IsTemplate ? "Reset to original" : "Delete", "", () =>
+                menu.Items.Add(Item(s.IsTemplate ? "Reset to original" : "Delete", "", async () =>
                 {
+                    // Neither can be undone, so ask first (the Layers tab already did; here it happened at once).
+                    if (!await ConfirmAsync(s.IsTemplate ? $"Reset \"{s.Name}\" to the original?" : $"Delete \"{s.Name}\"?",
+                            s.IsTemplate ? "Your changes to this scene will be lost." : "This scene will be removed for good.",
+                            s.IsTemplate ? "Reset" : "Delete")) return;
                     SceneLibrary.ResetOrDelete(s.Id);
                     _main.ScenesChanged(s.IsTemplate ? s.Id : "blank");
                     RebuildGrid();
@@ -227,7 +231,13 @@ public sealed class GalleryWindow : Window
             menu.Items.Add(Item("Use as background", "", () => _main.UseBackground(b.Id)));
             menu.Items.Add(Item(IsFav(key) ? "Remove from favourites" : "Add to favourites", "", () => ToggleFav(key)));
             if (b.FilePath is { } path)
-                menu.Items.Add(Item("Delete", "", () => { File.Delete(path); _main.BackgroundsChanged(); RebuildGrid(); }));
+                menu.Items.Add(Item("Delete", "", async () =>
+                {
+                    if (!await ConfirmAsync($"Move \"{b.Name}\" to the Recycle Bin?", "You can restore it from the Recycle Bin.", "Move to Recycle Bin")) return;
+                    try { await (await Windows.Storage.StorageFile.GetFileFromPathAsync(path)).DeleteAsync(Windows.Storage.StorageDeleteOption.Default); }
+                    catch { try { File.Delete(path); } catch { return; } }
+                    _main.BackgroundsChanged(); RebuildGrid();
+                }));
             _grid.Items.Add(Card(thumb, b.Name, b.Id == _main.CurrentBackgroundId, menu, () => _main.UseBackground(b.Id)));
         }
     }
@@ -243,7 +253,7 @@ public sealed class GalleryWindow : Window
             var menu = new MenuFlyout();
             menu.Items.Add(Item("Use this filter", "", () => _main.UseFilter(f)));
             menu.Items.Add(Item(IsFav(key) ? "Remove from favourites" : "Add to favourites", "", () => ToggleFav(key)));
-            string name = f switch { FilterPreset.None => "No filter", FilterPreset.BlackAndWhite => "Black & white", FilterPreset.Bleach => "Bleach bypass", _ => f.ToString() };
+            string name = MainPage.FilterLabel(f); // the same names as the main window ("Golden hour", not "GoldenHour")
             _grid.Items.Add(Card(Preview(src, new ImageFilters.Adjustments(Filter: f)), name, f == _main.CurrentFilter, menu, () => _main.UseFilter(f)));
         }
         foreach (var lut in _main.Luts)
@@ -285,9 +295,15 @@ public sealed class GalleryWindow : Window
         return new Image { Source = wb, Stretch = Stretch.UniformToFill };
     }
 
+    private async Task<bool> ConfirmAsync(string title, string detail, string yes)
+    {
+        var dlg = new ContentDialog { XamlRoot = Content.XamlRoot, Title = title, Content = detail, PrimaryButtonText = yes, CloseButtonText = "Cancel", DefaultButton = ContentDialogButton.Close };
+        try { return await dlg.ShowAsync() == ContentDialogResult.Primary; } catch { return false; }
+    }
+
     private FrameworkElement Card(UIElement thumb, string name, bool current, MenuFlyout menu, Action use)
     {
-        var more = new Button { Content = new FontIcon { Glyph = "", FontSize = 12 }, Padding = new Thickness(6, 2, 6, 2), Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent), BorderThickness = new Thickness(0), Flyout = menu };
+        var more = new Button { Content = new FontIcon { Glyph = "", FontSize = 12 }, Padding = new Thickness(6, 2, 6, 2), MinWidth = 40, MinHeight = 40, Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent), BorderThickness = new Thickness(0), Flyout = menu };
         AutomationProperties.SetName(more, $"More actions for {name}");
         var label = new Grid { Margin = new Thickness(2, 6, 0, 0) };
         label.ColumnDefinitions.Add(new ColumnDefinition());
