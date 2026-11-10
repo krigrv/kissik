@@ -31,6 +31,7 @@ public sealed partial class MainPage
         MessageAction.Visibility = action is not null && onAction is not null ? Visibility.Visible : Visibility.Collapsed;
         if (_messages.Count == 0 || _messages[^1].Text != msg)
         {
+            OpenKamera.Core.AppLog.Note("message: " + msg);
             _messages.Add((DateTime.Now, msg, problem));
             if (_messages.Count > 40) _messages.RemoveAt(0);
         }

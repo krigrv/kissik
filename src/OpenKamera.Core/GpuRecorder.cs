@@ -158,8 +158,7 @@ public sealed class GpuRecorder : IRecorderPart
         {
             while (true)
             {
-                bool any = false;
-                while (_audio.TryTake(out var a)) { PlaceAudio(a.Pcm, a.Time, a.Duration); any = true; }
+                bool any = WriteDueAudio();
                 if (_video.TryTake(out var v, 20))
                 {
                     try { WriteVideo(v.Frame, v.Time, frameTime); _videoEnd = v.Time + frameTime; }
@@ -168,12 +167,14 @@ public sealed class GpuRecorder : IRecorderPart
                     any = true;
                     // The MP4 writer holds video back until there's audio to interleave it with: if the mix goes quiet
                     // or falls behind, fill the gap with silence so video never waits (it used to drop to ~1 fps).
-                    if (HasAudio && _audio.Count == 0 && v.Time - _timeline.End > AudioSlack) WriteSilence(v.Time - AudioSlack / 2);
+                    if (HasAudio && _audio.Count == 0 && _held.Count == 0 && v.Time - _timeline.End > AudioSlack) WriteSilence(v.Time - AudioSlack / 2);
                 }
                 if (!any && _stopping && _video.Count == 0 && _audio.Count == 0)
                 {
-                    // The MP4 ends where its shortest track does: make the audio reach the last frame.
+                    // The MP4 ends where its shortest track does: make the audio reach the last frame. Sound still
+                    // held for picture that never came is left out.
                     if (HasAudio) WriteSilence(_videoEnd);
+                    _held.Clear();
                     break;
                 }
             }
@@ -209,6 +210,33 @@ public sealed class GpuRecorder : IRecorderPart
         sample.SampleTime = time.Ticks;
         sample.SampleDuration = duration.Ticks;
         _writer!.WriteSample(_videoStream, sample);
+    }
+
+    /// <summary>
+    /// How far sound may be written past the end of the picture. The file writer keeps the two tracks side by side:
+    /// sound written seconds ahead makes it wait for picture, and since this one thread writes both, that wait
+    /// never ended (a camera that went quiet for a few seconds froze the recording for good). Sound that is early
+    /// is held here until the picture reaches it.
+    /// </summary>
+    private static readonly TimeSpan AudioLead = TimeSpan.FromMilliseconds(200);
+    private const int MaxHeld = 1000; // 10 s of sound waiting for its picture; older than that is left out
+    private readonly Queue<(short[] Pcm, TimeSpan Time, TimeSpan Duration)> _held = new(); // writer thread only
+
+    /// <summary>Takes in new sound and writes what the picture has caught up with. True when any sound arrived.</summary>
+    private bool WriteDueAudio()
+    {
+        bool any = false;
+        while (_audio.TryTake(out var a))
+        {
+            _held.Enqueue(a); any = true;
+            if (_held.Count > MaxHeld) _held.Dequeue();
+        }
+        while (_held.TryPeek(out var next) && next.Time <= _videoEnd + AudioLead)
+        {
+            _held.Dequeue();
+            PlaceAudio(next.Pcm, next.Time, next.Duration);
+        }
+        return any;
     }
 
     /// <summary>How far the audio track may trail the video before silence fills the gap.</summary>
@@ -256,7 +284,13 @@ public sealed class GpuRecorder : IRecorderPart
     {
         if (_writer is null) return;
         _stopping = true;
-        if (_thread is { } t) await Task.Run(t.Join);
+        // A writer that stops answering (a driver fault) must not leave the app saving for ever: give up on this
+        // piece after a while. Its file is left as it is, and the pieces before it are still joined.
+        if (_thread is { } t && !await Task.Run(() => t.Join(TimeSpan.FromSeconds(20))))
+        {
+            _writer = null; _manager = null; // still in use by the stuck thread: not released
+            throw new InvalidOperationException("Recording failed: the video encoder stopped responding.");
+        }
         try { if (FramesWritten > 0) _writer.Finalize(); }
         finally
         {

@@ -11,7 +11,10 @@ namespace OpenKamera_App;
 /// <summary>The "Look" strip: small live previews of the camera through each filter, plus "+ LUT".</summary>
 public sealed partial class MainPage
 {
-    private const int LookSize = 100;
+    // Drawn larger than the tile (50 px, up to 100 on a 200% screen) so the scaled-down picture is smooth.
+    private const int LookSize = 160;
+    private readonly Dictionary<FilterPreset, WriteableBitmap> _lookBitmaps = [];
+    private int _lookBusy, _lookTick;
     private readonly List<(FilterPreset Filter, Border Frame, Image Thumb, TextBlock Label)> _lookTiles = [];
     private Microsoft.UI.Dispatching.DispatcherQueueTimer? _lookTimer;
 
@@ -52,7 +55,8 @@ public sealed partial class MainPage
         LookStrip.Children.Add(new StackPanel { Spacing = 4, Children = { add, new TextBlock { Text = "LUT", FontSize = 12, HorizontalAlignment = HorizontalAlignment.Center } } });
 
         _lookTimer = DispatcherQueue.CreateTimer();
-        _lookTimer.Interval = TimeSpan.FromSeconds(ReduceMotion ? 10 : 2); // reduce motion: previews barely move
+        // About 12 pictures a second, so the looks move with you like the main picture. Reduce motion: barely move.
+        _lookTimer.Interval = ReduceMotion ? TimeSpan.FromSeconds(10) : TimeSpan.FromMilliseconds(80);
         _lookTimer.Tick += (_, _) => RefreshLookThumbs();
         _lookTimer.Start();
         RefreshLookThumbs();
@@ -64,30 +68,66 @@ public sealed partial class MainPage
         FilterPreset.None => "None", FilterPreset.BlackAndWhite => "B&W", FilterPreset.Bleach => "Bleach", _ => f.ToString(),
     };
 
-    /// <summary>Re-renders the previews from the live camera (cheap: 100×100 per look, every 2 s, only when the panel is visible).</summary>
+    /// <summary>
+    /// Re-renders the previews from the live camera, only while the panel is visible. The pictures are worked out
+    /// away from the window's thread, one round at a time, so they never hold up the window or pile up. While a
+    /// recording or a stream runs, or the PC is short of headroom, they slow to one round every two seconds: the
+    /// main picture comes first.
+    /// </summary>
     private void RefreshLookThumbs()
     {
         if (CameraPanel.Visibility != Visibility.Visible || LeftPane.Visibility != Visibility.Visible) return;
-        var src = PreviewSource(LookSize, LookSize);
-        foreach (var (f, _, thumb, _) in _lookTiles)
+        bool busy = _recorder is not null || _live is not null || _smooth.Level > 0;
+        if (busy && !ReduceMotion && ++_lookTick % 25 != 0) return;
+        if (Interlocked.Exchange(ref _lookBusy, 1) == 1) return;
+        var filters = _lookTiles.Select(t => t.Filter).ToArray();
+        _ = Task.Run(() =>
         {
-            byte[] px;
-            if (src is { } s) px = (byte[])s.Pixels.Clone();
-            else
+            bool handedOver = false;
+            try
             {
-                px = new byte[LookSize * LookSize * 4];
-                for (int y = 0; y < LookSize; y++) for (int x = 0; x < LookSize; x++)
+                var src = PreviewSource(LookSize, LookSize);
+                if (src is null && _session is not null) return; // the frame was replaced mid-read: next round
+                int w = src?.W ?? LookSize, h = src?.H ?? LookSize;
+                var pictures = new byte[filters.Length][];
+                for (int n = 0; n < filters.Length; n++)
                 {
-                    int i = (y * LookSize + x) * 4;
-                    px[i] = (byte)(150 + x); px[i + 1] = (byte)(110 + y / 2); px[i + 2] = (byte)(200 - x); px[i + 3] = 255;
+                    byte[] px;
+                    if (src is { } s) px = (byte[])s.Pixels.Clone();
+                    else
+                    {
+                        px = new byte[w * h * 4];
+                        for (int y = 0; y < h; y++) for (int x = 0; x < w; x++)
+                        {
+                            int i = (y * w + x) * 4;
+                            px[i] = (byte)(150 + x * 100 / w); px[i + 1] = (byte)(110 + y * 50 / h); px[i + 2] = (byte)(200 - x * 100 / w); px[i + 3] = 255;
+                        }
+                    }
+                    ImageFilters.Apply(px, w, h, new ImageFilters.Adjustments(Filter: filters[n]));
+                    pictures[n] = px;
                 }
+                handedOver = DispatcherQueue.TryEnqueue(() =>
+                {
+                    try
+                    {
+                        for (int n = 0; n < filters.Length && n < _lookTiles.Count; n++)
+                        {
+                            var (f, _, thumb, _) = _lookTiles[n];
+                            if (f != filters[n]) break; // the strip was rebuilt meanwhile
+                            if (!_lookBitmaps.TryGetValue(f, out var wb) || wb.PixelWidth != w || wb.PixelHeight != h)
+                                _lookBitmaps[f] = wb = new WriteableBitmap(w, h);
+                            using (var stream = wb.PixelBuffer.AsStream()) stream.Write(pictures[n], 0, pictures[n].Length);
+                            wb.Invalidate();
+                            if (!ReferenceEquals(thumb.Source, wb)) thumb.Source = wb;
+                        }
+                    }
+                    catch { /* a preview that fails to draw is tried again next round */ }
+                    finally { Volatile.Write(ref _lookBusy, 0); }
+                });
             }
-            ImageFilters.Apply(px, LookSize, LookSize, new ImageFilters.Adjustments(Filter: f));
-            var wb = new WriteableBitmap(LookSize, LookSize);
-            using (var stream = wb.PixelBuffer.AsStream()) stream.Write(px, 0, px.Length);
-            wb.Invalidate();
-            thumb.Source = wb;
-        }
+            catch { /* tried again next round */ }
+            finally { if (!handedOver) Volatile.Write(ref _lookBusy, 0); }
+        });
     }
 
     /// <summary>Saves the app window (not the desktop) as a PNG — handy for bug reports and docs.</summary>

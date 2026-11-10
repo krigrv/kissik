@@ -611,13 +611,19 @@ public sealed partial class MainPage : Page
         byte[] pixels; int w, h, oh;
         // Whatever goes wrong inside one frame, the next frame must still be processed: without the finally, a
         // single exception left the picture frozen for good (phone) or closed the app (webcam).
+        long started = System.Diagnostics.Stopwatch.GetTimestamp();
         try
         {
             if (ProcessFrame(bmp) is not { } done) return;
             (pixels, w, h, oh) = done;
         }
         catch (Exception ex) { NoteFrameError(ex); return; }
-        finally { Volatile.Write(ref _processing, 0); }
+        finally
+        {
+            Volatile.Write(ref _processing, 0);
+            if (System.Diagnostics.Stopwatch.GetElapsedTime(started) is { TotalMilliseconds: > 500 } slow)
+                AppLog.Note($"frame: took {slow.TotalMilliseconds:F0} ms to process ({bmp.PixelWidth}x{bmp.PixelHeight}, recording {_recorder is not null})");
+        }
         ShowFrame(pixels, w, h, oh);
     }
 

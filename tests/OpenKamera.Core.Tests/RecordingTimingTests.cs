@@ -122,4 +122,43 @@ public class RecordingTimingTests(ITestOutputHelper log)
         var props = await (await Windows.Storage.StorageFile.GetFileFromPathAsync(path)).Properties.GetVideoPropertiesAsync();
         Assert.InRange(props.Duration.TotalSeconds, 3.0, 3.7);
     }
+
+    /// <summary>
+    /// The camera can go quiet for a few seconds mid-recording while the microphone carries on. The sound for that
+    /// stretch used to be written far ahead of the picture, which made the file writer wait for picture that the
+    /// same thread could no longer deliver: the recording froze there and Stop never finished.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    [Trait("Category", "Hardware")]
+    public async Task APictureThatGoesQuiet_DoesNotFreezeTheRecording(bool gpu)
+    {
+        string dir = Path.Combine(Path.GetTempPath(), "OpenKameraTests", "quiet-" + Guid.NewGuid().ToString("N")[..8]);
+        Directory.CreateDirectory(dir);
+        string path = Path.Combine(dir, "rec.mp4");
+        var rec = new SegmentedRecorder(1280, 720, 30, withAudio: true) { PreferGpu = gpu };
+        await rec.StartAsync(path);
+        log.WriteLine($"GPU encoder: {rec.OnGpu}");
+        var frame = new byte[1280 * 720 * 4];
+        var block = new float[480 * 2]; // 10 ms
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        // 1 s of picture and sound, 6 s of sound alone, then 1 s of both again, in real time.
+        while (clock.Elapsed < TimeSpan.FromSeconds(8))
+        {
+            var t = clock.Elapsed;
+            bool picture = t < TimeSpan.FromSeconds(1) || t > TimeSpan.FromSeconds(7);
+            if (picture) { Array.Fill(frame, (byte)(t.TotalSeconds * 30)); rec.Push(frame, 1280, 720, t); }
+            for (int i = 0; i < 3; i++) rec.PushAudio(block, t + TimeSpan.FromMilliseconds(10 * i));
+            await Task.Delay(30);
+        }
+        var stop = rec.StopAsync();
+        Assert.True(await Task.WhenAny(stop, Task.Delay(TimeSpan.FromSeconds(30))) == stop, "Stop never finished: the recording froze");
+        await stop;
+        int frames = RecordingJoiner.CountFrames(path);
+        var props = await (await Windows.Storage.StorageFile.GetFileFromPathAsync(path)).Properties.GetVideoPropertiesAsync();
+        log.WriteLine($"written {rec.FramesWritten}, decode {frames}, duration {props.Duration.TotalSeconds:F2} s");
+        Assert.True(frames >= 30, $"only {frames} frames made it into the file");
+        Assert.InRange(props.Duration.TotalSeconds, 7.0, 8.6); // the quiet stretch is kept, so sound stays in step
+    }
 }

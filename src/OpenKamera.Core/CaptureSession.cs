@@ -77,6 +77,7 @@ public sealed class CaptureSession : IAsyncDisposable
 
     private bool _external;
     private int _decoding;
+    private long _lastArrival;
 
     /// <summary>Decodes a JPEG from the phone and delivers it like a camera frame. Drops frames while busy (no lag build-up).</summary>
     public async Task PushJpegAsync(byte[] jpeg)
@@ -131,6 +132,10 @@ public sealed class CaptureSession : IAsyncDisposable
     {
         using var frame = sender.TryAcquireLatestFrame();
         if (frame?.VideoMediaFrame is not { } vmf) return;
+        // A camera that goes quiet for a moment is worth a note: it explains a frozen picture afterwards.
+        long now = System.Diagnostics.Stopwatch.GetTimestamp(), before = Interlocked.Exchange(ref _lastArrival, now);
+        if (before != 0 && System.Diagnostics.Stopwatch.GetElapsedTime(before, now) is { TotalSeconds: > 1 } quiet)
+            AppLog.Note($"camera: no frame for {quiet.TotalMilliseconds:F0} ms");
         if (frame.SystemRelativeTime is { } captured) LastCaptureTime = captured;
         SoftwareBitmap? copy = null;
         try

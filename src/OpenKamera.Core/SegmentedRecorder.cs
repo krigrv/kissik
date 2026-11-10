@@ -58,7 +58,7 @@ public sealed class SegmentedRecorder : IAsyncDisposable
         if (PreferGpu && GpuRecorder.Available && !_gpuFailed)
         {
             var gpu = new GpuRecorder(_w, _h, _fps, _audio);
-            try { await gpu.StartAsync(path); OnGpu = true; return gpu; }
+            try { await Task.Run(() => gpu.StartAsync(path)); OnGpu = true; return gpu; }
             catch
             {
                 // No hardware encoder for this size, or the driver said no: the Windows transcoder from here on.
