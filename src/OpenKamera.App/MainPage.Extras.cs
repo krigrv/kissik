@@ -15,8 +15,12 @@ public sealed partial class MainPage
     private async void InitExtras()
     {
         // While there's no picture: point at the Source picker, and hide the scene's text so nothing shows behind the steps.
-        SourceTip.Closed += (_, _) => _sourceTipClosed = true;
+        // Only "Got it" dismisses it for good; hiding it while another tab is open does not.
+        SourceTip.Closed += (_, e) => { if (e.Reason != Microsoft.UI.Xaml.Controls.TeachingTipCloseReason.Programmatic) _sourceTipClosed = true; };
         EmptyText.RegisterPropertyChangedCallback(VisibilityProperty, (_, _) => UpdateEmptyHelp());
+        // The tip points at the camera list: on another tab (or in Simple mode) it pointed at nothing and sat on top of that tab.
+        CameraPanel.RegisterPropertyChangedCallback(VisibilityProperty, (_, _) => UpdateEmptyHelp());
+        LeftPane.RegisterPropertyChangedCallback(VisibilityProperty, (_, _) => UpdateEmptyHelp());
         UpdateEmptyHelp();
         PhoneDimToggle.IsChecked = _settings.PhoneDim;
         try
@@ -31,7 +35,8 @@ public sealed partial class MainPage
     {
         bool empty = EmptyText.Visibility == Visibility.Visible;
         OverlayCanvas.Opacity = empty ? 0 : 1;
-        SourceTip.IsOpen = empty && _session is null && !_sourceTipClosed;
+        bool listShown = CameraPanel.Visibility == Visibility.Visible && LeftPane.Visibility == Visibility.Visible;
+        SourceTip.IsOpen = empty && _session is null && !_sourceTipClosed && listShown;
     }
 
     private async void StartupToggle_Click(object sender, RoutedEventArgs e)

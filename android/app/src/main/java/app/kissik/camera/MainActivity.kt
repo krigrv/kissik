@@ -60,6 +60,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.stateDescription
 import androidx.core.content.ContextCompat
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.BinaryBitmap
@@ -150,6 +153,30 @@ private fun App(incoming: MutableState<String?>) {
 private fun hasCamera(ctx: android.content.Context) =
     ContextCompat.checkSelfPermission(ctx, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
 
+/**
+ * After a "Don't allow", Android stops showing its question, so asking again does nothing. When that has happened,
+ * open this app's page in the phone's Settings, where the permission can be switched on, and say what to do there.
+ */
+private fun openSettingsIfBlocked(ctx: android.content.Context, permission: String, what: String) {
+    val activity = ctx as? android.app.Activity ?: return
+    if (androidx.core.app.ActivityCompat.shouldShowRequestPermissionRationale(activity, permission)) return // Android will ask again
+    android.widget.Toast.makeText(ctx, "Turn on $what for KISSIK Camera under Permissions.", android.widget.Toast.LENGTH_LONG).show()
+    runCatching {
+        ctx.startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.fromParts("package", ctx.packageName, null)))
+    }
+}
+
+/** Runs [onResume] each time the app comes back to the front (for example from the phone's Settings). */
+@Composable
+private fun OnResume(onResume: () -> Unit) {
+    val owner = LocalLifecycleOwner.current
+    DisposableEffect(owner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, e -> if (e == androidx.lifecycle.Lifecycle.Event.ON_RESUME) onResume() }
+        owner.lifecycle.addObserver(observer)
+        onDispose { owner.lifecycle.removeObserver(observer) }
+    }
+}
+
 /** The KISSIK logo tile, used as the onboarding hero. */
 @Composable
 private fun LogoHero(modifier: Modifier = Modifier) =
@@ -175,6 +202,7 @@ private fun Intro(done: () -> Unit) {
     }
     var i by remember { mutableIntStateOf(0) }
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { done() }
+    BackHandler(i > 0) { i-- }
     val p = pages[i]
     Column(Modifier.fillMaxSize().background(K.bg).systemBarsPadding().padding(24.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -221,14 +249,19 @@ private fun Intro(done: () -> Unit) {
 }
 
 @Composable
-private fun DockButton(icon: ImageVector, label: String, on: Boolean = false, enabled: Boolean = true, onClick: () -> Unit) {
+private fun DockButton(icon: ImageVector, label: String, on: Boolean = false, enabled: Boolean = true, spoken: String = label,
+                       state: String? = null, onClick: () -> Unit) {
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.graphicsLayer(alpha = if (enabled) 1f else 0.4f)
-        .clip(RoundedCornerShape(16.dp)).clickable(onClick = onClick).padding(6.dp)) {
+        .clip(RoundedCornerShape(16.dp))
+        .clickable(onClickLabel = spoken, role = androidx.compose.ui.semantics.Role.Button, onClick = onClick)
+        // A screen reader hears one button with a name and a state, not an icon and a word.
+        .clearAndSetSemantics { contentDescription = spoken; if (state != null) stateDescription = state }
+        .padding(6.dp)) {
         Box(Modifier.size(48.dp).clip(RoundedCornerShape(16.dp)).background(if (on) K.accent else K.raised), contentAlignment = Alignment.Center) {
-            Icon(icon, label, tint = if (on) Color.White else K.text)
+            Icon(icon, null, tint = if (on) Color.White else K.text)
         }
         Spacer(Modifier.height(4.dp))
-        Text(label, color = K.muted, fontSize = 11.sp)
+        Text(label, color = K.muted, fontSize = 12.sp)
     }
 }
 
@@ -245,8 +278,13 @@ private fun Home(pairing: Pairing?, onSettings: () -> Unit, onPair: () -> Unit) 
     val maxSize by Live.maxSize.collectAsState()
     val hasTorch by Live.hasTorch.collectAsState()
     val saving by Live.saving.collectAsState()
-    val micLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok -> if (ok) { Live.mic.value = true; Live.save(ctx) } }
-    val camLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok -> if (ok) StreamService.start(ctx) }
+    val micLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
+        if (ok) { Live.mic.value = true; Live.save(ctx) } else openSettingsIfBlocked(ctx, Manifest.permission.RECORD_AUDIO, "Microphone")
+    }
+    val camLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
+        if (ok) StreamService.start(ctx) else openSettingsIfBlocked(ctx, Manifest.permission.CAMERA, "Camera")
+    }
+    val landscape = androidx.compose.ui.platform.LocalConfiguration.current.let { it.screenWidthDp > it.screenHeightDp }
     val live = link == Link.Wifi || link == Link.Usb
     var showPro by remember { mutableStateOf(false) }
     if (showPro) ProSheet { showPro = false }
@@ -257,7 +295,7 @@ private fun Home(pairing: Pairing?, onSettings: () -> Unit, onPair: () -> Unit) 
         Box(Modifier.fillMaxWidth().height(140.dp).background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.7f), Color.Transparent))))
         Box(Modifier.fillMaxWidth().height(260.dp).align(Alignment.BottomCenter).background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.85f)))))
 
-        Column(Modifier.fillMaxSize().systemBarsPadding().padding(16.dp)) {
+        Column(Modifier.fillMaxSize().systemBarsPadding().padding(16.dp), horizontalAlignment = Alignment.End) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text("KISSIK", color = K.text, fontSize = 18.sp, fontWeight = FontWeight.Black, letterSpacing = 3.sp)
                 Spacer(Modifier.width(12.dp))
@@ -276,7 +314,8 @@ private fun Home(pairing: Pairing?, onSettings: () -> Unit, onPair: () -> Unit) 
             Spacer(Modifier.weight(1f))
             if (pairing == null) {
                 // Not paired yet: one clear card instead of a blank screen.
-                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(K.card).padding(24.dp)) {
+                Column((if (landscape) Modifier.widthIn(max = 420.dp) else Modifier.fillMaxWidth()).clip(RoundedCornerShape(28.dp)).background(K.card)
+                    .verticalScroll(rememberScrollState()).padding(24.dp)) {
                     Icon(Icons.Outlined.QrCodeScanner, null, tint = K.accent, modifier = Modifier.size(40.dp))
                     Spacer(Modifier.height(14.dp))
                     Text("Pair with your PC", color = K.text, fontSize = 24.sp, fontWeight = FontWeight.SemiBold)
@@ -294,29 +333,32 @@ private fun Home(pairing: Pairing?, onSettings: () -> Unit, onPair: () -> Unit) 
                     colors = ButtonDefaults.buttonColors(containerColor = K.accent, contentColor = Color.White)) { Text("Scan the code", fontSize = 16.sp) }
                 if (!running) Text("Paired with ${pairing.host}", color = K.muted, fontSize = 15.sp,
                     textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp))
-                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(K.card.copy(alpha = 0.92f)).padding(12.dp)) {
+                Column((if (landscape) Modifier.widthIn(max = 420.dp) else Modifier.fillMaxWidth()).clip(RoundedCornerShape(28.dp)).background(K.card.copy(alpha = 0.92f)).padding(12.dp)) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                        DockButton(Icons.Filled.Cameraswitch, if (front) "Front" else "Back") { Live.front.value = !front; Pro.lensId.value = null; Live.torch.value = false; Live.save(ctx) }
+                        // "Rear", not "Back": under a button, "Back" reads as "go back".
+                        DockButton(Icons.Filled.Cameraswitch, if (front) "Front" else "Rear", spoken = "Switch camera",
+                            state = if (front) "Front camera" else "Rear camera") { Live.front.value = !front; Pro.lensId.value = null; Live.torch.value = false; Live.save(ctx) }
                         // The torch is the phone's flash LED; most front cameras have none.
-                        DockButton(if (torch) Icons.Filled.FlashOn else Icons.Filled.FlashOff, "Torch", torch, enabled = hasTorch == true) {
+                        DockButton(if (torch) Icons.Filled.FlashOn else Icons.Filled.FlashOff, "Torch", torch, enabled = hasTorch == true,
+                            state = if (hasTorch != true) "Not available" else if (torch) "On" else "Off") {
                             when (hasTorch) {
                                 true -> Live.torch.value = !torch
                                 false -> android.widget.Toast.makeText(ctx, if (front) "The front camera has no torch. Switch to the back camera." else "This camera has no torch.", android.widget.Toast.LENGTH_SHORT).show()
                                 null -> android.widget.Toast.makeText(ctx, "Start streaming to use the torch.", android.widget.Toast.LENGTH_SHORT).show()
                             }
                         }
-                        DockButton(if (mic) Icons.Filled.Mic else Icons.Filled.MicOff, "Mic", mic) {
+                        DockButton(if (mic) Icons.Filled.Mic else Icons.Filled.MicOff, "Mic", mic, spoken = "Microphone", state = if (mic) "On" else "Off") {
                             if (mic) { Live.mic.value = false; Live.save(ctx) }
                             else if (ContextCompat.checkSelfPermission(ctx, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) { Live.mic.value = true; Live.save(ctx) }
                             else micLauncher.launch(Manifest.permission.RECORD_AUDIO)
                         }
-                        DockButton(Icons.Outlined.HighQuality, "${quality}p") {
+                        DockButton(Icons.Outlined.HighQuality, "${quality}p", spoken = "Picture size", state = "${quality}p") {
                             // Cycle through the common sizes this lens can actually do, up to its maximum.
                             val top = maxSize.second.takeIf { it > 0 } ?: 1080
                             val steps = (listOf(480, 720, 1080, 1440, 2160, 2880, 4320).filter { it <= top } + top).distinct().sorted()
                             Live.quality.value = steps.firstOrNull { it > quality } ?: steps.first(); Live.save(ctx)
                         }
-                        DockButton(Icons.Outlined.Tune, "Pro") { showPro = true }
+                        DockButton(Icons.Outlined.Tune, "Pro", spoken = "Camera controls") { showPro = true }
                     }
                     Spacer(Modifier.height(10.dp))
                     val stopColor = if (running) Color(0xFFFF5A5F) else K.accent
@@ -357,7 +399,13 @@ private fun LivePreview() {
 private fun Scan(onBack: () -> Unit, onCode: (String) -> Unit) {
     val ctx = LocalContext.current
     var granted by remember { mutableStateOf(hasCamera(ctx)) }
-    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted = it }
+    var asked by remember { mutableStateOf(false) }
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        granted = it
+        // Only after the person pressed the button: the first, automatic question must not jump to Settings.
+        if (!it && asked) openSettingsIfBlocked(ctx, Manifest.permission.CAMERA, "Camera")
+    }
+    OnResume { granted = hasCamera(ctx) } // back from the phone's Settings with the camera switched on
     var paste by remember { mutableStateOf(false) }
     // The scanner needs the camera: stop streaming and wait until the stream has really let go of it.
     val streaming by Live.running.collectAsState()
@@ -375,8 +423,13 @@ private fun Scan(onBack: () -> Unit, onCode: (String) -> Unit) {
                 Text("Scan the code in KISSIK", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
             }
             Spacer(Modifier.weight(1f))
-            Text(if (granted) "Point at the QR code on your PC screen" else "Allow the camera to scan the code",
+            Text(if (granted) "Point at the QR code on your PC screen" else "KISSIK Camera needs the camera to scan the code",
                 color = Color.White, fontSize = 15.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+            if (!granted) {
+                Spacer(Modifier.height(12.dp))
+                Button({ asked = true; launcher.launch(Manifest.permission.CAMERA) }, Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = K.accent, contentColor = Color.White)) { Text("Allow the camera", fontSize = 16.sp) }
+            }
             Spacer(Modifier.height(8.dp))
             Text("Phone and PC on the same Wi-Fi · guest networks usually block it", color = Color.White.copy(alpha = 0.6f),
                 fontSize = 13.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
@@ -458,6 +511,12 @@ private fun Settings(pairing: Pairing?, onClose: () -> Unit, onPair: () -> Unit,
     val ctx = LocalContext.current
     val saver by Live.saver.collectAsState()
     val version = remember { runCatching { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName }.getOrNull() ?: "?" }
+    var confirmForget by remember { mutableStateOf(false) }
+    if (confirmForget) AlertDialog(onDismissRequest = { confirmForget = false }, containerColor = K.card,
+        title = { Text("Forget ${pairing?.host ?: "this PC"}?") },
+        text = { Text("Streaming stops, and this phone can't connect to that PC again until you scan its code in KISSIK.") },
+        confirmButton = { TextButton({ confirmForget = false; onForget() }) { Text("Forget this PC", color = Color(0xFFFF5A5F)) } },
+        dismissButton = { TextButton({ confirmForget = false }) { Text("Keep it") } })
     Column(Modifier.fillMaxSize().background(K.bg).systemBarsPadding().padding(horizontal = 20.dp).verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -480,7 +539,7 @@ private fun Settings(pairing: Pairing?, onClose: () -> Unit, onPair: () -> Unit,
             Spacer(Modifier.height(14.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedButton(onPair, shape = RoundedCornerShape(14.dp)) { Text(if (pairing == null) "Scan the code" else "Pair another PC") }
-                if (pairing != null) TextButton(onForget) { Text("Forget", color = Color(0xFFFF5A5F)) }
+                if (pairing != null) TextButton({ confirmForget = true }) { Text("Forget", color = Color(0xFFFF5A5F)) }
             }
         }
 
