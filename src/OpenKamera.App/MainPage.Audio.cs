@@ -52,15 +52,21 @@ public sealed partial class MainPage
         else BuildMicTracks();
     }
 
-    private async Task StartAudioAsync()
+    /// <summary>True while the microphone could not be opened because Windows has access turned off for KISSIK.</summary>
+    private bool _micAccessOff;
+
+    /// <param name="openSettings">Open the Windows microphone page when access is off (not on a quiet retry).</param>
+    private async Task StartAudioAsync(bool openSettings = true)
     {
         try
         {
             AudioStatus.Text = "Starting audio…";
+            _micAccessOff = false;
             if (!await AudioEngine.RequestAccessAsync())
             {
-                AudioStatus.Text = "Microphone access is off for KISSIK. Turn it on in Settings → Privacy & security → Microphone, then switch audio off and on.";
-                _ = Windows.System.Launcher.LaunchUriAsync(new Uri("ms-settings:privacy-microphone"));
+                _micAccessOff = true;
+                AudioStatus.Text = "Microphone access is off for KISSIK. Turn it on in Settings → Privacy & security → Microphone. KISSIK opens the microphone by itself once it is on.";
+                if (openSettings) _ = Windows.System.Launcher.LaunchUriAsync(new Uri("ms-settings:privacy-microphone"));
                 BuildMicTracks();
                 return;
             }
@@ -70,11 +76,12 @@ public sealed partial class MainPage
             bool denied = _audio.LastError?.Contains("AccessDenied", StringComparison.OrdinalIgnoreCase) == true
                 || (_audio.Tracks.Count == 0 && DeviceUsage.OwnConsent(PrivacyDevice.Microphone) is "Prompt" or "Deny");
             AudioStatus.Text = _audio.Tracks.Count == 0
-                ? (denied ? "Microphone access is off for KISSIK. Turn it on in Settings → Privacy & security → Microphone, then switch audio off and on."
+                ? (denied ? "Microphone access is off for KISSIK. Turn it on in Settings → Privacy & security → Microphone. KISSIK opens the microphone by itself once it is on."
                           : $"No microphone could be opened{(_audio.LastError is { } err ? $" ({err})" : "")}.")
                 : $"Capturing {_audio.Tracks.Count} microphone(s) at 48 kHz." + (_audio.OutputName is { } on
                     ? $" Sending the mix to {on}." : " Nothing is played back, so there is no echo.");
-            if (denied) _ = Windows.System.Launcher.LaunchUriAsync(new Uri("ms-settings:privacy-microphone"));
+            _micAccessOff = denied;
+            if (denied && openSettings) _ = Windows.System.Launcher.LaunchUriAsync(new Uri("ms-settings:privacy-microphone"));
             if (_audio.Notes.Count > 0) AudioStatus.Text += " " + string.Join(" ", _audio.Notes);
             if (_audio.Tracks.Count == 0 && _audio.LastError?.Contains("DeviceNotAvailable") == true)
                 AudioStatus.Text += " Another app may be using it exclusively, or it is unplugged.";
@@ -83,8 +90,9 @@ public sealed partial class MainPage
         }
         catch (UnauthorizedAccessException)
         {
-            AudioStatus.Text = "Microphone access is off for KISSIK. Turn it on in Settings → Privacy & security → Microphone.";
-            _ = Windows.System.Launcher.LaunchUriAsync(new Uri("ms-settings:privacy-microphone"));
+            _micAccessOff = true;
+            AudioStatus.Text = "Microphone access is off for KISSIK. Turn it on in Settings → Privacy & security → Microphone. KISSIK opens the microphone by itself once it is on.";
+            if (openSettings) _ = Windows.System.Launcher.LaunchUriAsync(new Uri("ms-settings:privacy-microphone"));
         }
         catch (Exception ex) { AudioStatus.Text = "Audio failed: " + ex.Message; }
         BuildMicTracks();

@@ -20,6 +20,7 @@ public sealed partial class MainPage
             CheckSystemMicMute();
             if (_audio.LastError is { } err && err != _shownAudioError) { _shownAudioError = err; Status("Audio problem: " + err); }
             if (_micsChanged && !_audioRestarting && _settings.AudioOn && _audio.IsRunning) await FollowMicChangeAsync();
+            if (_micAccessOff && !_audioRestarting && _settings.AudioOn) { await OpenMicOnceAllowedAsync(); return; }
             if (_audioRestarting || !_settings.AudioOn || !_audio.NeedsRestart(DateTime.UtcNow, TimeSpan.FromSeconds(3))) return;
             _audioRestarting = true;
             try
@@ -36,6 +37,29 @@ public sealed partial class MainPage
         };
         _audioWatch.Start();
         WatchMicrophones();
+    }
+
+    private string? _micConsentSeen;
+
+    /// <summary>
+    /// The microphone was refused because Windows had access turned off for KISSIK. Once the person turns it on,
+    /// open the microphone without asking them to switch audio off and on or restart. One try per change of the
+    /// Windows setting, so a setting that still refuses is not retried every two seconds.
+    /// </summary>
+    private async Task OpenMicOnceAllowedAsync()
+    {
+        string? consent = OpenKamera.Core.DeviceUsage.OwnConsent(OpenKamera.Core.PrivacyDevice.Microphone);
+        if (consent == _micConsentSeen) return;
+        _micConsentSeen = consent;
+        if (consent != "Allow") return;
+        _audioRestarting = true;
+        try
+        {
+            await StartAudioAsync(openSettings: false);
+            if (_audio.Tracks.FirstOrDefault(t => t.IsVoice)?.Name is { } mic) Status($"Microphone access is on: now using {mic}.");
+        }
+        catch (Exception ex) { Status("Couldn't open the microphone: " + ex.Message); }
+        finally { _audioRestarting = false; }
     }
 
     private Windows.Devices.Enumeration.DeviceWatcher? _micWatcher;
