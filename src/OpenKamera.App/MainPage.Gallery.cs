@@ -25,6 +25,7 @@ public sealed partial class MainPage
         {
             _gallery = new GalleryWindow(this);
             _gallery.Closed += (_, _) => _gallery = null;
+            ThemeWindow(_gallery);
         }
         _gallery.Show(tab);
     }

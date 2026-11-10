@@ -23,7 +23,15 @@ public sealed class GalleryWindow : Window
     private readonly TextBlock _heading = new() { FontSize = 20, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
     private readonly StackPanel _actions = new() { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
     private readonly TextBlock _empty = new() { Margin = new Thickness(24), Opacity = 0.7, TextWrapping = TextWrapping.Wrap, Visibility = Visibility.Collapsed };
+    private readonly Grid _left = new() { Width = 220, Padding = new Thickness(8, 12, 8, 12) };
     private string _tab = "scenes";
+
+    /// <summary>The theme changed in the main window: colours picked in code are picked again.</summary>
+    internal void ThemeChanged()
+    {
+        _left.Background = _main.ThemeBrush("LayerFillColorDefaultBrush");
+        Rebuild();
+    }
     private string _collection = "";
 
     public GalleryWindow(MainPage main)
@@ -43,7 +51,8 @@ public sealed class GalleryWindow : Window
         _grid.ItemClick += (_, e) => { if (e.ClickedItem is FrameworkElement { Tag: Action use }) use(); };
         AutomationProperties.SetName(_grid, "Gallery items");
 
-        var left = new Grid { Width = 220, Padding = new Thickness(8, 12, 8, 12), Background = (Brush)Application.Current.Resources["LayerFillColorDefaultBrush"] };
+        var left = _left;
+        left.Background = _main.ThemeBrush("LayerFillColorDefaultBrush");
         left.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         left.RowDefinitions.Add(new RowDefinition());
         left.Children.Add(new TextBlock { Text = "Collections", FontWeight = FontWeights.SemiBold, Margin = new Thickness(8, 0, 0, 8) });
@@ -312,7 +321,7 @@ public sealed class GalleryWindow : Window
         {
             Text = name, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis,
             FontWeight = current ? FontWeights.SemiBold : FontWeights.Normal,
-            Foreground = current ? (Brush)Application.Current.Resources["AccentTextFillColorPrimaryBrush"] : (Brush)Application.Current.Resources["TextFillColorPrimaryBrush"],
+            Foreground = _main.ThemeBrush(current ? "AccentTextFillColorPrimaryBrush" : "TextFillColorPrimaryBrush"),
         });
         Grid.SetColumn(more, 1);
         label.Children.Add(more);
@@ -324,7 +333,7 @@ public sealed class GalleryWindow : Window
                 new Border
                 {
                     Height = 146, CornerRadius = new CornerRadius(6), Background = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 21, 26, 32)),
-                    BorderThickness = new Thickness(current ? 2 : 0), BorderBrush = (Brush)Application.Current.Resources["AccentFillColorDefaultBrush"],
+                    BorderThickness = new Thickness(current ? 2 : 0), BorderBrush = _main.ThemeBrush("AccentFillColorDefaultBrush"),
                     Child = thumb,
                 },
                 label,

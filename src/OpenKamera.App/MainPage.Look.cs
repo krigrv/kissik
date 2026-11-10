@@ -35,7 +35,7 @@ public sealed partial class MainPage
             var btn = new Button
             {
                 Padding = new Thickness(0), Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent), BorderThickness = new Thickness(0),
-                Content = new StackPanel { Width = 56, Spacing = 4, Children = { frame, label } },
+                Content = new StackPanel { Width = 64, Spacing = 4, Children = { frame, label } },
             };
             AutomationProperties.SetName(btn, $"Look: {LookName(f)}");
             ToolTipService.SetToolTip(btn, LookName(f));

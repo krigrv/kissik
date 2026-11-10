@@ -176,6 +176,9 @@ public sealed partial class MainPage
         MessageArea.Margin = simple ? new Thickness(16, 6, 0, 0) : new Thickness(0, 0, 12, 12);
         MessageArea.MaxWidth = simple ? 520 : 236;
         StatusText.MaxLines = simple ? 2 : 3;
+        // Simple mode has no Source panel: its camera list sits above the big buttons.
+        EmptyStep1.Text = simple ? "1. Pick your camera in the list at the bottom of the window."
+                                 : "1. Pick your camera where the orange bubble points, under Source on the left.";
         UpdateStageMargin();
         SyncSimple();
     }

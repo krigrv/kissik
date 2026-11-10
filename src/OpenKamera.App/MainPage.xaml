@@ -174,7 +174,7 @@
                             <FontIcon Glyph="&#xE714;" FontSize="22" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
                             <TextBlock Text="Webcam" FontSize="17" FontWeight="SemiBold" VerticalAlignment="Center" />
                         </StackPanel>
-                        <TextBlock TextWrapping="Wrap" Text="1. Pick your camera where the orange bubble points, under Source on the left." />
+                        <TextBlock x:Name="EmptyStep1" TextWrapping="Wrap" Text="1. Pick your camera where the orange bubble points, under Source on the left." />
                         <TextBlock TextWrapping="Wrap" Text="2. Press Connect camera." />
                         <Button x:Name="EmptyConnectBtn" Content="Connect camera" Click="EmptyConnect_Click" HorizontalAlignment="Stretch"
                                 Style="{StaticResource AccentButtonStyle}" CornerRadius="10" Padding="16,9" FontSize="15"
