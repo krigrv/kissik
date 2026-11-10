@@ -64,6 +64,21 @@ public partial class App : Application
     /// <param name="args">Details about the launch request and process.</param>
     protected override void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
     {
+        // One KISSIK at a time: a second copy would fight the first for the camera, the microphone and the meeting
+        // camera. Opening KISSIK again shows the one that is already running.
+        try
+        {
+            var first = Microsoft.Windows.AppLifecycle.AppInstance.FindOrRegisterForKey("KISSIK");
+            if (!first.IsCurrent)
+            {
+                var how = Microsoft.Windows.AppLifecycle.AppInstance.GetCurrent().GetActivatedEventArgs();
+                try { Task.Run(() => first.RedirectActivationToAsync(how).AsTask()).Wait(TimeSpan.FromSeconds(5)); } catch { }
+                System.Diagnostics.Process.GetCurrentProcess().Kill();
+                return;
+            }
+            first.Activated += (_, _) => MainWindow?.DispatcherQueue.TryEnqueue(() => MainPage.Current?.ShowFromSecondLaunch());
+        }
+        catch { /* if Windows can't tell us, open normally */ }
         MainWindow = _window = new MainWindow();
         _window.Activate();
     }

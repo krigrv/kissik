@@ -22,6 +22,9 @@ public sealed partial class MainPage
         Unloaded += (_, _) => _tray?.Dispose();
     }
 
+    /// <summary>KISSIK was opened again while it is already running: show this window instead of a second copy.</summary>
+    internal void ShowFromSecondLaunch() => ShowMainWindow();
+
     private void ShowMainWindow()
     {
         if (App.MainWindow.AppWindow.Presenter is Microsoft.UI.Windowing.OverlappedPresenter p && p.State == Microsoft.UI.Windowing.OverlappedPresenterState.Minimized) p.Restore();
@@ -46,6 +49,15 @@ public sealed partial class MainPage
     {
         if (_quitting) return;
         _quitting = true;
+        // A camera or sound device that never answers must not leave a hidden KISSIK running for hours (one did, and
+        // kept sending its picture to a meeting). Give the clean shutdown time, longer while a recording is being
+        // saved, then end the process anyway.
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(TimeSpan.FromSeconds(20));
+            for (int i = 0; (_recorder is not null || _savingRecording) && i < 1200; i++) await Task.Delay(500);
+            Environment.Exit(0);
+        });
         try
         {
             if (_recorder is not null || _savingRecording) Status("Saving your recording before KISSIK closes…");

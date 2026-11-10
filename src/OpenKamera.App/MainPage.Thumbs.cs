@@ -9,7 +9,7 @@ public sealed partial class MainPage
 {
     private readonly WriteableBitmap _thumbSource = new(320, 180);
     /// <summary>The whole camera image (before framing) for the framing minimap.</summary>
-    private readonly WriteableBitmap _rawThumb = new(320, 180);
+    private WriteableBitmap _rawThumb = new(320, 180);
     private byte[]? _rawBuf;
     private object? _lastRaw;
     private Microsoft.UI.Dispatching.DispatcherQueueTimer? _thumbTimer;
@@ -78,7 +78,15 @@ public sealed partial class MainPage
             double want = Math.Round(Minimap.ActualWidth * h / w);
             if (Math.Abs(Minimap.Height - want) > 1) { Minimap.Height = want; UpdateMinimap(); }
         }
-        var (small, _, _) = await Task.Run(() => OutputFit.Stretch(buf, w, h, 320, 180));
+        // The small copy keeps the camera's shape. A phone held upright used to be squeezed into a wide 320×180
+        // copy and stretched back, which left 180 rows for a tall preview: blocky and soft.
+        int tw = w >= h ? 320 : Math.Max(2, 320 * w / h), th = w >= h ? Math.Max(2, 320 * h / w) : 320;
+        if (_rawThumb.PixelWidth != tw || _rawThumb.PixelHeight != th)
+        {
+            _rawThumb = new WriteableBitmap(tw, th);
+            Minimap.Background = null;
+        }
+        var (small, _, _) = await Task.Run(() => OutputFit.Stretch(buf, w, h, tw, th));
         using (var stream = System.Runtime.InteropServices.WindowsRuntime.WindowsRuntimeBufferExtensions.AsStream(_rawThumb.PixelBuffer))
             await stream.WriteAsync(small.AsMemory(0, Math.Min(small.Length, (int)_rawThumb.PixelBuffer.Capacity)));
         _rawThumb.Invalidate();

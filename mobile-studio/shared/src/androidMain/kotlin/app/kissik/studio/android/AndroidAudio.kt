@@ -80,7 +80,8 @@ class AndroidAudio(private val ctx: Context) : AudioService {
             var smooth = 0f
             while (thread === Thread.currentThread()) {
                 val n = r.read(buf, 0, buf.size)
-                if (n <= 0) continue
+                // A microphone that has gone away answers with an error at once: wait, don't spin a whole core.
+                if (n <= 0) { if (n < 0) Thread.sleep(200); continue }
                 val t = System.nanoTime() / 1000 - n * 1_000_000L / SAMPLE_RATE
                 var peak = 0
                 for (i in 0 until n) peak = maxOf(peak, abs(buf[i].toInt()))

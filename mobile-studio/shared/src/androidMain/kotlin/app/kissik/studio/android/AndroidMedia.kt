@@ -65,6 +65,7 @@ class AndroidMedia(private val activity: ComponentActivity, private val camera: 
         val fx = camera.state.value
         if (options.quality == Quality.UHD && !options.vertical) { startDirect(); return }
         val (w, h) = size(options)
+        if (!hasMic()) say("Recording without sound: KISSIK isn't allowed to use the microphone.")
         runCatching {
             val file = File(ctx.cacheDir, "KISSIK-${stamp()}.mp4")
             val mux = MuxerSink(file, expectAudio = hasMic())
@@ -117,8 +118,19 @@ class AndroidMedia(private val activity: ComponentActivity, private val camera: 
         state.value = state.value.copy(paused = false)
     }
 
+    // Away from the app the camera stops, so the recording would hold a frozen picture: pause it, and carry on
+    // when the person comes back.
+    private var pausedForBackground = false
+    fun onBackground() { if (state.value.recording && !state.value.paused) { pause(); pausedForBackground = true } }
+    fun onForeground() {
+        if (!pausedForBackground) return
+        pausedForBackground = false
+        if (state.value.recording && state.value.paused) { resume(); say("The recording paused while KISSIK was in the background. It is recording again.") }
+    }
+
     override fun stopRecording() {
         if (!state.value.recording) return
+        pausedForBackground = false
         clock.stop(); ticker?.cancel(); ticker = null; keepAwake(false)
         state.value = state.value.copy(recording = false, paused = false, elapsedMs = 0)
         direct?.let { it.stop(); return }
@@ -257,9 +269,8 @@ class AndroidMedia(private val activity: ComponentActivity, private val camera: 
         uri
     }.getOrNull()
 
-    private fun keepAwake(on: Boolean) = activity.runOnUiThread {
-        if (on) activity.window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) else activity.window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-    }
+    /** The screen is kept on by KeepScreenOn (AndroidPlatform.kt), which also knows about streams and the PC link. */
+    @Suppress("UNUSED_PARAMETER") private fun keepAwake(on: Boolean) {}
 
     fun release() { if (state.value.recording) stopRecording(); stopReplay(); if (state.value.timeLapse) stopTimeLapse() }
 }

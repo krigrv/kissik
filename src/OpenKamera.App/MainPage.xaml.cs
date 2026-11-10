@@ -645,7 +645,7 @@ public sealed partial class MainPage : Page
         long t0 = System.Diagnostics.Stopwatch.GetTimestamp();
         // On the GPU the outputs' layers (front overlay, scene transition, captions, shutter) are baked there too.
         // The outputs are read once here so the bake's size matches what each of them gets below.
-        bool vcam = _vcam.HasClients;
+        bool vcam = _vcam.HasClients && !_quitting;
         var live = _live; var rec = _recorder is { } r0 && !_recPaused ? r0 : null; var replay = _replay;
         bool fullSize = live is not null || rec is not null || replay is not null;
         OutputBake? bake = null;

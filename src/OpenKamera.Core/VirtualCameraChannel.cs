@@ -29,6 +29,14 @@ public sealed class VirtualCameraChannel : IDisposable
     public bool HasClients => Open() && _view!.ReadUInt32(OffClients) > 0;
     public long FramesWritten { get; private set; }
 
+    /// <summary>
+    /// True while another KISSIK is feeding the same camera. Two copies writing in turn made the meeting picture
+    /// flicker between their two pictures, so the copy that got there first keeps the camera and this one waits.
+    /// </summary>
+    public bool AnotherWriter { get; private set; }
+
+    private static readonly long Fresh = TimeSpan.FromSeconds(1).Ticks;
+
     private bool Open()
     {
         if (_view is not null) return true;
@@ -65,6 +73,10 @@ public sealed class VirtualCameraChannel : IDisposable
         try
         {
             var v = _view!;
+            uint owner = v.ReadUInt32(OffPid);
+            long age = DateTime.UtcNow.ToFileTimeUtc() - v.ReadInt64(OffTimestamp);
+            AnotherWriter = owner != 0 && owner != (uint)Environment.ProcessId && age >= 0 && age < Fresh;
+            if (AnotherWriter) return false;
             int seq = v.ReadInt32(OffSequence);
             if ((seq & 1) == 0) seq++;
             v.Write(OffSequence, seq);                 // odd: writing

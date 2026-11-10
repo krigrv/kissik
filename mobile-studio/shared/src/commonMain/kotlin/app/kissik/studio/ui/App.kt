@@ -38,6 +38,8 @@ fun App(platform: StudioPlatform) {
     KissikTheme(s.theme, studio.highContrast, s.largeText) {
         Surface(Modifier.fillMaxSize().safeDrawingPadding(), color = MaterialTheme.colorScheme.background) {
             var screen by remember { mutableStateOf(if (s.onboarded) Screen.Studio else Screen.Onboarding) }
+            // The phone's Back goes back to the camera from Settings and the scanner, instead of closing KISSIK.
+            platform.system.OnBack(screen == Screen.Settings || screen == Screen.Scanner) { screen = Screen.Studio }
             when (screen) {
                 Screen.Onboarding -> Onboarding(studio) { screen = Screen.Studio }
                 Screen.Studio -> StudioScreen(studio, open = { screen = it })

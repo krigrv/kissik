@@ -254,8 +254,9 @@ class AndroidCamera(private val activity: ComponentActivity, private val reduced
             if (!work) { if (processed.value != null) processed.value = null; return }
             val raw = image.toBitmap()
             val rot = image.imageInfo.rotationDegrees
-            // Upright, mirrored like a mirror for the front camera, at most 960 px on the long side for the effects.
-            val scale = minOf(1f, 960f / maxOf(raw.width, raw.height))
+            // Upright, mirrored like a mirror for the front camera. Effects work on at most 960 px on the long side;
+            // with no effects on, photos and recordings keep the camera's full size.
+            val scale = minOf(1f, (if (fx.needsProcessing) 960f else 1920f) / maxOf(raw.width, raw.height))
             val m = Matrix().apply { postRotate(rot.toFloat()); postScale(if (front) -scale else scale, scale) }
             val bmp = Bitmap.createBitmap(raw, 0, 0, raw.width, raw.height, m, true)
             frameNo++
@@ -272,11 +273,13 @@ class AndroidCamera(private val activity: ComponentActivity, private val reduced
             }
             if (!fx.needsProcessing && sinks.isEmpty()) { if (processed.value != null) processed.value = null; return }
 
-            val w = bmp.width; val h = bmp.height
-            val px = IntArray(w * h); bmp.getPixels(px, 0, w, 0, 0, w, h)
-            val mask = if (fx.needsMask) segment(bmp) else null
-            val out = compositor.process(Frame(w, h, px), fx, mask, lastFaces, dt, reducedMotion())
-            val outBmp = Bitmap.createBitmap(out.pixels, out.width, out.height, Bitmap.Config.ARGB_8888)
+            val outBmp = if (fx.needsProcessing) {
+                val w = bmp.width; val h = bmp.height
+                val px = IntArray(w * h); bmp.getPixels(px, 0, w, 0, 0, w, h)
+                val mask = if (fx.needsMask) segment(bmp) else null
+                val out = compositor.process(Frame(w, h, px), fx, mask, lastFaces, dt, reducedMotion())
+                Bitmap.createBitmap(out.pixels, out.width, out.height, Bitmap.Config.ARGB_8888)
+            } else bmp
             processed.value = if (fx.needsProcessing) outBmp.asImageBitmap() else null
             val burned = scene?.let { sc -> outBmp.copy(Bitmap.Config.ARGB_8888, true).also { SceneRenderer.draw(it, sc) } } ?: outBmp
             lastFrame = burned

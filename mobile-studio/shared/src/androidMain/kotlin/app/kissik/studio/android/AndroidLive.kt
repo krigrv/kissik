@@ -26,7 +26,12 @@ class AndroidLive(private val camera: AndroidCamera, private val audio: AndroidA
     private var pcm: AndroidAudio.PcmListener? = null
     private val clients = mutableMapOf<String, RtmpClient>()
 
-    private fun set(id: String, s: LinkState) { states.value = states.value + (id to s) }
+    private fun set(id: String, s: LinkState) {
+        states.value = states.value + (id to s)
+        // Every destination refused: stop encoding, rather than run the camera and encoders for nobody.
+        if (s == LinkState.Failed && clients.isNotEmpty() && clients.keys.all { states.value[it] == LinkState.Failed })
+            android.os.Handler(android.os.Looper.getMainLooper()).post { if (clients.isNotEmpty() && clients.keys.all { states.value[it] == LinkState.Failed }) stop() }
+    }
 
     override fun start(destinations: List<Destination>, settings: StreamSettings) {
         stop()

@@ -337,7 +337,10 @@ fun CaptionsPanel(studio: Studio) {
         }
     }
     SectionTitle("Language")
-    Choices(listOf("en-US", "en-GB", "en-IN", "hi-IN", "es-ES", "fr-FR", "de-DE"), studio.settings.captionLanguage, { it }) { l -> studio.updateSettings { it.copy(captionLanguage = l) } }
+    // Names people recognise, each in its own language, instead of codes like "hi-IN".
+    val languages = listOf("en-US" to "English (US)", "en-GB" to "English (UK)", "en-IN" to "English (India)", "hi-IN" to "हिन्दी",
+        "es-ES" to "Español", "fr-FR" to "Français", "de-DE" to "Deutsch")
+    Choices(languages, languages.firstOrNull { it.first == studio.settings.captionLanguage }, { it.second }) { l -> studio.updateSettings { it.copy(captionLanguage = l.first) } }
 }
 
 // ── Teleprompter ─────────────────────────────────────────────────────────────
