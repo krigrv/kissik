@@ -71,8 +71,9 @@ No account, no watermark, free
 
 **Copyright:** © 2026 Krishna Gaurav
 
-**Screenshots** (1920×1080 or larger, PNG): use the KISSIK window pictures in `website/assets/screens/` in this order:
-studio.jpg, camera.jpg, layers.jpg (Name Card), lower-third.jpg, simple.jpg, bubble-cam.jpg. Convert to PNG first if Partner Center asks.
+**Screenshots** (1902×940 PNG): from `artifacts/store/screenshots/`, in this order:
+00a-cover-blur.png, 00b-cover-scenes.png, 00c-cover-camera.png (the three cover slides: real KISSIK UI full-bleed, headline and a small presenter photo in a caption band), then 01-studio.png through 08-first-screen.png (the plain proof screenshots).
+The three cover slides also replaced camera.jpg, bubble-cam.jpg and studio.jpg in `website/assets/screens/` (2026-11-11).
 
 **Store logos:** `docs/logo/kissik-logo-1024.png` (1:1, 300×300 or larger).
 
