@@ -961,7 +961,7 @@ public sealed partial class MainPage : Page
             catch { /* no detector: the usual face area is used */ }
             var r = await Task.Run(() => AutoPicture.Analyze(f.Px, f.W, f.H, face));
             _restoring = true;
-            EnhGamma.Value = r.Gamma * 100; EnhContrast.Value = r.Contrast * 100;
+            EnhBrightness.Value = r.Brightness * 100; EnhGamma.Value = r.Gamma * 100; EnhContrast.Value = r.Contrast * 100;
             EnhTemperature.Value = r.Temperature * 100; EnhTint.Value = r.Tint * 100;
             EnhSharpness.Value = r.Sharpness * 100; EnhVibrance.Value = r.Vibrance * 100;
             _restoring = false;

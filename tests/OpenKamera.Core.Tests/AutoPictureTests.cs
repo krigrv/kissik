@@ -12,7 +12,7 @@ public class AutoPictureTests
     private static byte[] Apply(byte[] px, int w, int h, AutoPicture.Result r)
     {
         var copy = (byte[])px.Clone();
-        ImageFilters.Apply(copy, w, h, new ImageFilters.Adjustments(Gamma: r.Gamma, Contrast: r.Contrast, Temperature: r.Temperature, Tint: r.Tint));
+        ImageFilters.Apply(copy, w, h, new ImageFilters.Adjustments(Brightness: r.Brightness, Gamma: r.Gamma, Contrast: r.Contrast, Temperature: r.Temperature, Tint: r.Tint));
         return copy;
     }
 
@@ -21,7 +21,6 @@ public class AutoPictureTests
     {
         var px = Fill(160, 90, 50, 50, 50); // dim, neutral
         var r = AutoPicture.Analyze(px, 160, 90);
-        Assert.True(r.Gamma > 1.3, $"gamma {r.Gamma}");
         var after = Apply(px, 160, 90, r);
         Assert.InRange(after[45 * 160 * 4 + 80 * 4 + 1] / 255.0, 0.42, 0.62);
     }
@@ -88,12 +87,38 @@ public class AutoPictureTests
         Assert.Contains("too dark", r.Summary);
     }
 
+    private static double Luma(byte[] px, int i) => (0.299 * px[i + 2] + 0.587 * px[i + 1] + 0.114 * px[i]) / 255.0;
+
+    // A dim, flat room: hazy dark jacket, a dim face, a brighter wall. A big gamma lift turned this milky
+    // (the jacket went from 27 to 68 of 255); the fix keeps the blacks down and the wall unclipped.
+    [Fact]
+    public void DimFlatRoomIsBrightenedWithoutWashingOut()
+    {
+        const int w = 160, h = 90;
+        var px = Fill(w, h, 150, 152, 158); // wall, about 0.6
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+            {
+                int i = (y * w + x) * 4;
+                if (y > h * 6 / 10) { px[i] = 32; px[i + 1] = 26; px[i + 2] = 25; }                                    // jacket, about 0.1
+                else if (x >= w * 4 / 10 && x < w * 6 / 10 && y >= h * 2 / 10) { px[i] = 50; px[i + 1] = 62; px[i + 2] = 80; } // face, about 0.25
+            }
+        var r = AutoPicture.Analyze(px, w, h, new FaceBox(0.4, 0.2, 0.2, 0.4));
+        var after = Apply(px, w, h, r);
+        int jacket = (80 * w + 20) * 4, face = (40 * w + 80) * 4, wall = (10 * w + 10) * 4;
+        Assert.True(Luma(after, face) > Luma(px, face) + 0.05, $"face {Luma(px, face):F2} -> {Luma(after, face):F2}");
+        Assert.True(Luma(after, jacket) <= Luma(px, jacket) + 0.02, $"blacks lifted {Luma(px, jacket):F2} -> {Luma(after, jacket):F2}");
+        Assert.True(Luma(after, wall) <= AutoPicture.RoomCeiling + 0.01, $"wall clipped {Luma(after, wall):F2}");
+    }
+
     [Fact]
     public void BalancedPictureIsLeftAlone()
     {
         var px = Fill(160, 90, 133, 133, 133);
         var r = AutoPicture.Analyze(px, 160, 90);
         Assert.Equal(1, r.Gamma);
+        Assert.Equal(1, r.Brightness);
+        Assert.Equal(1, r.Contrast);
         Assert.Equal(0, r.Temperature);
         Assert.Equal(0, r.Tint);
     }
