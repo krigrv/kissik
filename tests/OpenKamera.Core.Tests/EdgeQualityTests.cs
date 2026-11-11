@@ -323,17 +323,21 @@ public class EdgeQualityTests(ITestOutputHelper log)
         return ((byte[])px.Clone(), alpha);
     }
 
+    // Fixed copies of the website's stock people. The limits below are tuned to these exact photos,
+    // so the website can change its pictures without moving the tests.
+    private const string EdgePhotos = "tests/OpenKamera.Core.Tests/Assets/edge";
+
     private static string Repo()
     {
         var d = new DirectoryInfo(AppContext.BaseDirectory);
-        while (d is not null && !Directory.Exists(Path.Combine(d.FullName, "website", "assets", "person"))) d = d.Parent;
+        while (d is not null && !Directory.Exists(Path.Combine(d.FullName, EdgePhotos))) d = d.Parent;
         return d?.FullName ?? throw new DirectoryNotFoundException("repo root");
     }
 
     /// <summary>Cover-fits a stock photo to 1920×1080 BGRA.</summary>
     private static async Task<byte[]> Load(string name)
     {
-        string path = Path.Combine(Repo(), "website", "assets", "person", name + ".jpg");
+        string path = Path.Combine(Repo(), EdgePhotos, name + ".jpg");
         var file = await Windows.Storage.StorageFile.GetFileFromPathAsync(path);
         using var stream = await file.OpenReadAsync();
         var dec = await BitmapDecoder.CreateAsync(stream);
