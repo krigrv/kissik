@@ -43,6 +43,13 @@ p{margin:0}
 .lead{font-size:clamp(17px,1.5vw,19px);color:var(--muted);max-width:600px}
 .btn{display:inline-flex;align-items:center;justify-content:center;height:48px;padding:0 24px;border-radius:999px;font:600 15px var(--font);text-decoration:none;border:1.5px solid currentColor;transition:transform .15s,filter .15s;white-space:nowrap}
 .btn:active{transform:scale(.97)}
+.wl{max-width:760px;margin:0 auto;text-align:center}
+.wl form{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:24px}
+.wl input[type=email]{flex:1 1 260px;max-width:360px;height:48px;padding:0 20px;border-radius:999px;border:1.5px solid var(--line);background:var(--bg-2);color:var(--text);font:500 16px var(--font)}
+.wl input[type=email]:focus-visible{outline:2px solid var(--o);outline-offset:2px}
+.wl .hp{position:absolute;left:-9999px;opacity:0}
+.wl small{display:block;margin-top:14px;color:var(--muted);font-size:14px}
+.wl .done{margin-top:24px;font:600 18px var(--font)}
 .btn.o{background:var(--o);border-color:var(--o);color:var(--on-o)}
 .btn.o:hover{filter:brightness(1.08)}
 section{padding-block:104px}
@@ -528,6 +535,13 @@ footer{background:#07070a;border-top:1px solid var(--line);color:var(--muted)}
   </div>
 </section>
 
+<section id="mac" class="wrap" hidden>
+  <div class="wl rv"><div class="kick">KISSIK for Mac</div><h2>Want KISSIK on your Mac?</h2><p class="lead" style="margin-top:14px">Tell us. If enough people want it, we build it, and we email you once when it is ready.</p>
+    <form id="wlf" novalidate><label class="sr" for="wle" style="position:absolute;left:-9999px">Your email</label><input id="wle" name="email" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com" required><input class="hp" name="website" type="text" tabindex="-1" autocomplete="off" aria-hidden="true"><button class="btn o" type="submit">Tell me when it's ready</button></form>
+    <p class="done" id="wld" role="status" hidden></p>
+    <small>One email when the Mac version is ready. Nothing else, and no sharing. <a href="privacy">Privacy</a></small></div>
+</section>
+
 <section id="faq" class="wrap">
   <h2 class="rv" style="margin-bottom:16px">Questions</h2>
   <details class="rv"><summary>Is it really free?</summary><p>Yes. Every feature is free, including 4K, the phone camera and all 100 scenes, on as many PCs as you like.</p></details>
@@ -594,6 +608,13 @@ const tick=()=>{if(!q){q=1;setTimeout(chk,100)}};addEventListener('scroll',tick,
 </script>
 <script>
 (()=>{const b=document.querySelector('.mbar'),h=document.querySelector('.hero2 .ctas');if(b&&h)new IntersectionObserver(es=>b.classList.toggle('on',!es[0].isIntersecting)).observe(h);
+// Mac waitlist: the box stays hidden until a form service key is set here.
+const WL={url:"https://api.web3forms.com/submit",key:""};
+(function(){if(!WL.key)return;const sec=document.getElementById('mac'),f=document.getElementById('wlf'),d=document.getElementById('wld'),e=document.getElementById('wle');sec.hidden=false;
+f.addEventListener('submit',async ev=>{ev.preventDefault();if(f.website.value)return;const v=e.value.trim();if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)){d.hidden=false;d.textContent='Please enter a valid email, like name@example.com.';e.focus();return}
+const b=f.querySelector('button');b.disabled=true;d.hidden=true;
+try{const r=await fetch(WL.url,{method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({access_key:WL.key,subject:'KISSIK Mac waitlist',from_name:'KISSIK website',email:v,platform:'mac'})});if(!r.ok)throw 0;f.hidden=true;d.hidden=false;d.textContent='Thanks. We will email you once, when the Mac version is ready.'}
+catch(_){b.disabled=false;d.hidden=false;d.textContent='That did not go through. Please try again in a moment.'}})})();
 fetch('https://api.github.com/repos/krigrv/kissik').then(r=>r.ok?r.json():null).then(d=>{if(!d||typeof d.stargazers_count!=='number')return;const n=d.stargazers_count,t=n>=1000?(n/1000).toFixed(1).replace(/\.0$/,'')+'k':String(n);document.querySelectorAll('.stars').forEach(e=>{e.textContent='★ '+t;e.hidden=false})}).catch(()=>{})})();
 </script>
 </body>
