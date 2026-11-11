@@ -6,6 +6,7 @@ import { PromoComposition } from "./Promo";
 import { PromoFastCompositions } from "./PromoFast";
 import { StoryCompositions } from "./Story";
 import { IntroCompositions } from "./Intro";
+import { RedditCardCompositions } from "./RedditCards";
 
 export const RemotionRoot: React.FC = () => {
   return (
@@ -18,6 +19,7 @@ export const RemotionRoot: React.FC = () => {
       <PromoFastCompositions />
       <StoryCompositions />
       <IntroCompositions />
+      <RedditCardCompositions />
     </>
   );
 };

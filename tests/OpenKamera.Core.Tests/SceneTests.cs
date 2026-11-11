@@ -98,6 +98,57 @@ public class SceneTests : IDisposable
     }
 
     [Fact]
+    public void Import_RejectsOversizedSceneJson()
+    {
+        string zip = Path.Combine(_root, "big.okscene");
+        Directory.CreateDirectory(_root);
+        using (var z = ZipFile.Open(zip, ZipArchiveMode.Create))
+        using (var w = new StreamWriter(z.CreateEntry("scene.json").Open()))
+            w.Write(new string(' ', (int)SceneLibrary.MaxSceneJson + 10));
+        Assert.Throws<InvalidDataException>(() => SceneLibrary.Import(zip));
+    }
+
+    [Fact]
+    public void Import_RejectsTooManyAssets()
+    {
+        string zip = Path.Combine(_root, "many.okscene");
+        Directory.CreateDirectory(_root);
+        using (var z = ZipFile.Open(zip, ZipArchiveMode.Create))
+        {
+            using (var w = new StreamWriter(z.CreateEntry("scene.json").Open())) w.Write(new SceneDocument { Name = "x" }.ToJson());
+            for (int i = 0; i <= SceneLibrary.MaxAssets; i++)
+                using (var w = new StreamWriter(z.CreateEntry($"assets/{i}.png").Open())) w.Write("x");
+        }
+        Assert.Throws<InvalidDataException>(() => SceneLibrary.Import(zip));
+    }
+
+    [Fact]
+    public void Import_ClearsLayerSourcesOutsideTheSceneFolder()
+    {
+        string zip = Path.Combine(_root, "trav.okscene");
+        Directory.CreateDirectory(_root);
+        var doc = new SceneDocument { Name = "trav" };
+        doc.Layers.Add(new SceneLayer { Kind = "image", Source = "../../../secret.jpg" });
+        doc.Layers.Add(new SceneLayer { Kind = "image", Source = "assets/logo.png" });
+        using (var z = ZipFile.Open(zip, ZipArchiveMode.Create))
+        using (var w = new StreamWriter(z.CreateEntry("scene.json").Open())) w.Write(doc.ToJson());
+        var imported = SceneLibrary.Import(zip);
+        Assert.Equal("", imported.Layers[0].Source);
+        Assert.Equal("assets/logo.png", imported.Layers[1].Source);
+    }
+
+    [Fact]
+    public void ResolveAsset_IgnoresSourcesThatLeaveTheFolder()
+    {
+        Directory.CreateDirectory(_root);
+        string folder = Path.Combine(_root, "scene-a");
+        Directory.CreateDirectory(folder);
+        File.WriteAllText(Path.Combine(_root, "outside.png"), "x");
+        var doc = new SceneDocument { Folder = folder };
+        Assert.Null(doc.ResolveAsset(new SceneLayer { Kind = "image", Source = "../outside.png" }));
+    }
+
+    [Fact]
     public void Compose_FullCanvasCameraKeepsCameraAndBlendsOverlay()
     {
         int w = 4, h = 2;

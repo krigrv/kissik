@@ -110,6 +110,8 @@ public sealed class SceneDocument
         if (string.IsNullOrWhiteSpace(layer.Source)) return null;
         string p = Path.IsPathRooted(layer.Source) ? layer.Source
                  : Folder is null ? "" : Path.GetFullPath(Path.Combine(Folder, layer.Source));
+        // A relative source must stay inside the scene folder; "../.." could otherwise reach any file on the PC.
+        if (!Path.IsPathRooted(layer.Source) && Folder is not null && !SceneLibrary.IsInside(Folder, p)) return null;
         return File.Exists(p) ? p : null;
     }
 
@@ -317,26 +319,49 @@ public static class SceneLibrary
                 zip.CreateEntryFromFile(file, "assets/" + Path.GetFileName(file));
     }
 
-    /// <summary>Imports a .okscene as a new user scene. Rejects entries that would escape the scene folder.</summary>
+    // Limits for a shared scene, so a small file can't unpack into gigabytes (a zip bomb).
+    public const long MaxSceneJson = 1L << 20, MaxAssetBytes = 50L << 20, MaxTotalAssetBytes = 200L << 20;
+    public const int MaxAssets = 50, MaxCompressionRatio = 100;
+
+    /// <summary>True when <paramref name="path"/> resolves inside <paramref name="folder"/>.</summary>
+    public static bool IsInside(string folder, string path)
+    {
+        string root = Path.GetFullPath(folder).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        return Path.GetFullPath(path).StartsWith(root, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Imports a .okscene as a new user scene. Rejects entries that would escape the scene folder or are too big.</summary>
     public static SceneDocument Import(string zipPath)
     {
         using var zip = ZipFile.OpenRead(zipPath);
         var json = zip.GetEntry("scene.json") ?? throw new InvalidDataException("Not an KISSIK scene: scene.json missing.");
+        if (json.Length > MaxSceneJson) throw new InvalidDataException("This scene file is too large to open.");
+        var assetEntries = zip.Entries.Where(e => e.FullName.StartsWith("assets/", StringComparison.Ordinal) && !e.FullName.EndsWith('/')).ToList();
+        if (assetEntries.Count > MaxAssets) throw new InvalidDataException($"This scene has too many pictures (the limit is {MaxAssets}).");
+        long total = 0;
+        foreach (var e in assetEntries)
+        {
+            if (e.Length > MaxAssetBytes) throw new InvalidDataException("A picture in this scene is too large (the limit is 50 MB).");
+            if (e.CompressedLength > 0 && e.Length / e.CompressedLength > MaxCompressionRatio) throw new InvalidDataException("This scene file looks damaged or unsafe.");
+            total += e.Length;
+        }
+        if (total > MaxTotalAssetBytes) throw new InvalidDataException("The pictures in this scene are too large together (the limit is 200 MB).");
         SceneDocument scene;
         using (var r = new StreamReader(json.Open())) scene = SceneDocument.FromJson(r.ReadToEnd());
         scene.Id = "user-" + Guid.NewGuid().ToString("N")[..10];
         Save(scene);
         string root = Path.GetFullPath(scene.Folder!) + Path.DirectorySeparatorChar;
-        foreach (var e in zip.Entries)
+        foreach (var e in assetEntries)
         {
-            if (!e.FullName.StartsWith("assets/", StringComparison.Ordinal) || e.FullName.EndsWith('/')) continue;
             string dest = Path.GetFullPath(Path.Combine(scene.Folder!, e.FullName));
             if (!dest.StartsWith(root, StringComparison.OrdinalIgnoreCase)) throw new InvalidDataException("Unsafe path in scene file.");
             Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
             e.ExtractToFile(dest, overwrite: true);
         }
         // Absolute image paths from someone else's machine are meaningless here.
-        foreach (var l in scene.Layers.Where(l => Path.IsPathRooted(l.Source))) l.Source = "";
+        foreach (var l in scene.Layers.Where(l => !string.IsNullOrEmpty(l.Source)
+                     && (Path.IsPathRooted(l.Source) || !IsInside(scene.Folder!, Path.Combine(scene.Folder!, l.Source)))))
+            l.Source = "";
         Save(scene);
         return scene;
     }

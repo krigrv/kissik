@@ -13,6 +13,22 @@ public sealed partial class MainPage
     private const string ReleasesPage = "https://github.com/krigrv/kissik/releases/latest";
     private string? _updateUrl;
 
+    // Store installs update through the Store; GitHub releases only carry the Android app, so skip the check there.
+    private static bool IsStoreInstall()
+    {
+        try
+        {
+            var pkg = Windows.ApplicationModel.Package.Current;
+            return pkg.SignatureKind == Windows.ApplicationModel.PackageSignatureKind.Store
+                || pkg.Id.Name.Equals("OGLABSPVTLIMITED.KISSIK", StringComparison.OrdinalIgnoreCase);
+        }
+        catch { return false; }
+    }
+
+    private static bool IsGitHubPage(string? url) =>
+        Uri.TryCreate(url, UriKind.Absolute, out var u) && u.Scheme == Uri.UriSchemeHttps
+        && u.Host.Equals("github.com", StringComparison.OrdinalIgnoreCase);
+
     private static Version CurrentVersion()
     {
         try { var v = Windows.ApplicationModel.Package.Current.Id.Version; return new Version(v.Major, v.Minor, v.Build); }
@@ -21,6 +37,7 @@ public sealed partial class MainPage
 
     private async Task CheckForUpdateAsync(bool quiet)
     {
+        if (IsStoreInstall()) { if (!quiet) Status("The Microsoft Store keeps KISSIK up to date."); return; }
         try
         {
             using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
@@ -30,7 +47,8 @@ public sealed partial class MainPage
             if (!Version.TryParse(tag, out var latest)) { if (!quiet) Status("Couldn't read the latest version."); return; }
             if (latest > CurrentVersion())
             {
-                _updateUrl = json?["html_url"]?.ToString() ?? ReleasesPage;
+                string? page = json?["html_url"]?.ToString();
+                _updateUrl = IsGitHubPage(page) ? page : ReleasesPage;
                 UpdateItem.Text = $"Update available: {latest}";
                 ((FontIcon)UpdateItem.Icon).Glyph = "";
                 Status($"KISSIK {latest} is available. Open the menu and choose Update available.");
@@ -44,7 +62,8 @@ public sealed partial class MainPage
 
     private async void UpdateItem_Click(object sender, RoutedEventArgs e)
     {
-        if (_updateUrl is { } url) await Windows.System.Launcher.LaunchUriAsync(new Uri(url));
+        if (IsStoreInstall()) { await Windows.System.Launcher.LaunchUriAsync(new Uri("ms-windows-store://pdp/?ProductId=9MZC9QRSWK72")); return; }
+        if (_updateUrl is { } url && IsGitHubPage(url)) await Windows.System.Launcher.LaunchUriAsync(new Uri(url));
         else { Status("Checking for updates…"); await CheckForUpdateAsync(quiet: false); }
     }
 }

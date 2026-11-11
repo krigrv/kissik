@@ -229,6 +229,14 @@ public sealed class PhoneServer : IAsyncDisposable
             var (path, query) = SplitTarget(target);
             // Browsers ask for a tab icon on their own, without the link's key: not a wrong guess at the link.
             if (path == "/favicon.ico") { await Respond(ssl, 404, "text/plain", "Not found"u8.ToArray(), ct); return; }
+            // USB only: any app on the phone could listen on this port, so before the phone sends the token it asks
+            // us to prove we know it. We answer its random challenge with an HMAC; the token itself never travels.
+            if (!tls && path == "/proof" && method == "GET")
+            {
+                bool ok = query.TryGetValue("n", out var nonce) && nonce.Length is >= 16 and <= 128 && nonce.All(Uri.IsHexDigit);
+                await Respond(ssl, ok ? 200 : 400, "text/plain", Encoding.ASCII.GetBytes(ok ? UsbProof(Token, nonce!) : "Bad challenge"), ct);
+                return;
+            }
             bool authorised = query.TryGetValue("t", out var t) && CryptographicOperations.FixedTimeEquals(Encoding.ASCII.GetBytes(t), Encoding.ASCII.GetBytes(Token));
 
             string? ip = (client.Client.RemoteEndPoint as IPEndPoint)?.Address.ToString();
@@ -360,6 +368,11 @@ public sealed class PhoneServer : IAsyncDisposable
         if (tips.Count == 0) tips.Add($"Your phone reached this PC at {LastVisit:HH:mm:ss}. Reload the page on the phone.");
         return tips;
     }
+
+    /// <summary>The answer to a USB challenge: HMAC-SHA256 of "kissik-usb:" + nonce, keyed with the token, lowercase hex.
+    /// The Android app computes the same and only then trusts the USB listener.</summary>
+    internal static string UsbProof(string token, string nonce) =>
+        Convert.ToHexString(HMACSHA256.HashData(Encoding.ASCII.GetBytes(token), Encoding.ASCII.GetBytes("kissik-usb:" + nonce))).ToLowerInvariant();
 
     internal static (string Path, Dictionary<string, string> Query) SplitTarget(string target)
     {

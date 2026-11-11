@@ -6,7 +6,7 @@ import { Pairing } from "./Pairing";
 import { Fix, Layout } from "./Story";
 
 // "Introducing KISSIK": a title, then one section per feature with its own clip, then the end card.
-// Music: "Calm Resolve" (Suno); its lift (21.7 s in) lands as the first feature starts.
+// Music: the gentle take of "Calm Resolve" (Suno), kept low under the picture.
 const FPS = 30;
 const ORANGE = "#ff8a3d";
 const FONT = "Segoe UI, Inter, sans-serif";
@@ -40,7 +40,8 @@ const SECTIONS: Section[] = [
 const TITLE = 96;
 const END = 126;
 export const INTRO_LEN = TITLE + SECTIONS.reduce((s, x) => s + x.len, 0) + END;
-const MUSIC_START = Math.round((21.7 - TITLE / FPS) * FPS);
+// Gentle second take of "Calm Resolve": soft from the start, its swell (~24 s in) arrives near the end card.
+const MUSIC_START = Math.round(0.5 * FPS);
 
 const Bg: React.FC = () => {
   const f = useCurrentFrame();
@@ -142,7 +143,7 @@ const Intro: React.FC<{ L: Layout }> = ({ L }) => {
   return (
     <AbsoluteFill>
       <Bg />
-      <Audio src={staticFile("story-music.mp3")} trimBefore={MUSIC_START} volume={(f) => interpolate(f, [0, 10, INTRO_LEN - 40, INTRO_LEN], [0, 0.9, 0.9, 0], clamp)} />
+      <Audio src={staticFile("intro-music.mp3")} trimBefore={MUSIC_START} volume={(f) => interpolate(f, [0, 30, INTRO_LEN - 45, INTRO_LEN], [0, 0.6, 0.6, 0], clamp)} />
       <Sequence durationInFrames={TITLE}><Title L={L} /></Sequence>
       {SECTIONS.map((s, i) => {
         const from = at;

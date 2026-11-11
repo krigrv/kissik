@@ -87,6 +87,13 @@ public class LookTests
     }
 
     [Fact]
+    public void Lut_RejectsSizesAboveTheLimit()
+    {
+        var ex = Assert.Throws<FormatException>(() => Lut3D.Parse("LUT_3D_SIZE 100000\n0 0 0\n"));
+        Assert.Contains("too large", ex.Message);
+    }
+
+    [Fact]
     public void Lut_InvertAtHalfStrengthBlends()
     {
         var lut = Lut3D.Parse("""
