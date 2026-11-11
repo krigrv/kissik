@@ -22,6 +22,8 @@ public sealed class Lut3D
     public static Lut3D Load(string path) =>
         Parse(File.ReadAllText(path), Path.GetFileNameWithoutExtension(path));
 
+    public const int MaxSize = 256;
+
     public static Lut3D Parse(string text, string name = "LUT")
     {
         int size = 0;
@@ -48,6 +50,7 @@ public sealed class Lut3D
             }
         }
         if (size < 2) throw new FormatException("Missing or invalid LUT_3D_SIZE.");
+        if (size > MaxSize) throw new FormatException($"LUT_3D_SIZE {size} is too large (the limit is {MaxSize}).");
         if (values.Count != size * size * size * 3)
             throw new FormatException($"Expected {size * size * size} entries, found {values.Count / 3}.");
         return new Lut3D(name, size, values.ToArray(), min, max);
