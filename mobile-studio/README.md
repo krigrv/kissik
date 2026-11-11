@@ -1,7 +1,6 @@
 # KISSIK Camera Studio (Android + iOS)
 
-A standalone camera studio for phones, written in Kotlin Multiplatform with Compose Multiplatform UI. Feature status is
-tracked in [CHECKLIST.md](CHECKLIST.md).
+A standalone camera studio for phones, written in Kotlin Multiplatform with Compose Multiplatform UI.
 
 ## Layout
 

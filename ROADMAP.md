@@ -45,7 +45,7 @@ pass through outside the light) and excluded from screen capture.
 - [ ] HDR boost beyond SDR white on HDR displays
 - [ ] Laptop panel brightness (WMI) and face-mask-based auto-tune
 
-## 0c. Premium and never-seen-before features (2026-11-02, from docs/PROBLEMS-AND-IDEAS.md)
+## 0c. Premium and never-seen-before features (2026-11-02)
 Build order:
 1. [x] Windows 11 system virtual camera (listed in every app, several apps at once) + friendly slate instead of black
 2. [x] ★ Who has my camera? (Meeting camera panel lists apps holding the camera/mic; a failed Connect names the app). Auto-connect on launch and a prompt when a meeting uses KISSIK without a camera.
@@ -77,7 +77,7 @@ More from reviews of the desktop + iPhone apps (2026-11-02; see docs/research/co
 11. [ ] Free on every computer: no per-device licence
 12. [ ] Honest money if store builds are ever sold: one-time price, no auto-renew, one-click refunds
 13. [~] Clean uninstall: "Remove the camera" now also removes every registration (old names too), and start-up clears registrations left from renames. Checking it in Zoom/Teams after removal still to do
-14. [~] Release checklist written (docs/RELEASE-CHECKLIST.md); run it and publish results each release
+14. [~] Release checklist written; run it and publish results each release
 15. [x] Opt-in crash reports: after an unexpected close, offer to copy the report and open a GitHub issue; nothing sent automatically
 16. [x] Main app needs no admin; admin only for the optional meeting camera and phone firewall rule; IT guide in docs/IT-DEPLOYMENT.md
 17. [~] Audio-drop watchdog: engine stall or Windows audio error → restart within ~3 s and warn, recording keeps going (done). Phone mic: dropped with a reason when it stops sending (done). Device mics rely on the engine watchdog
