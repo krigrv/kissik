@@ -4,7 +4,7 @@
 
 <img src="docs/logo/kissik-logo-512.png" alt="KISSIK app icon" width="160" />
 
-# KISSIK
+# KISSIK - Camera Studio
 
 ### Free, open-source camera studio for Windows
 
@@ -16,6 +16,8 @@
 [![Build](https://img.shields.io/github/actions/workflow/status/krigrv/kissik/build.yml?style=for-the-badge&labelColor=0d1117&label=build)](https://github.com/krigrv/kissik/actions)
 
 <br/>
+
+[**Get it on the Microsoft Store**](https://apps.microsoft.com/detail/9MZC9QRSWK72) · [**Website**](https://kissik-studio.vercel.app)
 
 [**Download**](#download) · [**Features**](#features) · [**Contributing**](#contributing) · [**Support**](#support) · [**Privacy**](#privacy)
 
@@ -96,8 +98,13 @@ name and logo, record, go live, and show up in Meet, Zoom and Teams.
 
 **Windows 10 1809 or later** (Windows 11 recommended), x64 or ARM64.
 
-Get the latest version from [**Releases**](https://github.com/krigrv/kissik/releases):
-the Windows installer and the **KISSIK Camera** Android app.
+**Windows:** get **KISSIK - Camera Studio** from the [**Microsoft Store**](https://apps.microsoft.com/detail/9MZC9QRSWK72).
+It updates itself.
+
+**Your phone as a camera:** download the **KISSIK Camera** Android app (`.apk`) from the
+[**latest release**](https://github.com/krigrv/kissik/releases/latest) and install it on your phone.
+
+More at [**kissik-studio.vercel.app**](https://kissik-studio.vercel.app).
 
 </div>
 
