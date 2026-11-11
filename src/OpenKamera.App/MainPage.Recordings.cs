@@ -17,6 +17,7 @@ public sealed partial class MainPage
         {
             _recordings = new RecordingsWindow(RecordingFolder(), pictures);
             _recordings.Closed += (_, _) => _recordings = null;
+            ThemeWindow(_recordings);
         }
         _recordings.Activate();
     }

@@ -137,6 +137,34 @@ public class LookTests
     }
 
     [Fact]
+    public void Transform_ZoomIsSmooth_NotNearestPixel()
+    {
+        // A 4-pixel ramp 0, 80, 160, 240 zoomed 2x about its centre shows the middle half, stretched.
+        byte[] ramp = new byte[16];
+        for (int x = 0; x < 4; x++) { ramp[x * 4] = ramp[x * 4 + 1] = ramp[x * 4 + 2] = (byte)(x * 80); ramp[x * 4 + 3] = 255; }
+        var (px, w, h) = new FrameTransform(Zoom: 2).Apply(ramp, 4, 1);
+        Assert.Equal((4, 1), (w, h));
+        int[] got = [px[0], px[4], px[8], px[12]];
+        // Nearest gave 80, 80, 160, 160 (each pixel doubled). Smooth sampling gives in-between values.
+        Assert.Equal(80, got[0]); Assert.Equal(160, got[3]);
+        Assert.InRange(got[1], 81, 119); Assert.InRange(got[2], 121, 159);
+        Assert.True(got[0] < got[1] && got[1] < got[2] && got[2] < got[3]);
+    }
+
+    [Fact]
+    public void Transform_ZoomThenMirror_IsTheMirrorOfTheZoom()
+    {
+        var src = new byte[8 * 2 * 4];
+        new Random(3).NextBytes(src);
+        var zoomed = new FrameTransform(Zoom: 1.6, PanX: 0.4, PanY: -0.5).Apply(src, 8, 2).Pixels;
+        var both = new FrameTransform(Mirror: true, Zoom: 1.6, PanX: 0.4, PanY: -0.5).Apply(src, 8, 2).Pixels;
+        for (int y = 0; y < 2; y++)
+            for (int x = 0; x < 8; x++)
+                for (int c = 0; c < 4; c++)
+                    Assert.Equal(zoomed[(y * 8 + (7 - x)) * 4 + c], both[(y * 8 + x) * 4 + c]);
+    }
+
+    [Fact]
     public void Transform_ZoomPanCropsToOneSide()
     {
         var (px, _, _) = new FrameTransform(Zoom: 2, PanX: 1).Apply(RedBlue(), 2, 1);

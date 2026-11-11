@@ -24,11 +24,14 @@ object Brand {
 private val Light = lightColorScheme(
     primary = Color(0xFFB8400D), onPrimary = Color.White, primaryContainer = Color(0xFFFFDBCB), onPrimaryContainer = Color(0xFF390C00),
     secondary = Color(0xFF77574A), tertiary = Color(0xFF6A5E2F),
+    // Chips and tool buttons take these; left unset they fall back to Material's purple, which isn't KISSIK's.
+    secondaryContainer = Color(0xFFF5DED5), onSecondaryContainer = Color(0xFF2B160E),
     background = Color(0xFFFFFBFF), surface = Color(0xFFFFFBFF), error = Color(0xFFBA1A1A),
 )
 private val Dark = darkColorScheme(
     primary = Brand.OrangeLight, onPrimary = Color(0xFF3B1300), primaryContainer = Color(0xFF8A2F06), onPrimaryContainer = Color(0xFFFFDBCB),
     secondary = Color(0xFFE7BDAD), tertiary = Color(0xFFD7C68D),
+    secondaryContainer = Color(0xFF4A332A), onSecondaryContainer = Color(0xFFFFDBCB),
     background = Color(0xFF1A110E), surface = Color(0xFF1A110E), error = Color(0xFFFFB4AB),
 )
 // High contrast: pure black/white with the brand orange only where it still clears 7:1 against the background.

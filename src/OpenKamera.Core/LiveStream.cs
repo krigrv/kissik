@@ -58,7 +58,18 @@ public sealed class LiveStream : IAsyncDisposable
     public int Fps { get; }
     public int FramesSent { get; private set; }
     public int FramesDropped { get; private set; }
-    public bool IsRunning => _ffmpeg is { HasExited: false };
+    public bool IsRunning
+    {
+        get
+        {
+            // Read from the frame and audio threads while Stop runs on another: the process object may be
+            // disposed between the null check and the question, which throws.
+            if (_stopping) return false;
+            try { return _ffmpeg is { HasExited: false }; }
+            catch (InvalidOperationException) { return false; }
+        }
+    }
+    private volatile bool _stopping;
     /// <summary>The last lines FFmpeg printed (for "why did it stop?").</summary>
     public string Log { get { lock (_log) return _log.ToString(); } }
 
@@ -184,14 +195,20 @@ public sealed class LiveStream : IAsyncDisposable
     /// <summary>Frame thread: any size BGRA (scaled later). Dropped if FFmpeg is behind, so the stream stays live.</summary>
     public void Push(byte[] bgra, int w, int h)
     {
-        if (!IsRunning) { FramesDropped++; return; }
-        if (!_video.TryAdd((bgra, w, h))) FramesDropped++;
+        if (!IsRunning || _video.IsAddingCompleted) { FramesDropped++; return; }
+        try { if (!_video.TryAdd((bgra, w, h))) FramesDropped++; }
+        catch (InvalidOperationException) { FramesDropped++; } // the stream was stopped between the check and the add
     }
 
-    public void PushAudio(float[] stereo48k) { if (_audioPipe is not null && IsRunning) _audio.TryAdd(stereo48k); }
+    public void PushAudio(float[] stereo48k)
+    {
+        if (_audioPipe is null || !IsRunning || _audio.IsAddingCompleted) return;
+        try { _audio.TryAdd(stereo48k); } catch (InvalidOperationException) { }
+    }
 
     public async Task StopAsync()
     {
+        _stopping = true;
         _video.CompleteAdding(); _audio.CompleteAdding();
         try { if (_videoPump is not null) await _videoPump.WaitAsync(TimeSpan.FromSeconds(5)); } catch { }
         try { _audioPipe?.Dispose(); } catch { }

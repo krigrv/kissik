@@ -27,9 +27,16 @@ public sealed class WhisperRefiner : IDisposable
     public WhisperRefiner(string modelPath, string language = "en")
     {
         _factory = WhisperFactory.FromPath(modelPath);
-        _processor = _factory.CreateBuilder().WithLanguage(language).WithNoContext().Build();
+        _processor = _factory.CreateBuilder().WithLanguage(LanguageCode(language)).WithNoContext().Build();
         _worker = new Thread(Work) { IsBackground = true, Name = "Accurate captions", Priority = ThreadPriority.BelowNormal };
         _worker.Start();
+    }
+
+    /// <summary>Whisper knows plain language codes ("en", "hi"); the instant recogniser's are regional ("en-in").</summary>
+    public static string LanguageCode(string? language)
+    {
+        string code = (language ?? "").Split('-', '_')[0].Trim().ToLowerInvariant();
+        return code.Length is 2 or 3 ? code : "en";
     }
 
     public static string ModelPath(string speechRoot) => Path.Combine(speechRoot, "whisper", ModelFile);

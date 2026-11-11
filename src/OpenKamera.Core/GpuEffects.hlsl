@@ -63,6 +63,9 @@ RWStructuredBuffer<float4> Acc3Out : register(u4);
 RWStructuredBuffer<float4> Acc4Out : register(u5);
 
 #define LIGHT_WRAP 0.35f // BackgroundEffects.LightWrap
+#define EDGE_TRUST 1600.0f // BackgroundEffects.EdgeTrust
+#define EDGE_FIRM_LO 0.25f
+#define EDGE_FIRM_HI 0.9f
 #define W I0.x
 #define H I0.y
 
@@ -357,6 +360,18 @@ float3 Bilerp3(float3 p00, float3 p01, float3 p10, float3 p11, float dx, float d
     return top + (bot - top) * dy;
 }
 
+// BackgroundEffects.EdgeAlpha
+float EdgeAlpha(float a, float3 px, float3 person, float3 room)
+{
+    float3 d = person - room;
+    float dd = dot(d, d);
+    float along = clamp(dot(px - room, d) / (dd + 1), 0, 1);
+    float trust = dd / (dd + EDGE_TRUST);
+    float firm = clamp((a - EDGE_FIRM_LO) / (EDGE_FIRM_HI - EDGE_FIRM_LO), 0, 1);
+    firm = min(a, firm * firm * (3 - 2 * firm));
+    return trust * min(a, along) + (1 - trust) * firm;
+}
+
 float Curve(float v, float c) { return (v - 0.5f) * c + 0.5f; }
 
 // Same looks as ImageFilters.ApplyPreset; works on (r, g, b).
@@ -466,14 +481,16 @@ void Effects(uint3 id : SV_DispatchThreadID)
         int q00 = y0 * bw + x0, q01 = y0 * bw + x1, q10 = y1 * bw + x0, q11 = y1 * bw + x1;
         float3 f = Bilerp3(NearPerson(q00), NearPerson(q01), NearPerson(q10), NearPerson(q11), dx, dy);
         float3 rm = Bilerp3(NearRoom(q00), NearRoom(q01), NearRoom(q10), NearRoom(q11), dx, dy);
-        f += a * (c.xyz - a * f - ia * rm);
-        float3 aF = a * clamp(f, 0, 255);
-        if (mode == 3) c = float4((uint3)aF, (uint)(a * 255));
+        // BackgroundEffects.EdgeAlpha: where the room is being taken away, a pixel that looks like the room is room.
+        float e = mode >= 2 ? EdgeAlpha(a, c.xyz, f, rm) : a, ie = 1 - e;
+        f += e * (c.xyz - e * f - ie * rm);
+        float3 aF = e * clamp(f, 0, 255);
+        if (mode == 3) c = float4((uint3)aF, (uint)(e * 255));
         else
         {
             float3 b = mode == 2 ? Unpack(Aux[p]).xyz : Bilerp3(Blurred(q00), Blurred(q01), Blurred(q10), Blurred(q11), dx, dy);
-            float3 fg = aF + (a * b - aF) * LIGHT_WRAP * ia; // room light spills onto the edge
-            c = float4(Sat3(fg + b * ia), 255);
+            float3 fg = aF + (e * b - aF) * LIGHT_WRAP * ie; // room light spills onto the edge
+            c = float4(Sat3(fg + b * ie), 255);
         }
     }
     else if (mode == 3) c.w = 255;

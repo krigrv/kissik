@@ -32,6 +32,10 @@ public sealed class VoiceChain : IDisposable
     private readonly Queue<float> _in = new(), _out = new();
     private int _prefill = -1;
     private double _inPow = 1e-10, _outPow = 1e-10;
+    // Which input channels carry the voice. A microphone on one input of a two-input interface arrives with
+    // the other side silent; averaging the two would halve it (−6 dB), so only the live side is used then.
+    private double _leftPow, _rightPow;
+    private float _leftMix = 0.5f, _rightMix = 0.5f;
 
     public NoiseRemoval Mode { get; }
     public bool LowCut => _useLowCut;
@@ -70,7 +74,13 @@ public sealed class VoiceChain : IDisposable
             _prefill = n % FrameSize == 0 ? 0 : FrameSize;
             for (int i = 0; i < _prefill; i++) _out.Enqueue(0);
         }
-        for (int i = 0; i < n; i++) _in.Enqueue((stereo[2 * i] + stereo[2 * i + 1]) * 0.5f);
+        var (wantL, wantR) = ChannelMix(stereo, n);
+        for (int i = 0; i < n; i++)
+        {
+            // Glide between mixes (about 20 ms) so a change is never a click.
+            _leftMix += (wantL - _leftMix) * 0.001f; _rightMix += (wantR - _rightMix) * 0.001f;
+            _in.Enqueue(stereo[2 * i] * _leftMix + stereo[2 * i + 1] * _rightMix);
+        }
         while (_in.Count >= FrameSize)
         {
             for (int i = 0; i < FrameSize; i++) _frame[i] = _in.Dequeue();
@@ -82,6 +92,30 @@ public sealed class VoiceChain : IDisposable
             float s = _out.Count > 0 ? _out.Dequeue() : 0; // only starves if quanta change size mid-stream
             stereo[2 * i] = stereo[2 * i + 1] = s;
         }
+    }
+
+    /// <summary>
+    /// Weights for folding stereo to mono: half each normally; all of one side when the other has been at least
+    /// 40 dB quieter for a while (a mono microphone on one input of a stereo device).
+    /// </summary>
+    private (float L, float R) ChannelMix(ReadOnlySpan<float> stereo, int n)
+    {
+        if (n == 0) return (_leftMix, _rightMix);
+        double l = 0, r = 0;
+        for (int i = 0; i < n; i++) { l += stereo[2 * i] * stereo[2 * i]; r += stereo[2 * i + 1] * stereo[2 * i + 1]; }
+        // About half a second of averaging at 10 ms blocks; silence on both sides changes nothing.
+        _leftPow += (l / n - _leftPow) * 0.02; _rightPow += (r / n - _rightPow) * 0.02;
+        const double floor = 1e-9, ratio = 1e-4; // −90 dBFS; 40 dB apart
+        if (_leftPow > floor && _rightPow < _leftPow * ratio) return (1, 0);
+        if (_rightPow > floor && _leftPow < _rightPow * ratio) return (0, 1);
+        return (0.5f, 0.5f);
+    }
+
+    /// <summary>Carries on from the chain this one replaces, so swapping settings mid-speech keeps the level it had reached.</summary>
+    public void ContinueFrom(VoiceChain old)
+    {
+        _leftPow = old._leftPow; _rightPow = old._rightPow; _leftMix = old._leftMix; _rightMix = old._rightMix;
+        if (_level is not null && old._level is not null) _level.ContinueFrom(old._level);
     }
 
     /// <summary>One 10 ms mono frame through the chain.</summary>
@@ -156,6 +190,7 @@ internal sealed class AutoLevel
     private readonly Biquad _rlb = new(1, -2, 1, 1, -1.99004745483398, 0.99007225036621);
     private double _power = -1, _gainDb;
     public double GainDb => _gainDb;
+    public void ContinueFrom(AutoLevel old) { _power = old._power; _gainDb = old._gainDb; }
 
     /// <summary>Mean K-weighted power of one frame.</summary>
     private double Measure(ReadOnlySpan<float> frame)

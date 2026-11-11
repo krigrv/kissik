@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
@@ -34,8 +35,9 @@ private fun Section(title: String, value: String? = null, content: @Composable (
 
 @Composable
 private fun Pill(text: String, selected: Boolean, onClick: () -> Unit) =
-    Box(Modifier.padding(end = 8.dp).clip(CircleShape).background(if (selected) K.accent else K.raised).clickable(onClick = onClick)
-        .padding(horizontal = 14.dp, vertical = 8.dp)) { Text(text, color = if (selected) Color.White else K.text, fontSize = 14.sp) }
+    Box(Modifier.padding(end = 8.dp).heightIn(min = 48.dp).clip(CircleShape).background(if (selected) K.accent else K.raised)
+        .selectable(selected = selected, role = androidx.compose.ui.semantics.Role.RadioButton, onClick = onClick)
+        .padding(horizontal = 16.dp), contentAlignment = Alignment.Center) { Text(text, color = if (selected) Color.White else K.text, fontSize = 14.sp) }
 
 @Composable
 private fun Pills(options: List<Pair<String, String>>, selected: String, onPick: (String) -> Unit) =
@@ -157,8 +159,9 @@ fun ProSheet(onClose: () -> Unit) {
                     Pills(listOf("off" to "Noise reduction off", "on" to "Noise reduction on"), if (ns) "on" else "off") { Mic.ns.value = it == "on" }
                 }
             }
-            Section("Video sent to the PC", if (codec == "h264") "H.264 (hardware)" else "JPEG") {
-                Text(if (codec == "h264") "Encoded by the phone's video chip: smooth and cool even at 4K." else
+            val codecName = when (codec) { "h264" -> "H.264 (hardware)"; "hevc" -> "HEVC (hardware)"; "hevc-hdr" -> "HEVC HDR (hardware)"; else -> "JPEG" }
+            Section("Video sent to the PC", codecName) {
+                Text(if (codec != "jpeg") "Encoded by the phone's video chip: smooth and cool even at 4K." else
                     "KISSIK picks this. Hardware H.264 is used when your KISSIK version supports it.", color = K.muted, fontSize = 13.sp)
             }
             if (iso != null || shutter != null || focus != null || ev != 0 || wb != "auto" || fps != 0 || effect != "none") {

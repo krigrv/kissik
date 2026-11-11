@@ -18,7 +18,8 @@ public sealed class GpuRecorder : IRecorderPart
     private Thread? _thread;
     private int _videoStream, _audioStream = -1;
     private TimeSpan? _first;
-    private TimeSpan _lastTime, _audioNext;
+    private TimeSpan _lastTime;
+    private readonly AudioTimeline _timeline = new(); // writer thread only
     private long _queued;
     private volatile bool _stopping;
     private Exception? _failure;
@@ -142,12 +143,12 @@ public sealed class GpuRecorder : IRecorderPart
     public void PushAudio(float[] interleaved, TimeSpan captureTime)
     {
         if (!HasAudio || _stopping || _writer is null || interleaved.Length == 0 || _first is null) return;
-        if (_audioNext == TimeSpan.Zero) _audioNext = captureTime - _first.Value;
-        if (_audioNext < TimeSpan.Zero) _audioNext = TimeSpan.Zero;
         var duration = TimeSpan.FromSeconds(interleaved.Length / (double)AudioEngine.Channels / AudioEngine.SampleRate);
         var pcm = new short[interleaved.Length];
         for (int i = 0; i < pcm.Length; i++) pcm[i] = (short)Math.Clamp((int)MathF.Round(interleaved[i] * 32767f), short.MinValue, short.MaxValue);
-        if (_audio.TryAdd((pcm, _audioNext, duration))) _audioNext += duration;
+        // Stamped with the recording clock; the writer places it (see AudioTimeline). A block dropped here because
+        // the queue is full shows up there as a gap and is filled with silence, so later sound stays in step.
+        _audio.TryAdd((pcm, captureTime - _first.Value, duration));
     }
 
     private void Run()
@@ -157,8 +158,7 @@ public sealed class GpuRecorder : IRecorderPart
         {
             while (true)
             {
-                bool any = false;
-                while (_audio.TryTake(out var a)) { WriteAudio(a.Pcm, a.Time, a.Duration); any = true; }
+                bool any = WriteDueAudio();
                 if (_video.TryTake(out var v, 20))
                 {
                     try { WriteVideo(v.Frame, v.Time, frameTime); _videoEnd = v.Time + frameTime; }
@@ -167,12 +167,14 @@ public sealed class GpuRecorder : IRecorderPart
                     any = true;
                     // The MP4 writer holds video back until there's audio to interleave it with: if the mix goes quiet
                     // or falls behind, fill the gap with silence so video never waits (it used to drop to ~1 fps).
-                    if (HasAudio && _audio.Count == 0 && v.Time - _audioEnd > AudioSlack) WriteSilence(v.Time - AudioSlack / 2);
+                    if (HasAudio && _audio.Count == 0 && _held.Count == 0 && v.Time - _timeline.End > AudioSlack) WriteSilence(v.Time - AudioSlack / 2);
                 }
                 if (!any && _stopping && _video.Count == 0 && _audio.Count == 0)
                 {
-                    // The MP4 ends where its shortest track does: make the audio reach the last frame.
+                    // The MP4 ends where its shortest track does: make the audio reach the last frame. Sound still
+                    // held for picture that never came is left out.
                     if (HasAudio) WriteSilence(_videoEnd);
+                    _held.Clear();
                     break;
                 }
             }
@@ -210,9 +212,35 @@ public sealed class GpuRecorder : IRecorderPart
         _writer!.WriteSample(_videoStream, sample);
     }
 
+    /// <summary>
+    /// How far sound may be written past the end of the picture. The file writer keeps the two tracks side by side:
+    /// sound written seconds ahead makes it wait for picture, and since this one thread writes both, that wait
+    /// never ended (a camera that went quiet for a few seconds froze the recording for good). Sound that is early
+    /// is held here until the picture reaches it.
+    /// </summary>
+    private static readonly TimeSpan AudioLead = TimeSpan.FromMilliseconds(200);
+    private const int MaxHeld = 1000; // 10 s of sound waiting for its picture; older than that is left out
+    private readonly Queue<(short[] Pcm, TimeSpan Time, TimeSpan Duration)> _held = new(); // writer thread only
+
+    /// <summary>Takes in new sound and writes what the picture has caught up with. True when any sound arrived.</summary>
+    private bool WriteDueAudio()
+    {
+        bool any = false;
+        while (_audio.TryTake(out var a))
+        {
+            _held.Enqueue(a); any = true;
+            if (_held.Count > MaxHeld) _held.Dequeue();
+        }
+        while (_held.TryPeek(out var next) && next.Time <= _videoEnd + AudioLead)
+        {
+            _held.Dequeue();
+            PlaceAudio(next.Pcm, next.Time, next.Duration);
+        }
+        return any;
+    }
+
     /// <summary>How far the audio track may trail the video before silence fills the gap.</summary>
     private static readonly TimeSpan AudioSlack = TimeSpan.FromMilliseconds(250);
-    private TimeSpan _audioEnd; // end of the audio written so far
     private TimeSpan _videoEnd; // end of the last frame written
     private short[]? _silence;
 
@@ -222,14 +250,22 @@ public sealed class GpuRecorder : IRecorderPart
         int perBlock = AudioEngine.SampleRate / 100 * AudioEngine.Channels;
         _silence ??= new short[perBlock];
         var block = TimeSpan.FromMilliseconds(10);
-        while (_audioEnd < until) WriteAudio(_silence, _audioEnd, block);
+        while (_timeline.End < until) WriteAudio(_silence, block);
     }
 
-    private void WriteAudio(short[] pcm, TimeSpan time, TimeSpan duration)
+    /// <summary>Writes a block where the recording clock says it belongs: silence first across a real gap, nothing if that moment is already covered.</summary>
+    private void PlaceAudio(short[] pcm, TimeSpan at, TimeSpan duration)
     {
-        // Audio that comes back after a gap lands after what's written (timestamps must only go forward).
-        if (time < _audioEnd) time = _audioEnd;
-        _audioEnd = time + duration;
+        if (!_timeline.Place(at, out var gap)) return;
+        if (gap > TimeSpan.Zero) WriteSilence(_timeline.End + gap);
+        WriteAudio(pcm, duration);
+    }
+
+    /// <summary>Appends a block to the end of the sound track.</summary>
+    private void WriteAudio(short[] pcm, TimeSpan duration)
+    {
+        var time = _timeline.End;
+        _timeline.Advance(duration);
         int bytes = pcm.Length * 2;
         using var buffer = MediaFactory.MFCreateMemoryBuffer(bytes);
         buffer.Lock(out nint ptr, out _, out _);
@@ -248,7 +284,13 @@ public sealed class GpuRecorder : IRecorderPart
     {
         if (_writer is null) return;
         _stopping = true;
-        if (_thread is { } t) await Task.Run(t.Join);
+        // A writer that stops answering (a driver fault) must not leave the app saving for ever: give up on this
+        // piece after a while. Its file is left as it is, and the pieces before it are still joined.
+        if (_thread is { } t && !await Task.Run(() => t.Join(TimeSpan.FromSeconds(20))))
+        {
+            _writer = null; _manager = null; // still in use by the stuck thread: not released
+            throw new InvalidOperationException("Recording failed: the video encoder stopped responding.");
+        }
         try { if (FramesWritten > 0) _writer.Finalize(); }
         finally
         {

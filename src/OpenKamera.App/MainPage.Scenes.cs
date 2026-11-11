@@ -112,7 +112,12 @@ public sealed partial class MainPage
         RefreshSceneRail(_scene.Id);
     }
 
-    private void RefreshSceneRail(string? selectId)
+    /// <param name="reload">
+    /// False when only the list changed (search, category, live thumbnails): the scene on air stays as it is.
+    /// Reloading it there wiped the undo history and the selected layer, and started a transition on the live
+    /// picture, on every keystroke in the search box.
+    /// </param>
+    private void RefreshSceneRail(string? selectId, bool reload = true)
     {
         _scenes = SceneLibrary.All();
         for (int i = 0; i < _scenes.Count; i++) _scenes[i].Shortcut = i + 1;
@@ -130,11 +135,18 @@ public sealed partial class MainPage
         SceneList.ItemsSource = shown.ToList();
         _loadingScene = false;
         var target = _scenes.FirstOrDefault(s => s.Id == selectId) ?? _scenes[0];
+        if (!reload && _scene is not null && target.Id == _scene.Id)
+        {
+            _loadingScene = true;
+            if (SceneList.Items.Contains(target)) SceneList.SelectedItem = target; // highlight only
+            _loadingScene = false;
+            return;
+        }
         if (SceneList.Items.Contains(target)) SceneList.SelectedItem = target;
         else LoadScene(target);
     }
 
-    private void SceneSearch_TextChanged(object sender, TextChangedEventArgs e) => RefreshSceneRail(_scene.Id);
+    private void SceneSearch_TextChanged(object sender, TextChangedEventArgs e) => RefreshSceneRail(_scene.Id, reload: false);
 
     private void SelectSceneByShortcut(int n)
     {
@@ -146,7 +158,7 @@ public sealed partial class MainPage
     private void SceneCategory_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (SceneList is null || _scenes.Count == 0) return;
-        RefreshSceneRail(_scene.Id);
+        RefreshSceneRail(_scene.Id, reload: false);
     }
 
     private void SceneList_SelectionChanged(object sender, SelectionChangedEventArgs e)

@@ -50,6 +50,7 @@ fun KissikLogo(modifier: Modifier = Modifier) {
 @Composable
 fun Onboarding(studio: Studio, done: () -> Unit) {
     var page by remember { mutableStateOf(0) }
+    studio.platform.system.OnBack(page > 0) { page-- }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Spacer(Modifier.height(32.dp))
         KissikLogo(Modifier.size(120.dp))

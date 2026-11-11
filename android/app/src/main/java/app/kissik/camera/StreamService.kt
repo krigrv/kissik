@@ -182,12 +182,14 @@ class StreamService : LifecycleService() {
         }.apply { if (canDetectOrientation()) enable() }
         // Keep the mic list current as headsets and USB mics come and go.
         Mic.refresh(this)
-        getSystemService(android.media.AudioManager::class.java).registerAudioDeviceCallback(object : android.media.AudioDeviceCallback() {
+        audioDevices = object : android.media.AudioDeviceCallback() {
             override fun onAudioDevicesAdded(added: Array<out android.media.AudioDeviceInfo>) { Mic.refresh(this@StreamService); sendStatus() }
             override fun onAudioDevicesRemoved(removed: Array<out android.media.AudioDeviceInfo>) { Mic.refresh(this@StreamService); sendStatus() }
-        }, null)
+        }
+        getSystemService(android.media.AudioManager::class.java).registerAudioDeviceCallback(audioDevices, null)
+        getSystemService(NotificationManager::class.java).cancel(2) // an earlier "stopped to save battery" note
         lifecycleScope.launch(Dispatchers.IO) { connectLoop() }
-        lifecycleScope.launch { while (isActive) { checkSaver(); sendStatus(); delay(5_000) } }
+        lifecycleScope.launch { while (isActive) { checkSaver(); sendStatus(); stopIfUnreachable(); delay(5_000) } }
         lifecycleScope.launch {
             while (isActive) {
                 delay(1000)
@@ -507,6 +509,30 @@ class StreamService : LifecycleService() {
     }
 
     private val REJECTED = "rejected"
+    @Volatile private var destroyed = false
+    /** When the link was last lost (elapsedRealtime), or 0 while connected or not yet tried. */
+    @Volatile private var lastLive = 0L
+    private var audioDevices: android.media.AudioDeviceCallback? = null
+
+    /**
+     * With the PC off or out of reach, the service used to keep the camera open and the phone awake for as long as
+     * it took, which could be all night. After this long without a connection it stops and says so; opening the
+     * app connects again.
+     */
+    private val giveUpAfterMs = 15 * 60_000L
+
+    private fun stopIfUnreachable() {
+        val since = lastLive
+        if (ws != null || since == 0L || android.os.SystemClock.elapsedRealtime() - since < giveUpAfterMs) return
+        val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
+        runCatching {
+            getSystemService(NotificationManager::class.java).notify(2, NotificationCompat.Builder(this, CHANNEL)
+                .setSmallIcon(R.drawable.ic_stat).setContentTitle("KISSIK Camera stopped to save battery")
+                .setContentText("It couldn't reach your PC for 15 minutes. Tap to connect again.")
+                .setContentIntent(open).setAutoCancel(true).build())
+        }
+        stopSelf()
+    }
     private fun netLog(msg: String) { if (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0) android.util.Log.d("KissikNet", msg) }
 
     /** Connects (USB first when adb reverse is set up, else Wi-Fi) and reconnects quickly whenever the link drops. */
@@ -529,12 +555,12 @@ class StreamService : LifecycleService() {
             netLog("connect ${if (usb) "usb" else "wifi"} ${request.url.host}:${request.url.port}")
             attempt = builder.build().newWebSocket(request, object : WebSocketListener() {
                 override fun onOpen(webSocket: WebSocket, response: Response) {
-                    // Re-paired while this connect was in flight: drop it so the loop uses the new pairing.
-                    if (Pairing.load(this@StreamService)?.token != pairing.token) { webSocket.cancel(); return }
+                    // Stopped, or re-paired, while this connect was in flight: drop it.
+                    if (destroyed || Pairing.load(this@StreamService)?.token != pairing.token) { webSocket.cancel(); return }
                     netLog("open")
                     // Every connection starts in JPEG, which every KISSIK can show; the PC asks for H.264 if it decodes it.
                     Pro.codec.value = "jpeg"
-                    ws = webSocket; backoff = 500L
+                    ws = webSocket; backoff = 500L; lastLive = 0L
                     needKey = true; encoder?.requestKeyframe()
                     Live.link.value = if (usb) Link.Usb else Link.Wifi
                     Live.message.value = if (usb) "Live in KISSIK over USB" else "Live in KISSIK over Wi-Fi"
@@ -563,6 +589,7 @@ class StreamService : LifecycleService() {
             })
             val why = done.await()
             ws = null
+            if (lastLive == 0L) lastLive = android.os.SystemClock.elapsedRealtime()
             if (why == REJECTED) {
                 // Retrying a refused pairing is pointless, and KISSIK blocks devices that keep sending wrong links.
                 // Wait quietly for the user to scan the new code.
@@ -686,7 +713,8 @@ class StreamService : LifecycleService() {
                 rec.startRecording()
                 while (isActive) {
                     val n = rec.read(samples, 0, samples.size, AudioRecord.READ_BLOCKING)
-                    if (n <= 0) continue
+                    if (n < 0) { Live.message.value = "The microphone stopped. Turn Mic off and on to try again."; break }
+                    if (n == 0) continue
                     packet.clear(); packet.put('A'.code.toByte()); packet.putInt(rate)
                     for (i in 0 until n) packet.putFloat(samples[i])
                     ws?.send(packet.array().toByteString(0, 5 + n * 4))
@@ -696,8 +724,11 @@ class StreamService : LifecycleService() {
     }
 
     override fun onDestroy() {
+        destroyed = true
         Live.running.value = false; Live.hasTorch.value = null; Live.link.value = Link.Off; Live.message.value = ""; Live.torch.value = false
         ws?.close(1000, "stopped"); ws = null
+        attempt?.cancel(); attempt = null // a connect still in flight
+        audioDevices?.let { runCatching { getSystemService(android.media.AudioManager::class.java).unregisterAudioDeviceCallback(it) } }
         micJob?.cancel()
         // Release only the stream's own camera use: the scanner may already be using the camera.
         runCatching { ProcessCameraProvider.getInstance(this).get().unbind(*bound.toTypedArray()) }

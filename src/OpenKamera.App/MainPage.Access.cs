@@ -170,6 +170,15 @@ public sealed partial class MainPage
             _studioOnly.Clear();
         }
         SimplePanel.Visibility = simple ? Visibility.Visible : Visibility.Collapsed;
+        // Simple mode: messages sit in the empty left of the top bar. Bottom-right they covered the "Hide me" button.
+        MessageArea.HorizontalAlignment = simple ? HorizontalAlignment.Left : HorizontalAlignment.Right;
+        MessageArea.VerticalAlignment = simple ? VerticalAlignment.Top : VerticalAlignment.Bottom;
+        MessageArea.Margin = simple ? new Thickness(16, 6, 0, 0) : new Thickness(0, 0, 12, 12);
+        MessageArea.MaxWidth = simple ? 520 : 236;
+        StatusText.MaxLines = simple ? 2 : 3;
+        // Simple mode has no Source panel: its camera list sits above the big buttons.
+        EmptyStep1.Text = simple ? "1. Pick your camera in the list at the bottom of the window."
+                                 : "1. Pick your camera where the orange bubble points, under Source on the left.";
         UpdateStageMargin();
         SyncSimple();
     }
@@ -178,9 +187,10 @@ public sealed partial class MainPage
     private void SyncSimple()
     {
         if (SimplePanel.Visibility != Visibility.Visible) return;
+        SyncSimpleSource();
         SetSimple(SimpleCameraBtn, SimpleCameraLabel, _session is null ? "Turn camera on" : "Turn camera off");
         SetSimple(SimpleRecordBtn, SimpleRecordLabel, _recorder is not null ? "Stop recording" : "Record");
-        SimpleRecordBtn.IsEnabled = _session is not null;
+        SimpleRecordBtn.IsEnabled = _session is not null || _recorder is not null;
         SetSimple(SimpleHideBtn, SimpleHideLabel, _shutter == ShutterMode.Off ? "Hide me" : "Show me");
         string bg = BgMode.SelectedItem == BgBlur ? "Background: blur" : BgMode.SelectedItem == BgReplace ? "Background: picture"
             : BgMode.SelectedItem == BgRemove ? "Background: removed" : "Background: off";

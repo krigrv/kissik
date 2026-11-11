@@ -12,6 +12,7 @@ public class GpuEffectsTests(ITestOutputHelper log)
     [Fact] public void Blur() => Compare(Recipe(bg: new(BackgroundMode.Blur, 0.7)));
     [Fact] public void BlurLow() => Compare(Recipe(bg: new(BackgroundMode.Blur, 0.0)));
     [Fact] public void Replace() => Compare(Recipe(bg: new(BackgroundMode.Replace, BackgroundId: "x")), replacement: Pattern(7));
+    [Fact] public void ReplaceWithNoPictureReady_MatchesTheCpu() => Compare(Recipe(bg: new(BackgroundMode.Replace, BackgroundId: "x")), replacement: null);
     [Fact] public void Remove() => Compare(Recipe(bg: new(BackgroundMode.Remove)));
     [Fact] public void SpotlightAndRetouch() => Compare(Recipe(bg: new(BackgroundMode.Blur, 0.3, Spotlight: 0.8, Retouch: 0.9)));
 

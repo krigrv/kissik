@@ -87,10 +87,22 @@ public sealed class BackgroundPipeline : IDisposable
                 LastError = null; _hadError = false;
                 return _lastMask = mask;
             }
-            catch (Exception ex) { LastError = ex.Message; _hadError = true; _reuseMask = null; return null; }
+            catch (Exception ex)
+            {
+                LastError = ex.Message; _hadError = true; _reuseMask = null;
+                // The cut-out failed. With the background hidden, treat the whole picture as background (all blurred,
+                // all replaced) instead of passing the room through untouched: failing must not expose it.
+                return HidesRoom(s) ? _lastMask = Nobody : null;
+            }
             finally { LastMs = sw.Elapsed.TotalMilliseconds; }
         }
     }
+
+    /// <summary>A cut-out with no person in it: everything counts as background.</summary>
+    private static readonly PersonMask Nobody = new(new float[16 * 9], 16, 9);
+
+    /// <summary>True when the user asked for their room not to be seen.</summary>
+    public static bool HidesRoom(BackgroundSettings s) => s.Mode is BackgroundMode.Blur or BackgroundMode.Replace or BackgroundMode.Remove;
 
     public void Apply(byte[] px, int w, int h, BackgroundSettings s)
     {
@@ -117,7 +129,16 @@ public sealed class BackgroundPipeline : IDisposable
                 BackgroundEffects.Apply(px, w, h, alpha, s, bg);
                 LastError = null; _hadError = false;
             }
-            catch (Exception ex) { LastError = ex.Message; _hadError = true; _reuse = null; }
+            catch (Exception ex)
+            {
+                LastError = ex.Message; _hadError = true; _reuse = null;
+                if (HidesRoom(s))
+                {
+                    // Same rule as the GPU path: a failed cut-out hides everything rather than nothing.
+                    try { BackgroundEffects.Apply(px, w, h, new float[w * h], s with { Spotlight = 0, Retouch = 0 }, ReplacementFor(s, w, h)); }
+                    catch { Array.Clear(px); }
+                }
+            }
             LastMs = sw.Elapsed.TotalMilliseconds;
         }
     }

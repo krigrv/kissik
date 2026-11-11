@@ -52,10 +52,17 @@ public sealed partial class MainPage
     private void LightBtn_Click(object sender, RoutedEventArgs e)
     {
         LightPanel.Visibility = LightPanel.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
-        if (LightPanel.Visibility == Visibility.Visible) { BuildLightDisplays(); RefreshMonitorBrightnessHint(); }
+        if (LightPanel.Visibility == Visibility.Visible) { BuildLightDisplays(); RefreshMonitorBrightnessHint(); try { SourceTip.IsOpen = false; } catch { } }
+        FitLightPanel();
+        UpdateStageMargin();
     }
 
-    private void LightClose_Click(object sender, RoutedEventArgs e) => LightPanel.Visibility = Visibility.Collapsed;
+    private void LightClose_Click(object sender, RoutedEventArgs e)
+    {
+        LightPanel.Visibility = Visibility.Collapsed;
+        UpdateStageMargin();
+        LightBtn.Focus(FocusState.Programmatic); // back to where it was opened from
+    }
 
     private void BuildLightLooks()
     {

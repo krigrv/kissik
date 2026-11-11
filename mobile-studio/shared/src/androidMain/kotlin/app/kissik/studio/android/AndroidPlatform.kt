@@ -25,6 +25,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
@@ -69,6 +71,10 @@ class AndroidPlatform(private val activity: ComponentActivity) : StudioPlatform 
     override val captions = AndroidCaptions(activity, androidAudio)
     override val files = AndroidFiles(activity)
     override val scanner = AndroidScanner(activity)
+
+    /** The app left the screen / came back. */
+    fun background() = androidMedia.onBackground()
+    fun foreground() = androidMedia.onForeground()
 
     fun release() {
         androidMedia.release(); androidLive.stop(); androidWebcam.disconnect(); captions.stop()
@@ -129,6 +135,7 @@ class AndroidSystem(private val activity: Activity) : SystemService {
     }
     override fun nowIso(): String = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply { timeZone = TimeZone.getTimeZone("UTC") }.format(Date())
     override fun nowMs() = System.currentTimeMillis()
+    @Composable override fun OnBack(enabled: Boolean, action: () -> Unit) = androidx.activity.compose.BackHandler(enabled, action)
     override fun openPrivacySettings() {
         activity.startActivity(Intent(SysSettings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${activity.packageName}")))
     }
@@ -399,10 +406,26 @@ class AndroidScanner(private val activity: ComponentActivity) : ScannerService {
     }
 }
 
+/** Keeps the screen on while recording, time-lapse, replay buffer, a live stream or the PC link is running. */
+@Composable
+fun KeepScreenOn(platform: AndroidPlatform, activity: Activity) {
+    val media by platform.media.state.collectAsState()
+    val live by platform.live.states.collectAsState()
+    val web by platform.webcam.state.collectAsState()
+    val busy = media.recording || media.timeLapse || media.replayOn ||
+        live.values.any { it == app.kissik.studio.stream.LinkState.Live || it == app.kissik.studio.stream.LinkState.Connecting } ||
+        web == WebcamState.Connected || web == WebcamState.Connecting
+    androidx.compose.runtime.DisposableEffect(busy) {
+        val flag = android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+        if (busy) activity.window.addFlags(flag) else activity.window.clearFlags(flag)
+        onDispose {}
+    }
+}
+
 // ── Permission screen ────────────────────────────────────────────────────────
 
 @Composable
-fun PermissionGate(onAsk: () -> Unit, onSettings: () -> Unit) {
+fun PermissionGate(blocked: Boolean, onAsk: () -> Unit, onSettings: () -> Unit) {
     KissikTheme(ThemeChoice.System, highContrast = false, largeText = false) {
         androidx.compose.material3.Surface(Modifier.fillMaxSize()) {
             Column(Modifier.fillMaxSize().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
@@ -412,8 +435,16 @@ fun PermissionGate(onAsk: () -> Unit, onSettings: () -> Unit) {
                 Spacer(Modifier.height(8.dp))
                 Text("The picture is processed on this phone only. The microphone is used for recordings, streams and captions.", textAlign = TextAlign.Center)
                 Spacer(Modifier.height(16.dp))
-                Button(onClick = onAsk) { Text("Allow camera and microphone") }
-                TextButton(onClick = onSettings) { Text("Open app settings") }
+                // After two refusals Android stops showing its question, so the only way left is the settings page.
+                if (blocked) {
+                    Text("Android won't ask again. In settings, open Permissions, then allow Camera.", textAlign = TextAlign.Center,
+                        style = MaterialTheme.typography.bodyMedium)
+                    Spacer(Modifier.height(12.dp))
+                    Button(onClick = onSettings) { Text("Open settings to allow the camera") }
+                } else {
+                    Button(onClick = onAsk) { Text("Allow camera and microphone") }
+                    TextButton(onClick = onSettings) { Text("Open app settings") }
+                }
             }
         }
     }

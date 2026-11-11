@@ -25,7 +25,7 @@ public sealed partial class MainPage
         if (!_settings.SystemSoundOn || !_audio.IsRunning) { _systemSound.Stop(); return; }
         string? why = LoopRisk();
         if (why is not null) { _systemSound.Stop(); AudioStatus.Text += " " + why; return; }
-        _audio.AddPushTrack(SystemSoundId, "System sound");
+        _audio.AddPushTrack(SystemSoundId, "System sound", voice: false);
         try { if (!_systemSound.IsRunning) _systemSound.Start(); }
         catch (Exception ex) { AudioStatus.Text += " System sound unavailable: " + ex.Message; }
     }

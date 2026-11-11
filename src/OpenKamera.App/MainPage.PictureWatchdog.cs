@@ -17,6 +17,8 @@ public sealed partial class MainPage
         _pictureWatch.Interval = TimeSpan.FromSeconds(1);
         _pictureWatch.Tick += async (_, _) =>
         {
+            if (_quitting) return; // closing down: the camera going quiet is expected, and must not be reopened
+            if (_session is null && !_pictureRetrying) await RetryLostCameraAsync();
             if (_session is null || _pictureRetrying) { if (_pictureMissing) PictureBack(); return; }
             var now = DateTime.UtcNow;
             var since = _lastFrameAt > _connectedAt ? _lastFrameAt : _connectedAt;

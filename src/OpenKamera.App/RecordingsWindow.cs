@@ -22,6 +22,7 @@ public sealed class RecordingsWindow : Window
     {
         _folders = folders;
         Title = "KISSIK recordings";
+        SystemBackdrop = new Microsoft.UI.Xaml.Media.MicaBackdrop(); // follows the theme, like the Gallery
         var bar = new CommandBar { DefaultLabelPosition = CommandBarDefaultLabelPosition.Right, HorizontalAlignment = HorizontalAlignment.Left };
         bar.PrimaryCommands.Add(Cmd("", "Play", Play));
         bar.PrimaryCommands.Add(Cmd("", "Trim", Trim));

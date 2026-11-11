@@ -13,6 +13,13 @@ public sealed class AudioTrack
 {
     public required string DeviceId { get; init; }
     public required string Name { get; init; }
+    /// <summary>
+    /// A voice (microphone) gets the voice chain and is what meetings hear. Anything else (what the PC plays) is
+    /// programme sound: left in stereo, never denoised, and only in recordings and streams.
+    /// </summary>
+    public bool IsVoice { get; init; } = true;
+    /// <summary>Master volume for programme tracks, which skip the voice bus where it is applied to microphones.</summary>
+    internal double BusGain = 1;
     internal IAudioInputNode? Input;
     internal AudioEngine.PushSource? Push;
     internal AudioFrameOutputNode? Tap;
@@ -41,7 +48,7 @@ public sealed class AudioTrack
     /// <summary>Noise removal actually running on this mic (Off if it couldn't start).</summary>
     public NoiseRemoval Noise => Chain is { DenoiserFailed: false } c ? c.Mode : NoiseRemoval.Off;
 
-    internal void Apply() { if (Input is not null) Input.OutgoingGain = _muted ? 0 : _volume; }
+    internal void Apply() { if (Input is not null) Input.OutgoingGain = _muted ? 0 : _volume * BusGain; }
 }
 
 /// <summary>Master bus settings.</summary>
@@ -69,7 +76,8 @@ public sealed class AudioMixSettings
 }
 
 /// <summary>
-/// Microphone mixer on Windows AudioGraph: inputs → submix (EQ, limiter, master volume) → frame tap.
+/// Microphone mixer on Windows AudioGraph: microphones → voice bus (EQ, limiter, master volume) → output bus
+/// (limiter) → frame tap. Programme tracks (system sound) join at the output bus, so meetings never hear them.
 /// Raises <see cref="MixReady"/> with interleaved float samples for the recorder and keeps peak meters.
 /// Nothing is played to the speakers; the mix only goes to <see cref="AudioMixSettings.MeetingOutputId"/> when one is chosen
 /// (a virtual cable, so meetings hear the processed voice).
@@ -80,11 +88,15 @@ public sealed class AudioEngine : IAsyncDisposable
     public static readonly double[] EqCentres = [100, 600, 2500, 8000];
 
     private AudioGraph? _graph;
-    private AudioSubmixNode? _submix;
+    private AudioSubmixNode? _submix, _record;
     private AudioFrameOutputNode? _masterTap;
     private EqualizerEffectDefinition? _eq;
-    private LimiterEffectDefinition? _limiter;
-    private readonly List<AudioTrack> _tracks = [];
+    private LimiterEffectDefinition? _limiter, _recordLimiter;
+    /// <summary>Replaced, never changed in place: the audio thread reads it while the UI adds and removes tracks.</summary>
+    private volatile AudioTrack[] _tracks = [];
+    private readonly object _tracksLock = new();
+    private void AddTrack(AudioTrack t) { lock (_tracksLock) _tracks = [.. _tracks, t]; }
+    private void DropTrack(AudioTrack t) { lock (_tracksLock) _tracks = _tracks.Where(x => x != t).ToArray(); }
 
     public IReadOnlyList<AudioTrack> Tracks => _tracks;
     public AudioMixSettings Mix { get; private set; } = new();
@@ -162,8 +174,13 @@ public sealed class AudioEngine : IAsyncDisposable
         _limiter = new LimiterEffectDefinition(_graph) { Loudness = 1000, Release = 10 };
         _submix.EffectDefinitions.Add(_eq);
         _submix.EffectDefinitions.Add(_limiter);
+        // Output bus: the voice bus plus programme sound, with its own limiter so the sum can't clip a recording.
+        _record = _graph.CreateSubmixNode();
+        _recordLimiter = new LimiterEffectDefinition(_graph) { Loudness = 1000, Release = 10 };
+        _record.EffectDefinitions.Add(_recordLimiter);
+        _submix.AddOutgoingConnection(_record);
         _masterTap = _graph.CreateFrameOutputNode(_graph.EncodingProperties);
-        _submix.AddOutgoingConnection(_masterTap);
+        _record.AddOutgoingConnection(_masterTap);
         if (output is not null)
         {
             var o = await _graph.CreateDeviceOutputNodeAsync();
@@ -173,7 +190,8 @@ public sealed class AudioEngine : IAsyncDisposable
 
         var mics = await ListMicrophonesAsync();
         // Default to Windows' own default microphone (communications role, then console) when none is chosen yet.
-        var chosen = mix.MicIds.Count > 0 ? mics.Where(m => mix.MicIds.Contains(m.Id)).ToList() : DefaultMic(mics);
+        var chosen = ChooseMics(mix.MicIds, mics, out bool fellBack);
+        if (fellBack && chosen.Count > 0) Notes.Add($"Your chosen microphone isn't connected, so {chosen[0].Name} is used until it is back.");
         foreach (var (id, name) in chosen) await AddTrackAsync(id, name);
 
         ApplyMix();
@@ -183,6 +201,23 @@ public sealed class AudioEngine : IAsyncDisposable
         LastQuantumAt = DateTime.UtcNow;
         _graph.Start();
     }
+
+    /// <summary>
+    /// The microphones to open: the saved ones that are connected; Windows' default when none is saved, or when
+    /// none of the saved ones is here (<paramref name="fellBack"/>) so an unplugged headset never means silence.
+    /// </summary>
+    public static List<(string Id, string Name)> ChooseMics(IReadOnlyCollection<string> saved, IReadOnlyList<(string Id, string Name)> present, out bool fellBack)
+    {
+        fellBack = false;
+        if (saved.Count == 0) return DefaultMic(present);
+        var here = present.Where(m => saved.Contains(m.Id)).ToList();
+        if (here.Count > 0) return here;
+        fellBack = true;
+        return DefaultMic(present);
+    }
+
+    /// <summary>Ids of the microphones open now (not code-fed tracks), to tell when a device change needs a restart.</summary>
+    public IReadOnlyList<string> OpenMicIds => _tracks.Where(t => t.Push is null).Select(t => t.DeviceId).ToList();
 
     private async Task AddTrackAsync(string id, string name)
     {
@@ -219,7 +254,7 @@ public sealed class AudioEngine : IAsyncDisposable
         track.Muted = Mix.MutedMics.Contains(id);
         // The tap connection must stay at unity even when the mix gain changes: OutgoingGain applies to all
         // outgoing connections, so meters show post-gain; that is what users expect from a fader meter.
-        _tracks.Add(track);
+        AddTrack(track);
     }
 
     /// <summary>The voice chain this mic's settings ask for (null when every step is off), and a note if its noise removal can't run.</summary>
@@ -243,11 +278,23 @@ public sealed class AudioEngine : IAsyncDisposable
     /// </summary>
     public async Task UpdateVoiceAsync()
     {
-        foreach (var t in _tracks.ToList())
+        foreach (var t in _tracks)
         {
+            if (!t.IsVoice) continue;
+            // A mic whose own settings didn't change keeps its chain: rebuilding it would restart auto level
+            // and the denoiser, which is heard as a level jump on every microphone.
+            var mode = Mix.NoiseFor(t.DeviceId);
+            if (t.Chain is { DenoiserFailed: false } c && t.VoiceNote is null && c.Mode == mode
+                && c.LowCut == Mix.LowCut && c.AutoGain == Mix.AutoLevel && c.DeEss == Mix.DeEss) continue;
+            if (t.Chain is null && t.VoiceNote is null && mode == NoiseRemoval.Off && !Mix.LowCut && !Mix.AutoLevel && !Mix.DeEss) continue;
             var (chain, note) = await Task.Run(() => BuildChain(t.DeviceId));
             VoiceChain? old;
-            lock (t.ChainLock) { old = t.Chain; t.Chain = chain; t.VoiceNote = note; }
+            lock (t.ChainLock)
+            {
+                old = t.Chain;
+                if (old is not null) chain?.ContinueFrom(old);
+                t.Chain = chain; t.VoiceNote = note;
+            }
             old?.Dispose();
         }
     }
@@ -259,7 +306,12 @@ public sealed class AudioEngine : IAsyncDisposable
     public void ApplyMix()
     {
         if (_submix is null || _eq is null || _limiter is null) return;
-        _submix.OutgoingGain = MuteAll ? 0 : Math.Clamp(Mix.MasterVolume, 0, 2);
+        double master = Math.Clamp(Mix.MasterVolume, 0, 2);
+        _submix.OutgoingGain = MuteAll ? 0 : master;
+        if (_record is not null) _record.OutgoingGain = MuteAll ? 0 : 1;
+        if (_record is not null && _recordLimiter is not null)
+        { if (Mix.Limiter) _record.EnableEffectsByDefinition(_recordLimiter); else _record.DisableEffectsByDefinition(_recordLimiter); }
+        foreach (var t in _tracks) if (!t.IsVoice) { t.BusGain = master; t.Apply(); }
         for (int i = 0; i < 4; i++) _eq.Bands[i].Gain = DbToEqGain(Mix.EqDb.ElementAtOrDefault(i));
         if (Mix.Limiter) _submix.EnableEffectsByDefinition(_limiter); else _submix.DisableEffectsByDefinition(_limiter);
         bool flat = Mix.EqDb.All(d => Math.Abs(d) < 0.05);
@@ -396,21 +448,23 @@ public sealed class AudioEngine : IAsyncDisposable
     /// Adds a track fed by code instead of a device (the phone's microphone). Push 48 kHz stereo floats with
     /// <see cref="PushAudio"/>; gaps play as silence and a backlog over ~200 ms is dropped to keep latency low.
     /// </summary>
-    public AudioTrack? AddPushTrack(string id, string name)
+    /// <param name="voice">False for programme sound (what the PC plays): stereo, no voice chain, not sent to meetings.</param>
+    public AudioTrack? AddPushTrack(string id, string name, bool voice = true)
     {
-        if (_graph is null || _submix is null) return null;
+        if (_graph is null || _submix is null || _record is null) return null;
         var existing = _tracks.FirstOrDefault(t => t.DeviceId == id);
         if (existing is not null) return existing;
         var node = _graph.CreateFrameInputNode(_graph.EncodingProperties);
         var push = new PushSource(node);
-        var track = new AudioTrack { DeviceId = id, Name = name, Input = node, Push = push };
-        (track.Chain, track.VoiceNote) = BuildChain(id);
+        var track = new AudioTrack { DeviceId = id, Name = name, Input = node, Push = push, IsVoice = voice };
+        if (voice) (track.Chain, track.VoiceNote) = BuildChain(id);
+        else track.BusGain = Math.Clamp(Mix.MasterVolume, 0, 2);
         track.Tap = _graph.CreateFrameOutputNode(_graph.EncodingProperties);
-        node.AddOutgoingConnection(_submix);
+        node.AddOutgoingConnection(voice ? _submix : _record);
         node.AddOutgoingConnection(track.Tap, 1.0);
         track.Volume = Mix.MicVolumes.TryGetValue(id, out var v) ? v : 1;
         track.Muted = Mix.MutedMics.Contains(id);
-        _tracks.Add(track);
+        AddTrack(track);
         node.Start();
         return track;
     }
@@ -427,7 +481,7 @@ public sealed class AudioEngine : IAsyncDisposable
     {
         var t = _tracks.FirstOrDefault(x => x.DeviceId == id && x.Push is not null);
         if (t is null) return;
-        _tracks.Remove(t);
+        DropTrack(t);
         try { t.Input?.Stop(); (t.Input as IDisposable)?.Dispose(); t.Tap?.Dispose(); } catch { }
         lock (t.ChainLock) { t.Chain?.Dispose(); t.Chain = null; }
     }
@@ -441,9 +495,9 @@ public sealed class AudioEngine : IAsyncDisposable
             g.Dispose();
         }
         OutputName = null;
-        _graph = null; _submix = null; _masterTap = null; _eq = null; _limiter = null;
+        _graph = null; _submix = null; _record = null; _masterTap = null; _eq = null; _limiter = null; _recordLimiter = null;
         foreach (var t in _tracks) lock (t.ChainLock) { t.Chain?.Dispose(); t.Chain = null; } // graph stopped first
-        _tracks.Clear();
+        lock (_tracksLock) _tracks = [];
         MasterPeakL = MasterPeakR = 0;
         return Task.CompletedTask;
     }

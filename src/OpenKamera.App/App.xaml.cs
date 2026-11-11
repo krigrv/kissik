@@ -23,6 +23,8 @@ namespace OpenKamera_App;
 public partial class App : Application
 {
     private Window? _window;
+    private DateTime _lastUnhandled;
+    private int _unhandledBurst;
 
     /// <summary>The main window, for APIs that need an owner HWND (file pickers).</summary>
     public static Window? MainWindow { get; private set; }
@@ -45,6 +47,14 @@ public partial class App : Application
                 File.AppendAllText(System.IO.Path.Combine(dir, "crash.log"), $"{DateTime.Now:O} {e.Exception}\n\n");
             }
             catch { /* never throw from the crash handler */ }
+            // An error in one button's handler shouldn't end a meeting or a recording: note it, say so, carry on.
+            // A burst of errors means something is badly wrong, so that is still allowed to close the app.
+            var now = DateTime.UtcNow;
+            if (now - _lastUnhandled > TimeSpan.FromSeconds(30)) _unhandledBurst = 0;
+            _lastUnhandled = now;
+            if (++_unhandledBurst > 3) return;
+            e.Handled = true;
+            try { MainPage.Current?.ReportProblem(e.Exception); } catch { }
         };
     }
 
@@ -54,6 +64,21 @@ public partial class App : Application
     /// <param name="args">Details about the launch request and process.</param>
     protected override void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
     {
+        // One KISSIK at a time: a second copy would fight the first for the camera, the microphone and the meeting
+        // camera. Opening KISSIK again shows the one that is already running.
+        try
+        {
+            var first = Microsoft.Windows.AppLifecycle.AppInstance.FindOrRegisterForKey("KISSIK");
+            if (!first.IsCurrent)
+            {
+                var how = Microsoft.Windows.AppLifecycle.AppInstance.GetCurrent().GetActivatedEventArgs();
+                try { Task.Run(() => first.RedirectActivationToAsync(how).AsTask()).Wait(TimeSpan.FromSeconds(5)); } catch { }
+                System.Diagnostics.Process.GetCurrentProcess().Kill();
+                return;
+            }
+            first.Activated += (_, _) => MainWindow?.DispatcherQueue.TryEnqueue(() => MainPage.Current?.ShowFromSecondLaunch());
+        }
+        catch { /* if Windows can't tell us, open normally */ }
         MainWindow = _window = new MainWindow();
         _window.Activate();
     }

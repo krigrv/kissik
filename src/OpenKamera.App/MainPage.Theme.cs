@@ -33,6 +33,26 @@ public sealed partial class MainPage
 
     private void InitTheme() => ApplyTheme(_settings.Theme);
 
+    /// <summary>A Windows theme colour for the theme KISSIK is showing, for the other KISSIK windows.</summary>
+    internal Brush ThemeBrush(string name) => Token(name);
+
+    /// <summary>Gives another KISSIK window the theme chosen here (its content and its title bar).</summary>
+    private void ThemeWindow(Window? window)
+    {
+        if (window is null) return;
+        try
+        {
+            if (window.Content is FrameworkElement root) root.RequestedTheme = RequestedTheme;
+            window.AppWindow.TitleBar.PreferredTheme = RequestedTheme switch
+            {
+                ElementTheme.Light => Microsoft.UI.Windowing.TitleBarTheme.Light,
+                ElementTheme.Dark => Microsoft.UI.Windowing.TitleBarTheme.Dark,
+                _ => Microsoft.UI.Windowing.TitleBarTheme.UseDefaultAppMode,
+            };
+        }
+        catch { /* an older Windows without title bar themes keeps its own */ }
+    }
+
     private void Theme_Click(object sender, RoutedEventArgs e)
     {
         if (sender is FrameworkElement { Tag: string t }) { _settings.Theme = t; _settings.Save(); ApplyTheme(t); }
@@ -43,6 +63,8 @@ public sealed partial class MainPage
         RequestedTheme = theme switch { "Light" => ElementTheme.Light, "Dark" => ElementTheme.Dark, _ => ElementTheme.Default };
         ThemeSystem.IsChecked = theme is not ("Light" or "Dark");
         ThemeLight.IsChecked = theme == "Light"; ThemeDark.IsChecked = theme == "Dark";
+        ThemeWindow(_gallery); ThemeWindow(_recordings);
+        _gallery?.ThemeChanged();
         // Code-built pieces picked their colours when they were made: rebuild them for the new theme.
         if (_audioReady) BuildMicTracks();
         BuildLookStrip();

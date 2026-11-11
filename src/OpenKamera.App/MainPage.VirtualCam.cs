@@ -18,7 +18,15 @@ public sealed partial class MainPage
     }
 
     /// <summary>Called on the frame thread with the final picture (scene layers included).</summary>
-    private void FeedVirtualCamera(byte[] pixels, int w, int h) => _vcam.TryWrite(pixels, w, h);
+    private void FeedVirtualCamera(byte[] pixels, int w, int h)
+    {
+        _vcam.TryWrite(pixels, w, h);
+        if (_vcam.AnotherWriter == _vcamBlocked) return;
+        _vcamBlocked = _vcam.AnotherWriter;
+        if (_vcamBlocked) DispatcherQueue.TryEnqueue(() =>
+            Status("Another KISSIK is already sending its picture to your meeting. Close that one to use this one."));
+    }
+    private bool _vcamBlocked;
 
     private void RefreshMeetingCamera()
     {
@@ -37,7 +45,8 @@ public sealed partial class MainPage
         var cam = DeviceUsage.InUseBy(PrivacyDevice.Camera).Distinct().ToList();
         var mic = DeviceUsage.InUseBy(PrivacyDevice.Microphone).Distinct().ToList();
         var lines = new List<string>();
-        if (_vcam.HasClients) lines.Add("● A meeting app is using KISSIK now.");
+        if (_vcam.HasClients) lines.Add(_vcam.AnotherWriter ? "● Another KISSIK is sending its picture to the meeting. Close that one to use this one."
+            : "● A meeting app is using KISSIK now.");
         if (cam.Count > 0) lines.Add("Camera open in: " + string.Join(", ", cam));
         if (mic.Count > 0) lines.Add("Microphone open in: " + string.Join(", ", mic));
         MeetCamLive.Text = string.Join(Environment.NewLine, lines);

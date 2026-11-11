@@ -37,3 +37,16 @@ artifacts/
 
 # Claude Code session data and worktrees
 .claude/
+
+# Internal working notes, kept locally only
+/docs/V1-QUALITY-AUDIT.md
+/docs/PROBLEMS-AND-IDEAS.md
+/docs/COMPLIANCE.md
+/docs/STORE-LISTING.md
+/docs/STORE-RELEASE.md
+/docs/RELEASE-CHECKLIST.md
+/docs/platforms/README.md
+/docs/platforms/ios.md
+/docs/platforms/linux.md
+/docs/platforms/macos.md
+/mobile-studio/CHECKLIST.md

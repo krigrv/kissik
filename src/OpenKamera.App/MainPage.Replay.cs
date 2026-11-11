@@ -25,7 +25,7 @@ public sealed partial class MainPage
         try
         {
             var p = _profile;
-            var buf = new ReplayBuffer(ReplayDir, p.Width, p.Height, p.Fps, withAudio: _settings.AudioOn);
+            var buf = new ReplayBuffer(ReplayDir, p.Width, p.Height, p.Fps, withAudio: _audio.IsRunning);
             await buf.StartAsync();
             _replayClock.Restart();
             _replay = buf;
@@ -53,7 +53,8 @@ public sealed partial class MainPage
         {
             Directory.CreateDirectory(RecordingFolder());
             string path = Path.Combine(RecordingFolder(), $"KISSIK-replay-{DateTime.Now:yyyyMMdd-HHmmss}.mp4");
-            Status(await buf.SaveAsync(path) ? "Replay saved: " + path : "Nothing to save yet: give it a few seconds.");
+            if (await buf.SaveAsync(path)) Status("Replay saved: " + path, "Show in folder", () => ShowInFolder(path));
+            else Status("Nothing to save yet: give it a few seconds.");
         }
         catch (Exception ex) { Status("Couldn't save the replay: " + ex.Message); }
     }

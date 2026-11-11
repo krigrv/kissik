@@ -18,7 +18,8 @@ public sealed class CompositeRecorder : IRecorderPart
     private readonly BlockingCollection<(byte[] Pcm, TimeSpan Time, TimeSpan Duration)> _audio = new(boundedCapacity: 400);
     private VideoStreamDescriptor? _videoStream;
     private AudioStreamDescriptor? _audioStream;
-    private TimeSpan _audioNext = TimeSpan.Zero;
+    private readonly AudioTimeline _timeline = new();
+    private readonly object _audioLock = new();
     private MediaStreamSource? _source;
     private Task? _transcode;
     private TimeSpan? _first;
@@ -115,12 +116,22 @@ public sealed class CompositeRecorder : IRecorderPart
     {
         if (!HasAudio || _stopping || _transcode is null || interleaved.Length == 0) return;
         if (_first is null) return; // start with the first video frame so both tracks begin together
-        if (_audioNext == TimeSpan.Zero) _audioNext = captureTime - _first.Value;
-        if (_audioNext < TimeSpan.Zero) _audioNext = TimeSpan.Zero;
         var duration = TimeSpan.FromSeconds(interleaved.Length / (double)AudioEngine.Channels / AudioEngine.SampleRate);
         var bytes = new byte[interleaved.Length * sizeof(float)];
         Buffer.BlockCopy(interleaved, 0, bytes, 0, bytes.Length);
-        if (_audio.TryAdd((bytes, _audioNext, duration))) _audioNext += duration;
+        lock (_audioLock)
+        {
+            // Placed by the recording clock (see AudioTimeline): a break in the sound becomes silence of the same
+            // length instead of pulling everything after it earlier.
+            if (!_timeline.Place(captureTime - _first.Value, out var gap)) return;
+            if (gap > TimeSpan.Zero)
+            {
+                int frames = (int)Math.Round(gap.TotalSeconds * AudioEngine.SampleRate);
+                var silent = TimeSpan.FromSeconds(frames / (double)AudioEngine.SampleRate);
+                if (frames > 0 && _audio.TryAdd((new byte[frames * AudioEngine.Channels * sizeof(float)], _timeline.End, silent))) _timeline.Advance(silent);
+            }
+            if (_audio.TryAdd((bytes, _timeline.End, duration))) _timeline.Advance(duration);
+        }
     }
 
     private static byte[] Crop(byte[] src, int srcW, int w, int h)

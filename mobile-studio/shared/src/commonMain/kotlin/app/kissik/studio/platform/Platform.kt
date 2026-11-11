@@ -196,4 +196,6 @@ interface SystemService {
     fun nowIso(): String
     fun nowMs(): Long
     fun openPrivacySettings()
+    /** While [enabled], the phone's Back button or gesture runs [action] instead of leaving the app (Android). */
+    @Composable fun OnBack(enabled: Boolean, action: () -> Unit) {}
 }

@@ -28,10 +28,10 @@
 
 
 
-        <!-- Target size: every control at least 36 x 36 (well above the 24 px minimum) unless its own style says more. -->
-        <Style TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}"><Setter Property="MinHeight" Value="36" /><Setter Property="MinWidth" Value="36" /></Style>
-        <Style TargetType="ToggleButton" BasedOn="{StaticResource DefaultToggleButtonStyle}"><Setter Property="MinHeight" Value="36" /><Setter Property="MinWidth" Value="36" /></Style>
-        <Style TargetType="ComboBox" BasedOn="{StaticResource DefaultComboBoxStyle}"><Setter Property="MinHeight" Value="36" /></Style>
+        <!-- Target size: every control at least 40 x 40 unless its own style says more. -->
+        <Style TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}"><Setter Property="MinHeight" Value="40" /><Setter Property="MinWidth" Value="40" /></Style>
+        <Style TargetType="ToggleButton" BasedOn="{StaticResource DefaultToggleButtonStyle}"><Setter Property="MinHeight" Value="40" /><Setter Property="MinWidth" Value="40" /></Style>
+        <Style TargetType="ComboBox" BasedOn="{StaticResource DefaultComboBoxStyle}"><Setter Property="MinHeight" Value="40" /></Style>
         <Style TargetType="ToggleSwitch" BasedOn="{StaticResource DefaultToggleSwitchStyle}"><Setter Property="MinHeight" Value="40" /></Style>
 
         <Style x:Key="Glass" TargetType="Border">
@@ -157,7 +157,10 @@
                      Title="Pick your camera here" Subtitle="Choose your webcam (or your phone), then press Connect next to it."
                      CloseButtonContent="Got it" />
         <!-- Empty state: how to get a picture, pointing at where to click. -->
-        <StackPanel x:Name="EmptyText" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="14" MaxWidth="760" Margin="340,0,260,0">
+        <!-- Lives in the same space as the picture and shrinks to fit it, so in a small window (or beside the screen
+             light panel) it never spills over the bars and panels around it. -->
+        <Viewbox x:Name="EmptyBox" Stretch="Uniform" StretchDirection="DownOnly" Margin="340,60,260,142">
+        <StackPanel x:Name="EmptyText" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="14" Width="760" Margin="16">
             <TextBlock x:Name="EmptyTitle" Foreground="{ThemeResource TextFillColorPrimaryBrush}" FontSize="24" FontWeight="SemiBold" HorizontalAlignment="Center" Text="Let's get your camera on" />
             <TextBlock x:Name="EmptyHint" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="14" HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center" MaxWidth="560"
                        Text="Use a webcam plugged into this PC, or your phone's camera." />
@@ -171,7 +174,7 @@
                             <FontIcon Glyph="&#xE714;" FontSize="22" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
                             <TextBlock Text="Webcam" FontSize="17" FontWeight="SemiBold" VerticalAlignment="Center" />
                         </StackPanel>
-                        <TextBlock TextWrapping="Wrap" Text="1. Pick your camera where the orange bubble points, under Source on the left." />
+                        <TextBlock x:Name="EmptyStep1" TextWrapping="Wrap" Text="1. Pick your camera where the orange bubble points, under Source on the left." />
                         <TextBlock TextWrapping="Wrap" Text="2. Press Connect camera." />
                         <Button x:Name="EmptyConnectBtn" Content="Connect camera" Click="EmptyConnect_Click" HorizontalAlignment="Stretch"
                                 Style="{StaticResource AccentButtonStyle}" CornerRadius="10" Padding="16,9" FontSize="15"
@@ -194,6 +197,7 @@
                 </Border>
             </Grid>
         </StackPanel>
+        </Viewbox>
 
         <!-- ═══ Top capsule ═══ -->
         <!-- Command bar: docked across the top like a native Windows 11 app. -->
@@ -234,6 +238,7 @@
                                 AutomationProperties.Name="Meeting camera" ToolTipService.ToolTip="Use KISSIK as the camera in Zoom, Teams, Meet, Discord or OBS" AutomationProperties.HelpText="Use KISSIK as the camera in Zoom, Teams, Meet, Discord or OBS">
                     <StackPanel Orientation="Horizontal" Spacing="7">
                         <Ellipse x:Name="MeetCamDot" AutomationProperties.AccessibilityView="Raw" Width="8" Height="8" Fill="{ThemeResource ControlStrongStrokeColorDefaultBrush}" VerticalAlignment="Center" />
+                        <FontIcon x:Name="MeetCamIcon" Glyph="&#xE8AA;" FontSize="15" Visibility="Collapsed" AutomationProperties.AccessibilityView="Raw" />
                         <TextBlock Text="Meeting camera" />
                     </StackPanel>
                     <DropDownButton.Flyout>
@@ -249,7 +254,7 @@
                                 <Button x:Name="MeetCamOnBtn" Content="Make sure it's listed" Click="MeetCamOn_Click" HorizontalAlignment="Stretch" />
                                 <Button x:Name="MeetCamUninstallBtn" Content="Remove the camera" Click="MeetCamUninstall_Click" HorizontalAlignment="Stretch" />
                                 <TextBlock TextWrapping="Wrap" FontSize="12" Opacity="0.7"
-                                           Text="Everything you see here (effects, light, scenes) is what the meeting sees. When KISSIK is closed, meetings show an KISSIK card instead of a black screen." />
+                                           Text="Everything you see here (effects, light, scenes) is what the meeting sees. When KISSIK is closed, meetings show a KISSIK card instead of a black screen." />
                             </StackPanel>
                         </Flyout>
                     </DropDownButton.Flyout>
@@ -303,10 +308,13 @@
                     </StackPanel>
                 </Button>
                 <DropDownButton MinHeight="40" Width="44" CornerRadius="8" Padding="0" Background="Transparent" BorderThickness="0"
-                                AutomationProperties.Name="View options" ToolTipService.ToolTip="View options" AutomationProperties.HelpText="View options">
+                                AutomationProperties.Name="Settings and more" ToolTipService.ToolTip="Settings and more" AutomationProperties.HelpText="Settings, recordings, captions, view and help">
                     <FontIcon Glyph="&#xE713;" FontSize="15" />
                     <DropDownButton.Flyout>
                         <MenuFlyout Placement="BottomEdgeAlignedRight">
+                            <MenuFlyoutItem Text="Settings…" Click="Settings_Click">
+                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE713;" /></MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
                             <MenuFlyoutItem Text="Recordings and snapshots" Click="RecordingsBtn_Click">
                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B2;" /></MenuFlyoutItem.Icon>
                             </MenuFlyoutItem>
@@ -599,6 +607,7 @@
                             <SelectorBar x:Name="BgQuality" HorizontalAlignment="Right" SelectionChanged="BgQuality_SelectionChanged">
                                 <SelectorBarItem x:Name="BgQualityFast" Text="Fast" IsSelected="True" ToolTipService.ToolTip="Lightest on the GPU" AutomationProperties.HelpText="Lightest on the GPU" />
                                 <SelectorBarItem x:Name="BgQualityHigh" Text="High" ToolTipService.ToolTip="Cleaner hair and edges" AutomationProperties.HelpText="Cleaner hair and edges" />
+                                <SelectorBarItem x:Name="BgQualityVideo" Text="Steady" ToolTipService.ToolTip="Follows you from frame to frame and leaves out chairs and stands. Things you hold may be cut out too." AutomationProperties.HelpText="Follows you from frame to frame and leaves out chairs and stands. Things you hold may be cut out too." />
                             </SelectorBar>
                         </Grid>
 
@@ -1015,8 +1024,10 @@
         </Border>
 
         <!-- ═══ Right: framing ═══ -->
-        <Border x:Name="RightPane" Style="{StaticResource Glass}" Width="236" Margin="0,60,12,0" Padding="14"
+        <Border x:Name="RightPane" Style="{StaticResource Glass}" Width="236" Margin="0,60,12,116" Padding="14,14,4,14"
                 HorizontalAlignment="Right" VerticalAlignment="Top">
+          <!-- The bottom margin keeps it clear of the messages; in a short window it scrolls instead of hiding its last rows. -->
+          <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,0,10,0">
             <StackPanel Spacing="10">
                 <Grid>
                     <TextBlock Text="Framing" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
@@ -1060,6 +1071,7 @@
                               AutomationProperties.Name="Stabilisation" />
                 </Grid>
             </StackPanel>
+          </ScrollViewer>
         </Border>
 
         <!-- ═══ Bottom centre: scene filmstrip ═══ -->
@@ -1170,13 +1182,14 @@
         </Border>
 
         <!-- ═══ Screen light panel (opens from the capsule) ═══ -->
-        <Border x:Name="LightPanel" Style="{StaticResource Glass}" Width="900" MaxWidth="1100" Padding="20,20,8,20"
-                HorizontalAlignment="Center" VerticalAlignment="Stretch" Margin="0,60,0,144" Visibility="Collapsed">
+        <Border x:Name="LightPanel" Style="{StaticResource Glass}" Width="900" Padding="20,20,8,20"
+                HorizontalAlignment="Left" VerticalAlignment="Stretch" Margin="12,60,0,144" Visibility="Collapsed">
           <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,0,12,0">
             <StackPanel Spacing="16">
-                <Grid>
+                <Grid x:Name="LightHeader" RowSpacing="10">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
                     <TextBlock Text="Screen light" FontSize="20" FontWeight="SemiBold" VerticalAlignment="Center" />
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
+                    <StackPanel x:Name="LightHeaderButtons" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10" Margin="0,0,50,0">
                         <Button x:Name="LightMaxBtn" MinHeight="40" CornerRadius="8" Padding="16,0" Click="LightMax_Click"
                                 Background="{ThemeResource AccentFillColorDefaultBrush}" Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" FontWeight="SemiBold"
                                 AutomationProperties.Name="Max brightness"
@@ -1192,11 +1205,12 @@
                                               AutomationProperties.Name="Lights on" />
                             </StackPanel>
                         </Border>
-                        <Button Style="{StaticResource IconButton}" Click="LightClose_Click" AutomationProperties.Name="Close screen light panel"
-                                ToolTipService.ToolTip="Close (the light stays as it is)" AutomationProperties.HelpText="Close (the light stays as it is)">
-                            <FontIcon Glyph="&#xE711;" FontSize="14" />
-                        </Button>
                     </StackPanel>
+                    <!-- Always on the title's row, so it can't be pushed out of a narrow panel. -->
+                    <Button Style="{StaticResource IconButton}" Click="LightClose_Click" HorizontalAlignment="Right" AutomationProperties.Name="Close screen light panel"
+                            ToolTipService.ToolTip="Close (the light stays as it is)" AutomationProperties.HelpText="Close (the light stays as it is)">
+                        <FontIcon Glyph="&#xE711;" FontSize="14" />
+                    </Button>
                 </Grid>
 
                 <!-- Looks -->
@@ -1204,7 +1218,7 @@
                     <StackPanel x:Name="LightLooks" Orientation="Horizontal" Spacing="12" Padding="0,0,0,8" />
                 </ScrollViewer>
 
-                <Grid ColumnSpacing="14">
+                <Grid x:Name="LightColumns" ColumnSpacing="14" RowSpacing="14">
                     <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition /><ColumnDefinition /></Grid.ColumnDefinitions>
 
                     <!-- Details -->
@@ -1320,7 +1334,7 @@
                 </Grid>
                 <!-- Ring light (shown when the Ring shape is chosen) -->
                 <Border x:Name="RingCard" Background="{ThemeResource ControlFillColorDefaultBrush}" CornerRadius="14" Padding="16">
-                    <Grid ColumnSpacing="24" RowSpacing="6">
+                    <Grid x:Name="RingColumns" ColumnSpacing="24" RowSpacing="12">
                         <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition /></Grid.ColumnDefinitions>
                         <StackPanel Spacing="6">
                             <TextBlock Text="Ring light" FontSize="14" />
@@ -1390,6 +1404,17 @@
 
         <!-- ═══ Simple mode: five big centred buttons (View → Simple). The video stays visible above them. ═══ -->
         <Border x:Name="SimplePanel" Visibility="Collapsed" Style="{StaticResource Glass}" Padding="12" VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="12,0,12,24">
+          <StackPanel Spacing="12">
+            <!-- Which camera, and whether the microphone is on: Simple mode hid both, so there was no way to pick a
+                 camera or to get sound into a recording without leaving it. -->
+            <StackPanel Orientation="Horizontal" Spacing="12" HorizontalAlignment="Center">
+                <ComboBox x:Name="SimpleSource" MinWidth="280" MinHeight="40" VerticalAlignment="Center" PlaceholderText="Choose a camera" SelectionChanged="SimpleSource_SelectionChanged"
+                          AutomationProperties.Name="Camera" ToolTipService.ToolTip="Which camera to use" />
+                <ToggleButton x:Name="SimpleMicBtn" Click="SimpleMic_Click" MinHeight="40" MinWidth="170" CornerRadius="8" VerticalAlignment="Center"
+                              AutomationProperties.Name="Microphone off" ToolTipService.ToolTip="Turn your microphone on for recordings and streams">
+                    <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon x:Name="SimpleMicIcon" Glyph="&#xE720;" FontSize="16" /><TextBlock x:Name="SimpleMicLabel" Text="Microphone off" /></StackPanel>
+                </ToggleButton>
+            </StackPanel>
             <StackPanel x:Name="SimpleRow" Orientation="Horizontal" Spacing="12" HorizontalAlignment="Center" AutomationProperties.Name="Main actions">
                 <Button x:Name="SimpleCameraBtn" Click="SimpleCamera_Click" Style="{StaticResource AccentButtonStyle}" MinWidth="148" MinHeight="96" CornerRadius="8"
                         AutomationProperties.Name="Camera on" AutomationProperties.HelpText="Turn your camera on or off" ToolTipService.ToolTip="Turn your camera on or off">
@@ -1412,12 +1437,37 @@
                     <StackPanel Spacing="8"><FontIcon Glyph="&#xE7B3;" FontSize="28" /><TextBlock x:Name="SimpleHideLabel" Text="Hide me" FontSize="16" HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center" /></StackPanel>
                 </Button>
             </StackPanel>
+          </StackPanel>
         </Border>
 
-        <!-- ═══ Status toast (bottom-right) ═══ -->
-        <Border Background="{ThemeResource SolidBackgroundFillColorQuarternaryBrush}" CornerRadius="12" Padding="12,6" Margin="0,0,12,12" MaxWidth="236"
-                HorizontalAlignment="Right" VerticalAlignment="Bottom" IsHitTestVisible="False">
-            <TextBlock x:Name="StatusText" Text="Ready." AutomationProperties.LiveSetting="Polite" FontSize="12" Foreground="{ThemeResource TextFillColorPrimaryBrush}" TextWrapping="Wrap" MaxLines="3" TextTrimming="CharacterEllipsis" />
+        <!-- ═══ Messages (bottom-right): the latest one, an action when there is something to do about it, and the
+             earlier ones a click away. It used to be a small label that cut long messages off and lost each one
+             as soon as the next arrived. ═══ -->
+        <Border x:Name="MessageArea" Background="{ThemeResource SolidBackgroundFillColorQuarternaryBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                CornerRadius="12" Padding="4" Margin="0,0,12,12" MaxWidth="236" HorizontalAlignment="Right" VerticalAlignment="Bottom">
+            <StackPanel Spacing="2">
+                <Button x:Name="MessageBtn" Click="MessageBtn_Click" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Background="Transparent" BorderThickness="0"
+                        Padding="8,6" MinHeight="40" CornerRadius="8" AutomationProperties.Name="Messages" AutomationProperties.HelpText="Shows the whole message and the earlier ones"
+                        ToolTipService.ToolTip="Show the whole message and earlier ones">
+                    <Grid ColumnSpacing="8">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                        <FontIcon x:Name="MessageIcon" Glyph="&#xE946;" FontSize="14" VerticalAlignment="Top" Margin="0,2,0,0" Foreground="{ThemeResource TextFillColorSecondaryBrush}" AutomationProperties.AccessibilityView="Raw" />
+                        <TextBlock x:Name="StatusText" Grid.Column="1" Text="Ready." AutomationProperties.LiveSetting="Polite" FontSize="12" Foreground="{ThemeResource TextFillColorPrimaryBrush}" TextWrapping="Wrap" MaxLines="3" TextTrimming="CharacterEllipsis" />
+                    </Grid>
+                    <FlyoutBase.AttachedFlyout>
+                        <Flyout Placement="TopEdgeAlignedRight">
+                            <StackPanel Width="380" Spacing="10">
+                                <TextBlock Text="Messages" FontSize="16" FontWeight="SemiBold" />
+                                <TextBlock x:Name="MessageFull" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+                                <ScrollViewer MaxHeight="260" VerticalScrollBarVisibility="Auto">
+                                    <StackPanel x:Name="MessageHistory" Spacing="8" />
+                                </ScrollViewer>
+                            </StackPanel>
+                        </Flyout>
+                    </FlyoutBase.AttachedFlyout>
+                </Button>
+                <Button x:Name="MessageAction" Visibility="Collapsed" Click="MessageAction_Click" HorizontalAlignment="Stretch" MinHeight="40" CornerRadius="8" Style="{StaticResource AccentButtonStyle}" />
+            </StackPanel>
         </Border>
     </Grid>
 </Page>

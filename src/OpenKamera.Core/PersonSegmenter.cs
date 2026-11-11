@@ -4,7 +4,11 @@ using Microsoft.ML.OnnxRuntime.Tensors;
 namespace OpenKamera.Core;
 
 /// <summary>Fast = MediaPipe selfie (256²); High = MODNet portrait matting (short edge 512 → 288 for speed).</summary>
-public enum SegmentationQuality { Fast, High }
+/// <summary>
+/// Fast and High look at each frame on its own. Video (Robust Video Matting, GPL-3.0) remembers the frames before,
+/// so the edge holds steady, and it was trained to cut people out of moving video rather than single photos.
+/// </summary>
+public enum SegmentationQuality { Fast, High, Video }
 
 /// <summary>A person mask: one 0..1 alpha per pixel at the model's resolution.</summary>
 public sealed record PersonMask(float[] Alpha, int Width, int Height);
@@ -35,15 +39,31 @@ public sealed class PersonSegmenter : IDisposable
     /// <summary>A separate region survives if it is at least this share of the largest one (a second person does).</summary>
     public float MinRegionShare { get; set; } = 0.35f;
 
-    public static string ModelPath(SegmentationQuality q) => Path.Combine(AppContext.BaseDirectory, "Models",
-        q == SegmentationQuality.Fast ? "selfie_segmentation_fp16.onnx" : "modnet_fp16.onnx");
+    public static string ModelPath(SegmentationQuality q) => Path.Combine(AppContext.BaseDirectory, "Models", q switch
+    {
+        SegmentationQuality.Fast => "selfie_segmentation_fp16.onnx",
+        SegmentationQuality.Video => "rvm_mobilenetv3_fp32.onnx",
+        _ => "modnet_fp16.onnx",
+    });
+
+    // Video model only: what it remembers from the frames before (four feature maps), fed back in each time.
+    private readonly bool _recurrent;
+    private (float[] Data, int[] Shape)[]? _memory;
+    private static readonly string[] MemoryIn = ["r1i", "r2i", "r3i", "r4i"];
+    /// <summary>The video model works on a shrunken copy inside and sharpens the result back up; this is that shrink.</summary>
+    private readonly float _downsample = 1f;
 
     public PersonSegmenter(SegmentationQuality quality, bool preferGpu = true)
     {
         Quality = quality;
-        (_inW, _inH, _scale, _offset) = quality == SegmentationQuality.Fast
-            ? (256, 256, 1f, 0f)
-            : (512, 288, 2f, -1f); // MODNet: (x - 0.5) / 0.5, sides multiple of 32
+        (_inW, _inH, _scale, _offset) = quality switch
+        {
+            SegmentationQuality.Fast => (256, 256, 1f, 0f),
+            SegmentationQuality.Video => (VideoWidth, VideoHeight, 1f, 0f), // plain 0..1 RGB
+            _ => (512, 288, 2f, -1f), // MODNet: (x - 0.5) / 0.5, sides multiple of 32
+        };
+        _recurrent = quality == SegmentationQuality.Video;
+        if (_recurrent) { _downsample = VideoDownsample; Smoothing = 0; } // it does its own smoothing over time
         string path = ModelPath(quality);
         if (!File.Exists(path)) throw new FileNotFoundException("Segmentation model missing.", path);
 
@@ -96,11 +116,15 @@ public sealed class PersonSegmenter : IDisposable
             buf[2 * plane + p] = (curve is null ? b[p] : curve[b[p]]) * k + _offset;
         }
 
-        using var results = _session.Run([NamedOnnxValue.CreateFromTensor(_inputName, input)]);
-        var outTensor = results.First().AsTensor<float>();
         var alpha = new float[plane];
-        int i = 0;
-        foreach (var v in outTensor) { if (i >= plane) break; alpha[i++] = Math.Clamp(v, 0f, 1f); }
+        if (_recurrent) RunVideoModel(input, alpha);
+        else
+        {
+            using var results = _session.Run([NamedOnnxValue.CreateFromTensor(_inputName, input)]);
+            var outTensor = results.First().AsTensor<float>();
+            int i = 0;
+            foreach (var v in outTensor) { if (i >= plane) break; alpha[i++] = Math.Clamp(v, 0f, 1f); }
+        }
 
         if (KeepMainSubjects) MaskOps.DropSmallRegions(alpha, _inW, _inH, MinRegionShare);
 
@@ -153,8 +177,50 @@ public sealed class PersonSegmenter : IDisposable
         return curve;
     }
 
+    /// <summary>Input size and inner shrink for the video model (overridable while tuning: KISSIK_VIDEO_MATTE=width,height,shrink).</summary>
+    internal static int VideoWidth = 512, VideoHeight = 288;
+    internal static float VideoDownsample = 1f;
+
+    static PersonSegmenter()
+    {
+        var parts = Environment.GetEnvironmentVariable("KISSIK_VIDEO_MATTE")?.Split(',');
+        if (parts is { Length: 3 } && int.TryParse(parts[0], out int w) && int.TryParse(parts[1], out int h)
+            && float.TryParse(parts[2], System.Globalization.CultureInfo.InvariantCulture, out float d))
+            (VideoWidth, VideoHeight, VideoDownsample) = (w, h, d);
+    }
+
+    /// <summary>One step of the video model: the frame plus what it remembers go in; the cut-out and new memory come out.</summary>
+    private void RunVideoModel(DenseTensor<float> input, float[] alpha)
+    {
+        var feeds = new List<NamedOnnxValue>(6) { NamedOnnxValue.CreateFromTensor("src", input) };
+        for (int m = 0; m < 4; m++)
+        {
+            // Nothing remembered yet: a single zero stands for "start fresh".
+            var (data, shape) = _memory is { } mem ? mem[m] : (new float[1], new[] { 1, 1, 1, 1 });
+            feeds.Add(NamedOnnxValue.CreateFromTensor(MemoryIn[m], new DenseTensor<float>(data, shape)));
+        }
+        feeds.Add(NamedOnnxValue.CreateFromTensor("downsample_ratio", new DenseTensor<float>(new[] { _downsample }, new[] { 1 })));
+        using var results = _session.Run(feeds);
+        var memory = new (float[] Data, int[] Shape)[4];
+        foreach (var r in results)
+        {
+            if (r.Name == "pha")
+            {
+                var t = r.AsTensor<float>();
+                int i = 0;
+                foreach (var v in t) { if (i >= alpha.Length) break; alpha[i++] = Math.Clamp(v, 0f, 1f); }
+            }
+            else if (r.Name.Length == 3 && r.Name[0] == 'r' && r.Name[2] == 'o')
+            {
+                var t = r.AsTensor<float>();
+                memory[r.Name[1] - '1'] = (t.ToArray(), t.Dimensions.ToArray());
+            }
+        }
+        if (memory.All(m => m.Data is not null)) _memory = memory;
+    }
+
     /// <summary>Forget the previous mask (call after a camera switch or big cut).</summary>
-    public void Reset() => _previous = null;
+    public void Reset() { _previous = null; _memory = null; }
 
     public void Dispose() => _session.Dispose();
 }
