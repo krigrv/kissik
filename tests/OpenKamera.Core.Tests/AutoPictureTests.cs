@@ -37,6 +37,57 @@ public class AutoPictureTests
         Assert.True(after[1] - after[2] < 160 - 120, "green lead shrinks");
     }
 
+    // A dark room with the face low in the frame and lit by the screen: the old fixed centre box saw only dark wall,
+    // asked for maximum brightening and blew the face out.
+    private static byte[] DarkRoomLowFace(int w, int h, out FaceBox face)
+    {
+        var px = Fill(w, h, 18, 20, 26); // dim, slightly blue room
+        int x0 = w * 4 / 10, x1 = w * 6 / 10, y0 = h * 6 / 10, y1 = h * 9 / 10;
+        for (int y = y0; y < y1; y++)
+            for (int x = x0; x < x1; x++)
+            {
+                int i = (y * w + x) * 4; bool lit = (x + y) % 4 == 0; // a lit cheek among mid-tones
+                px[i] = (byte)(lit ? 190 : 95); px[i + 1] = (byte)(lit ? 200 : 105); px[i + 2] = (byte)(lit ? 215 : 120);
+            }
+        face = new FaceBox(0.4, 0.6, 0.2, 0.3);
+        return px;
+    }
+
+    [Fact]
+    public void FaceIsMeasuredWhereItIsAndNeverBlownOut()
+    {
+        var px = DarkRoomLowFace(160, 90, out var face);
+        var r = AutoPicture.Analyze(px, 160, 90, face);
+        var after = Apply(px, 160, 90, r);
+        int lit = (75 * 160 + 80) * 4; // a lit face pixel ((x+y)%4==0)
+        double litLuma = (0.299 * after[lit + 2] + 0.587 * after[lit + 1] + 0.114 * after[lit]) / 255.0;
+        Assert.True(litLuma <= AutoPicture.HighlightCeiling + 0.03, $"lit skin {litLuma:F2} after gamma {r.Gamma}");
+        Assert.True(r.Gamma < 2.2, $"gamma {r.Gamma}: the face is not as dark as the wall");
+    }
+
+    [Fact]
+    public void DarkFrameGetsNoColourGuessOrNoiseBoost()
+    {
+        var px = DarkRoomLowFace(160, 90, out var face);
+        var r = AutoPicture.Analyze(px, 160, 90, face);
+        Assert.True(r.TooDark);
+        Assert.Equal(0, r.Temperature); // the "blue" is mostly noise in a frame this dark
+        Assert.Equal(0, r.Sharpness);
+        Assert.Equal(0, r.Vibrance);
+        Assert.Equal(1.0, r.Contrast);
+        Assert.Contains("Turn on Light", r.Summary);
+    }
+
+    [Fact]
+    public void NearBlackFrameSaysItIsTooDarkInsteadOfBalanced()
+    {
+        var r = AutoPicture.Analyze(Fill(160, 90, 3, 3, 4), 160, 90);
+        Assert.True(r.TooDark);
+        Assert.Equal(1, r.Gamma);
+        Assert.DoesNotContain("balanced", r.Summary);
+        Assert.Contains("too dark", r.Summary);
+    }
+
     [Fact]
     public void BalancedPictureIsLeftAlone()
     {
