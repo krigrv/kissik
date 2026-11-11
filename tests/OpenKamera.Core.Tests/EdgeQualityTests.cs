@@ -325,7 +325,7 @@ public class EdgeQualityTests(ITestOutputHelper log)
 
     // Fixed copies of the website's stock people. The limits below are tuned to these exact photos,
     // so the website can change its pictures without moving the tests.
-    private const string EdgePhotos = "tests/OpenKamera.Core.Tests/Assets/edge";
+    private static readonly string EdgePhotos = Path.Combine("tests", "OpenKamera.Core.Tests", "Assets", "edge");
 
     private static string Repo()
     {
