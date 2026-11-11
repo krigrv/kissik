@@ -34,5 +34,12 @@ jobs:
       - name: Publish the release
         uses: softprops/action-gh-release@v2
         with:
+          name: KISSIK - Camera Studio ${{ github.ref_name }}
+          body: |
+            ## Download
+            - **Windows:** [KISSIK - Camera Studio on the Microsoft Store](https://apps.microsoft.com/detail/9MZC9QRSWK72). It updates itself.
+            - **Your phone as a camera (Android):** download `KISSIK-Camera-${{ github.ref_name }}.apk` below and open it on your phone.
+
+            More at [kissik-studio.vercel.app](https://kissik-studio.vercel.app).
           generate_release_notes: true
           files: KISSIK-Camera-*.apk
