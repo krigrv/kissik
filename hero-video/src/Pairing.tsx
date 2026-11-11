@@ -1,5 +1,6 @@
 import { Video } from "@remotion/media";
 import React from "react";
+import { LiveTiles, STUDIO_TILES } from "./LiveThumbs";
 import { AbsoluteFill, Composition, Easing, Img, interpolate, spring, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
 
 // Phone pairing, 8 s loop: the PC shows a code, the phone scans it, the phone's picture appears on the PC.
@@ -40,7 +41,8 @@ const Chip: React.FC<{ children: React.ReactNode; dot?: string }> = ({ children,
   </div>
 );
 
-const Pairing: React.FC = () => {
+// src is the phone camera feed; phoneFocus picks the part of it the upright phone screen shows.
+export const Pairing: React.FC<{ src?: string; still?: string; phoneFocus?: number; overlays?: boolean }> = ({ src = "social.mp4", still = "live-person.jpg", phoneFocus, overlays = false }) => {
   const f = useCurrentFrame();
   const { fps } = useVideoConfig();
   const qr = inOut(f, 10, 25, 95, 108);           // code shows on the PC
@@ -57,11 +59,12 @@ const Pairing: React.FC = () => {
         <Img src={staticFile("first-screen.jpg")} style={{ position: "absolute", width: PC.w, height: PC.h }} />
         <Img src={staticFile("studio.jpg")} style={{ position: "absolute", width: PC.w, height: PC.h, opacity: studio }} />
         <div style={{ position: "absolute", left: PREVIEW.x, top: PREVIEW.y, width: PREVIEW.w, height: PREVIEW.h, overflow: "hidden", opacity: live, background: "#000" }}>
-          <Video src={staticFile("social.mp4")} loop muted style={{ position: "absolute", width: PREVIEW.w, height: (PREVIEW.w * 9) / 16, top: (PREVIEW.h - (PREVIEW.w * 9) / 16) / 2, maxWidth: "none" }} />
+          <Video src={staticFile(src)} loop muted style={{ position: "absolute", width: PREVIEW.w, height: (PREVIEW.w * 9) / 16, top: (PREVIEW.h - (PREVIEW.w * 9) / 16) / 2, maxWidth: "none" }} />
         </div>
         <div style={{ position: "absolute", left: 1356 * K, top: 109 * K, width: 215 * K, height: 120 * K, overflow: "hidden", borderRadius: 6, opacity: live }}>
-          <Video src={staticFile("social.mp4")} loop muted style={{ position: "absolute", width: 215 * K, height: (215 * K * 9) / 16, maxWidth: "none" }} />
+          <Video src={staticFile(src)} loop muted style={{ position: "absolute", width: 215 * K, height: (215 * K * 9) / 16, maxWidth: "none" }} />
         </div>
+        <div style={{ position: "absolute", inset: 0, opacity: live }}><LiveTiles src={src} tiles={STUDIO_TILES} k={K} overlays={overlays} /></div>
         {/* code card */}
         <div style={{ position: "absolute", left: PREVIEW.x + PREVIEW.w / 2 - 150, top: PREVIEW.y + PREVIEW.h / 2 - 150, width: 300, padding: 20, borderRadius: 18, background: "#1c1c1f", border: "1px solid rgba(255,255,255,.12)", textAlign: "center", opacity: qr, scale: String(0.9 + 0.1 * qr), boxShadow: "0 30px 80px rgba(0,0,0,.6)" }}>
           <QR size={200} />
@@ -80,7 +83,9 @@ const Pairing: React.FC = () => {
               <div style={{ position: "absolute", left: 44, width: 124, height: 3, top: 152 + scan * 126, background: GREEN, boxShadow: `0 0 16px ${GREEN}`, opacity: scan > 0 && scan < 1 ? 1 : 0 }} />
               <div style={{ position: "absolute", left: 0, right: 0, top: 310, textAlign: "center", color: "#fff", font: "600 17px Segoe UI" }}>Point at the code<br />on your PC</div>
             </div>
-            <Img src={staticFile("live-person.jpg")} style={{ position: "absolute", width: "100%", height: "100%", objectFit: "cover", opacity: live }} />
+            {phoneFocus !== undefined
+              ? <Video src={staticFile(src)} loop muted style={{ position: "absolute", height: 482, width: (482 * 16) / 9, maxWidth: "none", left: 106 - ((482 * 16) / 9) * phoneFocus, opacity: live }} />
+              : <Img src={staticFile(still)} style={{ position: "absolute", width: "100%", height: "100%", objectFit: "cover", opacity: live }} />}
           </div>
         </div>
         <div style={{ marginTop: 16, width: 250, display: "flex", justifyContent: "center", opacity: phoneIn }}><Chip dot={paired > 0.5 ? GREEN : ORANGE}>{paired > 0.5 ? "Paired · Live over Wi-Fi" : "KISSIK Camera on Android"}</Chip></div>

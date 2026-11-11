@@ -1,5 +1,6 @@
 import { Video } from "@remotion/media";
 import React from "react";
+import { LiveBox, LiveTiles, STUDIO_FRAMING, STUDIO_TILES } from "./LiveThumbs";
 import {
   AbsoluteFill,
   Composition,
@@ -87,6 +88,8 @@ const Studio: React.FC = () => {
           <div style={{ position: "absolute", inset: -2, borderRadius: 26, boxShadow: `0 0 0 1px rgba(255,255,255,.12), 0 50px 140px rgba(0,0,0,.7), 0 0 120px rgba(255,138,61,${0.18 + back * 0.1})` }} />
           <div style={{ position: "absolute", inset: 0, borderRadius: 24, overflow: "hidden" }}>
             <Img src={staticFile("studio.jpg")} style={{ width: WIN_W, height: WIN_H }} />
+            <LiveTiles src="professional.mp4" tiles={STUDIO_TILES} k={WIN_W / 1600} />
+            <LiveBox src="professional.mp4" r={STUDIO_FRAMING} k={WIN_W / 1600} zoom={1.15} />
             <div style={{ position: "absolute", left: PREVIEW.x, top: PREVIEW.y, width: PREVIEW.w, height: PREVIEW.h, overflow: "hidden", background: "#000" }}>
               <Video src={staticFile("professional.mp4")} loop muted style={{ width: "100%", height: "100%", objectFit: "cover" }} />
               {/* The Name Card scene */}

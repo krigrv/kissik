@@ -1,5 +1,6 @@
 import { Video } from "@remotion/media";
 import React from "react";
+import { LiveTiles, STRIP_TILES } from "./LiveThumbs";
 import { AbsoluteFill, Composition, Easing, Img, interpolate, staticFile, useCurrentFrame } from "remotion";
 
 // Short loops for the website's feature cards. Each one is 6 s and ends where it starts.
@@ -37,7 +38,7 @@ const Preview: React.FC<{ src: string; w: number; h: number; x: number; y: numbe
 );
 
 // Name card: the card builds up line by line over a live picture.
-const NameCard: React.FC = () => {
+export const NameCard: React.FC = () => {
   const f = useCurrentFrame();
   const show = inOut(f, 15, 35, 150, 170);
   const line = (start: number) => interpolate(f, [start, start + 14], [0, 1], { ...clamp, easing: ease }) * show;
@@ -65,7 +66,7 @@ const NameCard: React.FC = () => {
 
 // Scenes: the cursor clicks through the scene strip and the picture changes with it.
 const TILES = [225, 380, 535, 690]; // Blank, Just my name, Lower Third, Name Card (centres in the strip image)
-const Scenes: React.FC = () => {
+export const Scenes: React.FC = () => {
   const f = useCurrentFrame();
   const step = Math.min(3, Math.floor(Math.max(0, f - 20) / 38));
   const idx = f > 170 ? 0 : step;
@@ -82,6 +83,7 @@ const Scenes: React.FC = () => {
       </Preview>
       <div style={{ position: "absolute", left: (1280 - 1000 * s) / 2, top: 560, width: 1000 * s, height: 128 * s, borderRadius: 16, overflow: "hidden", boxShadow: "0 20px 60px rgba(0,0,0,.6)" }}>
         <Img src={staticFile("f-scenes.jpg")} style={{ width: "100%", height: "100%" }} />
+        <LiveTiles src="professional.mp4" tiles={STRIP_TILES} k={s} clipRight={898} />
         <div style={{ position: "absolute", left: (TILES[idx] - 68) * s, top: 6 * s, width: 136 * s, height: 82 * s, borderRadius: 10, border: `3px solid ${ORANGE}`, boxShadow: `0 0 24px ${ORANGE}` }} />
       </div>
       <Cursor x={(1280 - 1000 * s) / 2 + cx * s} y={560 + 50 * s} opacity={inOut(f, 0, 15, 165, 178)} click={click} />
@@ -90,7 +92,7 @@ const Scenes: React.FC = () => {
 };
 
 // Smart framing: the frame follows and zooms, the mini map shows the crop.
-const Framing: React.FC = () => {
+export const Framing: React.FC = () => {
   const f = useCurrentFrame();
   const z = interpolate(f, [0, 40, 90, 130, 180], [1, 1.45, 1.45, 1.2, 1], { ...clamp, easing: ease });
   const px = interpolate(f, [0, 40, 90, 130, 180], [0, -6, 6, 0, 0], { ...clamp, easing: ease });
@@ -126,7 +128,7 @@ const Framing: React.FC = () => {
 };
 
 // Simple mode: one big Record button, then a recording timer.
-const Simple: React.FC = () => {
+export const Simple: React.FC = () => {
   const f = useCurrentFrame();
   const click = interpolate(f, [38, 44, 58], [0, 1, 0], clamp);
   const rec = inOut(f, 44, 52, 160, 170);
