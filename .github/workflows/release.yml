@@ -28,9 +28,11 @@ jobs:
           KISSIK_KEYSTORE: ${{ runner.temp }}/kissik.jks
           KISSIK_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           KISSIK_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-        run: chmod +x gradlew && ./gradlew assembleRelease --no-daemon
+        run: chmod +x gradlew && ./gradlew assembleRelease bundleRelease --no-daemon
       - name: Name it for the release
-        run: cp android/app/build/outputs/apk/release/app-release.apk "KISSIK-Camera-${GITHUB_REF_NAME}.apk"
+        run: |
+          cp android/app/build/outputs/apk/release/app-release.apk "KISSIK-Camera-${GITHUB_REF_NAME}.apk"
+          cp android/app/build/outputs/bundle/release/app-release.aab "KISSIK-Camera-${GITHUB_REF_NAME}-play.aab"
       - name: Publish the release
         uses: softprops/action-gh-release@v2
         with:
@@ -42,4 +44,6 @@ jobs:
 
             More at [kissik-studio.vercel.app](https://kissik-studio.vercel.app).
           generate_release_notes: true
-          files: KISSIK-Camera-*.apk
+          files: |
+            KISSIK-Camera-*.apk
+            KISSIK-Camera-*.aab
