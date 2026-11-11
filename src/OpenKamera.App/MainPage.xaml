@@ -15,6 +15,20 @@
 
     <Page.Resources>
       <ResourceDictionary>
+        <!-- Small grey labels: Windows' own secondary text renders about 3.7:1 at 12 px on white, below the 4.5:1 small
+             text needs, so light mode uses a darker grey. Dark and high contrast keep Windows' colours. -->
+        <ResourceDictionary.ThemeDictionaries>
+            <ResourceDictionary x:Key="Light">
+                <SolidColorBrush x:Key="DgLabelBrush" Color="#FF545454" />
+            </ResourceDictionary>
+            <ResourceDictionary x:Key="Default">
+                <SolidColorBrush x:Key="DgLabelBrush" Color="{ThemeResource TextFillColorSecondary}" />
+            </ResourceDictionary>
+            <ResourceDictionary x:Key="HighContrast">
+                <SolidColorBrush x:Key="DgLabelBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            </ResourceDictionary>
+        </ResourceDictionary.ThemeDictionaries>
+
         <!-- Accent everywhere WinUI uses the system accent (toggles, sliders, selection, tab underline).
              Control templates look these up as ThemeResources, so they must live in theme dictionaries. -->
         
@@ -42,7 +56,7 @@
         </Style>
         <Style x:Key="SectionLabel" TargetType="TextBlock">
             <Setter Property="FontSize" Value="12" />
-            <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
+            <Setter Property="Foreground" Value="{ThemeResource DgLabelBrush}" />
             <Setter Property="Margin" Value="0,16,0,6" />
         </Style>
         <Style x:Key="SectionValue" TargetType="TextBlock">
@@ -54,7 +68,7 @@
         </Style>
         <Style x:Key="HintText" TargetType="TextBlock">
             <Setter Property="FontSize" Value="12" />
-            <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
+            <Setter Property="Foreground" Value="{ThemeResource DgLabelBrush}" />
             <Setter Property="TextWrapping" Value="Wrap" />
         </Style>
         <Style x:Key="CapsuleButton" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
@@ -162,7 +176,7 @@
         <Viewbox x:Name="EmptyBox" Stretch="Uniform" StretchDirection="DownOnly" Margin="340,60,260,142">
         <StackPanel x:Name="EmptyText" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="14" Width="760" Margin="16">
             <TextBlock x:Name="EmptyTitle" Foreground="{ThemeResource TextFillColorPrimaryBrush}" FontSize="24" FontWeight="SemiBold" HorizontalAlignment="Center" Text="Let's get your camera on" />
-            <TextBlock x:Name="EmptyHint" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="14" HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center" MaxWidth="560"
+            <TextBlock x:Name="EmptyHint" Foreground="{ThemeResource DgLabelBrush}" FontSize="14" HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center" MaxWidth="560"
                        Text="Use a webcam plugged into this PC, or your phone's camera." />
             <TextBlock x:Name="EmptyBusy" Foreground="{ThemeResource SystemFillColorCriticalBrush}" FontSize="13" HorizontalAlignment="Center" TextWrapping="Wrap" MaxWidth="520" />
             <Grid x:Name="EmptyCards" ColumnSpacing="14">
@@ -290,7 +304,7 @@
                                 AutomationProperties.Name="Output profile" ToolTipService.ToolTip="Output resolution and frame rate" AutomationProperties.HelpText="Output resolution and frame rate">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <TextBlock x:Name="ProfileName" Text="Meetings" FontWeight="Medium" VerticalAlignment="Center" />
-                        <TextBlock VerticalAlignment="Center" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}">
+                        <TextBlock VerticalAlignment="Center" FontSize="12" Foreground="{ThemeResource DgLabelBrush}">
                             <Run x:Name="ProfilePillTopRun" /><Run Text=" " /><Run x:Name="ProfilePillBottomRun" />
                         </TextBlock>
                         <TextBlock x:Name="ProfilePillTop" Visibility="Collapsed" /><TextBlock x:Name="ProfilePillBottom" Visibility="Collapsed" />
@@ -531,7 +545,7 @@
                                       AutomationProperties.Name="Sharper stream (H.264)" ToolTipService.ToolTip="Video compression: a cleaner picture on the same Wi-Fi. Turn off if the picture breaks up." />
                         </StackPanel>
                         <Grid x:Name="FocusRow" Margin="0,8,0,0" Visibility="Collapsed">
-                            <TextBlock Text="Focus" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
+                            <TextBlock Text="Focus" FontSize="12" Foreground="{ThemeResource DgLabelBrush}" VerticalAlignment="Center" />
                             <SelectorBar x:Name="FocusMode" SelectionChanged="FocusMode_SelectionChanged" IsEnabled="False" HorizontalAlignment="Right">
                                 <SelectorBarItem x:Name="FocusAuto" Text="AF" IsSelected="True" ToolTipService.ToolTip="Autofocus" AutomationProperties.HelpText="Autofocus" />
                                 <SelectorBarItem x:Name="FocusManual" Text="MF" ToolTipService.ToolTip="Manual focus (Focus slider under Camera hardware)" AutomationProperties.HelpText="Manual focus (Focus slider under Camera hardware)" />
@@ -603,7 +617,7 @@
                             </Button>
                         </Grid>
                         <Grid Margin="0,8,0,0">
-                            <TextBlock Text="Edge quality" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
+                            <TextBlock Text="Edge quality" FontSize="12" Foreground="{ThemeResource DgLabelBrush}" VerticalAlignment="Center" />
                             <SelectorBar x:Name="BgQuality" HorizontalAlignment="Right" SelectionChanged="BgQuality_SelectionChanged">
                                 <SelectorBarItem x:Name="BgQualityFast" Text="Fast" IsSelected="True" ToolTipService.ToolTip="Lightest on the GPU" AutomationProperties.HelpText="Lightest on the GPU" />
                                 <SelectorBarItem x:Name="BgQualityHigh" Text="High" ToolTipService.ToolTip="Cleaner hair and edges" AutomationProperties.HelpText="Cleaner hair and edges" />
@@ -614,7 +628,7 @@
                         <Grid Margin="0,10,0,0">
                             <StackPanel VerticalAlignment="Center" Margin="0,0,64,0">
                                 <TextBlock Text="Green screen" FontSize="14" />
-                                <TextBlock Text="Use a real green or blue cloth" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Text="Use a real green or blue cloth" FontSize="12" Foreground="{ThemeResource DgLabelBrush}" TextTrimming="CharacterEllipsis" />
                             </StackPanel>
                             <ToggleSwitch x:Name="GreenScreenToggle" HorizontalAlignment="Right" MinWidth="0" OffContent="" OnContent=""
                                           Toggled="Background_Toggled" AutomationProperties.Name="Green screen" />
@@ -624,18 +638,18 @@
                                 <SelectorBarItem x:Name="KeyGreen" Text="Green" IsSelected="True" />
                                 <SelectorBarItem x:Name="KeyBlue" Text="Blue" />
                             </SelectorBar>
-                            <TextBlock Text="Similarity" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            <TextBlock Text="Similarity" FontSize="12" Foreground="{ThemeResource DgLabelBrush}" />
                             <Slider x:Name="KeySimilarity" Minimum="5" Maximum="100" Value="40" ValueChanged="Background_ValueChanged" AutomationProperties.Name="Key similarity" />
-                            <TextBlock Text="Edge softness" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            <TextBlock Text="Edge softness" FontSize="12" Foreground="{ThemeResource DgLabelBrush}" />
                             <Slider x:Name="KeySmoothness" Minimum="0" Maximum="100" Value="10" ValueChanged="Background_ValueChanged" AutomationProperties.Name="Key edge softness" />
-                            <TextBlock Text="Spill removal" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            <TextBlock Text="Spill removal" FontSize="12" Foreground="{ThemeResource DgLabelBrush}" />
                             <Slider x:Name="KeySpill" Minimum="0" Maximum="100" Value="50" ValueChanged="Background_ValueChanged" AutomationProperties.Name="Spill removal" />
                         </StackPanel>
 
                         <Grid Margin="0,10,0,0">
                             <TextBlock Text="Spotlight" FontSize="14" VerticalAlignment="Center" />
                             <TextBlock x:Name="SpotlightValue" Text="" Margin="0,0,56,0" HorizontalAlignment="Right" VerticalAlignment="Center"
-                                       FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                       FontSize="12" Foreground="{ThemeResource DgLabelBrush}" />
                             <ToggleSwitch x:Name="SpotlightToggle" HorizontalAlignment="Right" MinWidth="0" OffContent="" OnContent=""
                                           Toggled="Background_Toggled" AutomationProperties.Name="Spotlight" />
                         </Grid>
@@ -716,7 +730,7 @@
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Text="LUT" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
+                            <TextBlock Text="LUT" FontSize="12" Foreground="{ThemeResource DgLabelBrush}" VerticalAlignment="Center" />
                             <ComboBox x:Name="LutBox" Grid.Column="1" HorizontalAlignment="Stretch" PlaceholderText="None" CornerRadius="10"
                                       SelectionChanged="LutBox_SelectionChanged" AutomationProperties.Name="LUT" />
                             <Button x:Name="ImportLutBtn" Grid.Column="2" Style="{StaticResource IconButton}" Click="ImportLutBtn_Click"
@@ -748,7 +762,7 @@
                                 Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}">
                             <StackPanel Spacing="4">
                                 <Grid>
-                                    <TextBlock x:Name="SponsorBrand" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
+                                    <TextBlock x:Name="SponsorBrand" FontSize="11" Foreground="{ThemeResource DgLabelBrush}" VerticalAlignment="Center" />
                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="2">
                                         <Button Style="{StaticResource IconButton}" Width="32" Height="32" AutomationProperties.Name="Why am I seeing this?"
                                                 ToolTipService.ToolTip="Why am I seeing this?">
@@ -767,7 +781,7 @@
                                     </StackPanel>
                                 </Grid>
                                 <TextBlock x:Name="SponsorTitle" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                <TextBlock x:Name="SponsorBody" FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBlock x:Name="SponsorBody" FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource DgLabelBrush}" />
                                 <HyperlinkButton Content="Learn more" Click="SponsorOpen_Click" Padding="0,4" AutomationProperties.Name="Learn more about this sponsored pick" />
                             </StackPanel>
                         </Border>
@@ -786,23 +800,23 @@
                         <Border Padding="12" CornerRadius="12" Background="{ThemeResource ControlFillColorDefaultBrush}">
                             <StackPanel Spacing="6">
                                 <Grid>
-                                    <TextBlock Text="Level" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                    <TextBlock x:Name="MasterLevelHint" HorizontalAlignment="Right" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock Text="Level" FontSize="12" Foreground="{ThemeResource DgLabelBrush}" />
+                                    <TextBlock x:Name="MasterLevelHint" HorizontalAlignment="Right" FontSize="12" Foreground="{ThemeResource DgLabelBrush}" />
                                 </Grid>
                                 <Grid ColumnSpacing="10">
                                     <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition /></Grid.ColumnDefinitions>
-                                    <TextBlock Text="L" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock Text="L" FontSize="12" Foreground="{ThemeResource DgLabelBrush}" />
                                     <ProgressBar x:Name="MasterMeterL" Grid.Column="1" Maximum="1" MinHeight="8" Height="8" CornerRadius="4" VerticalAlignment="Center"
                                                  Background="{ThemeResource ControlStrongStrokeColorDisabledBrush}" AutomationProperties.Name="Output level left" />
                                 </Grid>
                                 <Grid ColumnSpacing="10">
                                     <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition /></Grid.ColumnDefinitions>
-                                    <TextBlock Text="R" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock Text="R" FontSize="12" Foreground="{ThemeResource DgLabelBrush}" />
                                     <ProgressBar x:Name="MasterMeterR" Grid.Column="1" Maximum="1" MinHeight="8" Height="8" CornerRadius="4" VerticalAlignment="Center"
                                                  Background="{ThemeResource ControlStrongStrokeColorDisabledBrush}" AutomationProperties.Name="Output level right" />
                                 </Grid>
                                 <Grid>
-                                    <TextBlock Text="Volume" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock Text="Volume" FontSize="12" Foreground="{ThemeResource DgLabelBrush}" />
                                     <TextBlock x:Name="MasterVolumeValue" HorizontalAlignment="Right" FontSize="12" />
                                 </Grid>
                                 <Slider x:Name="MasterVolume" Minimum="0" Maximum="200" Value="100" ValueChanged="Mix_ValueChanged" AutomationProperties.Name="Output volume" />
@@ -844,22 +858,22 @@
                                     <StackPanel>
                                         <Slider x:Name="Eq0" Orientation="Vertical" Height="90" Minimum="-12" Maximum="12" Value="0" StepFrequency="0.5" HorizontalAlignment="Center"
                                                 ValueChanged="Mix_ValueChanged" AutomationProperties.Name="Equaliser low (100 Hz) in dB" />
-                                        <TextBlock Text="Low" FontSize="12" HorizontalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                        <TextBlock Text="Low" FontSize="12" HorizontalAlignment="Center" Foreground="{ThemeResource DgLabelBrush}" />
                                     </StackPanel>
                                     <StackPanel Grid.Column="1">
                                         <Slider x:Name="Eq1" Orientation="Vertical" Height="90" Minimum="-12" Maximum="12" Value="0" StepFrequency="0.5" HorizontalAlignment="Center"
                                                 ValueChanged="Mix_ValueChanged" AutomationProperties.Name="Equaliser low-mid (600 Hz) in dB" />
-                                        <TextBlock Text="Low-mid" FontSize="12" HorizontalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                        <TextBlock Text="Low-mid" FontSize="12" HorizontalAlignment="Center" Foreground="{ThemeResource DgLabelBrush}" />
                                     </StackPanel>
                                     <StackPanel Grid.Column="2">
                                         <Slider x:Name="Eq2" Orientation="Vertical" Height="90" Minimum="-12" Maximum="12" Value="0" StepFrequency="0.5" HorizontalAlignment="Center"
                                                 ValueChanged="Mix_ValueChanged" AutomationProperties.Name="Equaliser high-mid (2.5 kHz) in dB" />
-                                        <TextBlock Text="High-mid" FontSize="12" HorizontalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                        <TextBlock Text="High-mid" FontSize="12" HorizontalAlignment="Center" Foreground="{ThemeResource DgLabelBrush}" />
                                     </StackPanel>
                                     <StackPanel Grid.Column="3">
                                         <Slider x:Name="Eq3" Orientation="Vertical" Height="90" Minimum="-12" Maximum="12" Value="0" StepFrequency="0.5" HorizontalAlignment="Center"
                                                 ValueChanged="Mix_ValueChanged" AutomationProperties.Name="Equaliser high (8 kHz) in dB" />
-                                        <TextBlock Text="High" FontSize="12" HorizontalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                        <TextBlock Text="High" FontSize="12" HorizontalAlignment="Center" Foreground="{ThemeResource DgLabelBrush}" />
                                     </StackPanel>
                                 </Grid>
                                 <Button Content="Flat EQ" FontSize="12" Padding="10,2" CornerRadius="8" HorizontalAlignment="Right" Click="EqFlat_Click" />
@@ -873,7 +887,7 @@
                         <Grid Margin="0,8,0,0">
                             <StackPanel VerticalAlignment="Center" Margin="0,0,64,0">
                                 <TextBlock Text="System sound" FontSize="14" />
-                                <TextBlock Text="What your PC plays: videos, music, games" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Text="What your PC plays: videos, music, games" FontSize="12" Foreground="{ThemeResource DgLabelBrush}" TextTrimming="CharacterEllipsis" />
                             </StackPanel>
                             <ToggleSwitch x:Name="SystemSoundToggle" HorizontalAlignment="Right" MinWidth="0" OffContent="" OnContent=""
                                           Toggled="SystemSoundToggle_Toggled" AutomationProperties.Name="Include system sound" />
@@ -918,7 +932,7 @@
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Text="Background" VerticalAlignment="Center" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Margin="0,0,6,0" />
+                            <TextBlock Text="Background" VerticalAlignment="Center" FontSize="12" Foreground="{ThemeResource DgLabelBrush}" Margin="0,0,6,0" />
                             <DropDownButton x:Name="SceneBg1Btn" Grid.Column="1" Padding="4" AutomationProperties.Name="Background top colour"
                                             ToolTipService.ToolTip="Background colour (top)" AutomationProperties.HelpText="Background colour (top)" />
                             <DropDownButton x:Name="SceneBg2Btn" Grid.Column="2" Padding="4" HorizontalAlignment="Left" Margin="6,0,0,0"
@@ -1001,7 +1015,7 @@
                 HorizontalAlignment="Left" VerticalAlignment="Bottom">
             <StackPanel Spacing="6">
                 <Grid>
-                    <TextBlock Text="Audio" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" ToolTipService.ToolTip="Live microphone levels" />
+                    <TextBlock Text="Audio" FontSize="12" Foreground="{ThemeResource DgLabelBrush}" ToolTipService.ToolTip="Live microphone levels" />
                     <TextBlock x:Name="MicName" Text="No microphone" FontSize="12" FontWeight="SemiBold" HorizontalAlignment="Right"
                                TextTrimming="CharacterEllipsis" MaxWidth="200" />
                     <TextBlock x:Name="MicMutedBadge" Visibility="Collapsed" FontSize="12" FontWeight="SemiBold" HorizontalAlignment="Right"
@@ -1009,17 +1023,17 @@
                 </Grid>
                 <Grid ColumnSpacing="10">
                     <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition /></Grid.ColumnDefinitions>
-                    <TextBlock Text="L" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <TextBlock Text="L" FontSize="12" Foreground="{ThemeResource DgLabelBrush}" />
                     <ProgressBar x:Name="CardMeterL" Grid.Column="1" Maximum="1" MinHeight="8" Height="8" CornerRadius="4" VerticalAlignment="Center" Background="{ThemeResource ControlStrongStrokeColorDisabledBrush}"
                                  AutomationProperties.Name="Microphone level left" />
                 </Grid>
                 <Grid ColumnSpacing="10">
                     <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition /></Grid.ColumnDefinitions>
-                    <TextBlock Text="R" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <TextBlock Text="R" FontSize="12" Foreground="{ThemeResource DgLabelBrush}" />
                     <ProgressBar x:Name="CardMeterR" Grid.Column="1" Maximum="1" MinHeight="8" Height="8" CornerRadius="4" VerticalAlignment="Center" Background="{ThemeResource ControlStrongStrokeColorDisabledBrush}"
                                  AutomationProperties.Name="Microphone level right" />
                 </Grid>
-                <TextBlock x:Name="CardAudioHint" Text="Audio is off. Turn it on in the Audio tab." FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
+                <TextBlock x:Name="CardAudioHint" Text="Audio is off. Turn it on in the Audio tab." FontSize="12" Foreground="{ThemeResource DgLabelBrush}" TextTrimming="CharacterEllipsis" />
             </StackPanel>
         </Border>
 
@@ -1030,7 +1044,7 @@
           <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,0,10,0">
             <StackPanel Spacing="10">
                 <Grid>
-                    <TextBlock Text="Framing" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <TextBlock Text="Framing" FontSize="12" Foreground="{ThemeResource DgLabelBrush}" />
                     <TextBlock x:Name="ZoomLabel" Text="1.0×" FontSize="12" FontWeight="SemiBold" HorizontalAlignment="Right" />
                 </Grid>
                 <!-- Minimap: the box shows the visible part of the camera image. -->
@@ -1040,13 +1054,13 @@
                                 BorderBrush="{ThemeResource AccentTextFillColorPrimaryBrush}" Background="Transparent" />
                     </Canvas>
                 </Border>
-                <TextBlock Text="Zoom" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Margin="0,0,0,-8" />
+                <TextBlock Text="Zoom" FontSize="12" Foreground="{ThemeResource DgLabelBrush}" Margin="0,0,0,-8" />
                 <Slider x:Name="FrZoom" Minimum="100" Maximum="400" Value="100" ValueChanged="Framing_ValueChanged"
                         AutomationProperties.Name="Zoom" ToolTipService.ToolTip="Zoom" AutomationProperties.HelpText="Zoom" />
-                <TextBlock Text="Left · right" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Margin="0,0,0,-8" />
+                <TextBlock Text="Left · right" FontSize="12" Foreground="{ThemeResource DgLabelBrush}" Margin="0,0,0,-8" />
                 <Slider x:Name="FrPanX" Minimum="-100" Maximum="100" Value="0" ValueChanged="Framing_ValueChanged"
                         AutomationProperties.Name="Pan horizontal" ToolTipService.ToolTip="Pan left and right" AutomationProperties.HelpText="Pan left and right" />
-                <TextBlock Text="Up · down" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Margin="0,0,0,-8" />
+                <TextBlock Text="Up · down" FontSize="12" Foreground="{ThemeResource DgLabelBrush}" Margin="0,0,0,-8" />
                 <Slider x:Name="FrPanY" Minimum="-100" Maximum="100" Value="0" ValueChanged="Framing_ValueChanged"
                         AutomationProperties.Name="Pan vertical" ToolTipService.ToolTip="Pan up and down" AutomationProperties.HelpText="Pan up and down" />
                 <SelectorBar x:Name="FramingModeBar" HorizontalAlignment="Center" SelectionChanged="FramingMode_SelectionChanged">
@@ -1234,7 +1248,7 @@
                                 </Button>
                             </Grid>
                             <TextBlock x:Name="LightDescription" TextWrapping="Wrap" FontSize="14" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
-                            <TextBlock x:Name="LightCoverage" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            <TextBlock x:Name="LightCoverage" FontSize="12" Foreground="{ThemeResource DgLabelBrush}" />
                         </StackPanel>
                     </Border>
 
@@ -1338,7 +1352,7 @@
                         <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition /></Grid.ColumnDefinitions>
                         <StackPanel Spacing="6">
                             <TextBlock Text="Ring light" FontSize="14" />
-                            <TextBlock Text="Type" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            <TextBlock Text="Type" FontSize="12" Foreground="{ThemeResource DgLabelBrush}" />
                             <SelectorBar x:Name="RingTypeBar" SelectionChanged="RingTypeBar_SelectionChanged">
                                 <SelectorBarItem Text="Classic" Tag="Classic" ToolTipService.ToolTip="A solid band" AutomationProperties.HelpText="A solid band" />
                                 <SelectorBarItem Text="Soft" Tag="Soft" ToolTipService.ToolTip="A band with feathered, glowing edges" AutomationProperties.HelpText="A band with feathered, glowing edges" />
@@ -1346,7 +1360,7 @@
                                 <SelectorBarItem Text="Double" Tag="Double" ToolTipService.ToolTip="Two thin rings" AutomationProperties.HelpText="Two thin rings" />
                                 <SelectorBarItem Text="LED" Tag="Led" ToolTipService.ToolTip="A ring of separate LED dots" AutomationProperties.HelpText="A ring of separate LED dots" />
                             </SelectorBar>
-                            <TextBlock Text="Light from" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Margin="0,6,0,0" />
+                            <TextBlock Text="Light from" FontSize="12" Foreground="{ThemeResource DgLabelBrush}" Margin="0,6,0,0" />
                             <Grid x:Name="RingDirections" ColumnSpacing="6" RowSpacing="6">
                                 <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition /><ColumnDefinition /><ColumnDefinition /></Grid.ColumnDefinitions>
                                 <Grid.RowDefinitions><RowDefinition /><RowDefinition /></Grid.RowDefinitions>
@@ -1363,29 +1377,29 @@
                                               ToolTipService.ToolTip="Set the arc and rotation yourself" AutomationProperties.HelpText="Set the arc and rotation yourself" />
                             </Grid>
                             <Grid Margin="0,6,0,0">
-                                <TextBlock Text="Arc" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBlock Text="Arc" FontSize="12" Foreground="{ThemeResource DgLabelBrush}" />
                                 <TextBlock x:Name="RingSweepValue" HorizontalAlignment="Right" FontSize="12" />
                             </Grid>
                             <Slider x:Name="RingSweep" StepFrequency="5" ValueChanged="Ring_ValueChanged" AutomationProperties.Name="How far the ring goes round, in degrees" />
                             <Grid>
-                                <TextBlock Text="Rotation" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBlock Text="Rotation" FontSize="12" Foreground="{ThemeResource DgLabelBrush}" />
                                 <TextBlock x:Name="RingRotationValue" HorizontalAlignment="Right" FontSize="12" />
                             </Grid>
                             <Slider x:Name="RingRotation" StepFrequency="5" ValueChanged="Ring_ValueChanged" AutomationProperties.Name="Ring rotation in degrees" />
                         </StackPanel>
                         <StackPanel Grid.Column="1" Spacing="6">
                             <Grid>
-                                <TextBlock Text="Diameter" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBlock Text="Diameter" FontSize="12" Foreground="{ThemeResource DgLabelBrush}" />
                                 <TextBlock x:Name="RingDiameterValue" HorizontalAlignment="Right" FontSize="12" />
                             </Grid>
                             <Slider x:Name="RingDiameter" StepFrequency="1" ValueChanged="Ring_ValueChanged" AutomationProperties.Name="Ring diameter" />
                             <Grid>
-                                <TextBlock Text="Softness" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBlock Text="Softness" FontSize="12" Foreground="{ThemeResource DgLabelBrush}" />
                                 <TextBlock x:Name="RingSoftnessValue" HorizontalAlignment="Right" FontSize="12" />
                             </Grid>
                             <Slider x:Name="RingSoftness" StepFrequency="1" ValueChanged="Ring_ValueChanged" AutomationProperties.Name="Ring softness" />
                             <Grid>
-                                <TextBlock Text="Position" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBlock Text="Position" FontSize="12" Foreground="{ThemeResource DgLabelBrush}" />
                                 <Button HorizontalAlignment="Right" Content="Centre" Padding="10,2" FontSize="12" CornerRadius="8" Click="RingCentre_Click"
                                         AutomationProperties.Name="Centre the ring" />
                             </Grid>
@@ -1451,7 +1465,7 @@
                         ToolTipService.ToolTip="Show the whole message and earlier ones">
                     <Grid ColumnSpacing="8">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition /></Grid.ColumnDefinitions>
-                        <FontIcon x:Name="MessageIcon" Glyph="&#xE946;" FontSize="14" VerticalAlignment="Top" Margin="0,2,0,0" Foreground="{ThemeResource TextFillColorSecondaryBrush}" AutomationProperties.AccessibilityView="Raw" />
+                        <FontIcon x:Name="MessageIcon" Glyph="&#xE946;" FontSize="14" VerticalAlignment="Top" Margin="0,2,0,0" Foreground="{ThemeResource DgLabelBrush}" AutomationProperties.AccessibilityView="Raw" />
                         <TextBlock x:Name="StatusText" Grid.Column="1" Text="Ready." AutomationProperties.LiveSetting="Polite" FontSize="12" Foreground="{ThemeResource TextFillColorPrimaryBrush}" TextWrapping="Wrap" MaxLines="3" TextTrimming="CharacterEllipsis" />
                     </Grid>
                     <FlyoutBase.AttachedFlyout>
