@@ -126,7 +126,20 @@ private fun App(incoming: MutableState<String?>) {
         screen = Screen.Home
     }
 
-    LaunchedEffect(incoming.value) { incoming.value?.let { link -> pairWith(link); if (incoming.value == link) incoming.value = null } }
+    // A link handed over by another app could point anywhere, so it needs the user's yes before this phone streams
+    // its camera and mic there. Codes the user scans or pastes in this app are already their choice.
+    var asked by remember { mutableStateOf<Pairing?>(null) }
+    LaunchedEffect(incoming.value) {
+        incoming.value?.let { link ->
+            if (incoming.value == link) incoming.value = null
+            val p = Pairing.parse(link)
+            when {
+                p == null -> error = "That isn't a KISSIK pairing code. Open Phone in KISSIK on your PC and scan the code it shows."
+                !isLocalNetworkHost(p.host) -> error = "That link points to ${p.host}, which isn't a PC on your Wi-Fi. To pair, scan the code KISSIK shows on your PC."
+                else -> asked = p
+            }
+        }
+    }
     // Connect every time: a paired phone starts streaming as soon as the app opens.
     LaunchedEffect(Unit) {
         if (incoming.value == null && pairing != null && hasCamera(ctx) && !Live.running.value && prefs.getBoolean("onboarded", false)) StreamService.start(ctx)
@@ -142,6 +155,14 @@ private fun App(incoming: MutableState<String?>) {
         Screen.Settings -> Settings(pairing, onClose = { screen = Screen.Home }, onPair = { screen = Screen.Scan }) {
             StreamService.stop(ctx); forgetPairing(ctx); pairing = null
         }
+    }
+
+    asked?.let { p ->
+        AlertDialog(onDismissRequest = { asked = null }, containerColor = K.card,
+            title = { Text("Pair with ${p.host}?") },
+            text = { Text("Another app opened a pairing link. If you pair, this phone sends its camera and microphone to ${p.host}. Only pair if that's the PC running KISSIK.") },
+            confirmButton = { TextButton({ asked = null; pairWith("https://${p.host}:${p.port}/?t=${p.token}") }) { Text("Pair") } },
+            dismissButton = { TextButton({ asked = null }) { Text("Cancel") } })
     }
 
     error?.let { msg ->

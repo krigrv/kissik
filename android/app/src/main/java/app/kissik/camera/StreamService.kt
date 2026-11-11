@@ -535,13 +535,20 @@ class StreamService : LifecycleService() {
     }
     private fun netLog(msg: String) { if (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0) android.util.Log.d("KissikNet", msg) }
 
+    /** True when the USB port answered but failed [usbTrusted] on the last connect; Wi-Fi is used instead. */
+    @Volatile private var usbRefused = false
+
     /** Connects (USB first when adb reverse is set up, else Wi-Fi) and reconnects quickly whenever the link drops. */
     private suspend fun connectLoop() {
         var backoff = 500L
         while (lifecycleScope.isActive) {
             val pairing = Pairing.load(this)
             if (pairing == null) { Live.message.value = "Not paired. Scan the code in KISSIK."; delay(2000); continue }
-            val usb = usbReachable(pairing.port + 1)
+            val usbPort = usbReachable(pairing.port + 1)
+            val usb = usbPort && usbTrusted(pairing)
+            // Something answers on the USB port but can't prove it is the paired KISSIK: never send the token to it.
+            usbRefused = usbPort && !usb
+            if (usbRefused) netLog("usb listener failed the proof")
             Live.link.value = Link.Connecting
             // TCP_NODELAY: send each frame at once instead of letting the OS batch small packets.
             val builder = OkHttpClient.Builder().pingInterval(5, TimeUnit.SECONDS).connectTimeout(4, TimeUnit.SECONDS)
@@ -563,14 +570,18 @@ class StreamService : LifecycleService() {
                     ws = webSocket; backoff = 500L; lastLive = 0L
                     needKey = true; encoder?.requestKeyframe()
                     Live.link.value = if (usb) Link.Usb else Link.Wifi
-                    Live.message.value = if (usb) "Live in KISSIK over USB" else "Live in KISSIK over Wi-Fi"
+                    Live.message.value = when {
+                        usb -> "Live in KISSIK over USB"
+                        usbRefused -> "Live over Wi-Fi. The USB link didn't prove it's your KISSIK, so it isn't used. Update KISSIK on your PC."
+                        else -> "Live in KISSIK over Wi-Fi"
+                    }
                     updateNotification(Live.message.value)
                     sendStatus()
                     // On Wi-Fi: move to USB as soon as the cable is linked (adb reverse), since it's faster and steadier.
                     if (!usb) lifecycleScope.launch(Dispatchers.IO) {
                         while (ws === webSocket) {
                             delay(3000)
-                            if (ws === webSocket && usbReachable(pairing.port + 1)) { netLog("usb appeared"); webSocket.close(1000, "switching to USB"); break }
+                            if (ws === webSocket && !usbRefused && usbReachable(pairing.port + 1) && usbTrusted(pairing)) { netLog("usb appeared"); webSocket.close(1000, "switching to USB"); break }
                         }
                     }
                 }
