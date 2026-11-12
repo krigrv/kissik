@@ -951,9 +951,17 @@ public sealed partial class MainPage : Page
             EnhanceReset_Click(sender, e);
             await Task.Delay(450); // let a frame through with neutral adjustments
             if (_lastFrame is not { } f) return;
-            var r = await Task.Run(() => AutoPicture.Analyze(f.Px, f.W, f.H));
+            FaceBox? face = null; // measure exposure on the actual face, wherever it is in the frame
+            try
+            {
+                using var bmp = SoftwareBitmap.CreateCopyFromBuffer(
+                    System.Runtime.InteropServices.WindowsRuntime.WindowsRuntimeBufferExtensions.AsBuffer(f.Px), BitmapPixelFormat.Bgra8, f.W, f.H, BitmapAlphaMode.Premultiplied);
+                face = await (_faceTracker ??= new FaceTracker()).DetectAsync(bmp);
+            }
+            catch { /* no detector: the usual face area is used */ }
+            var r = await Task.Run(() => AutoPicture.Analyze(f.Px, f.W, f.H, face));
             _restoring = true;
-            EnhGamma.Value = r.Gamma * 100; EnhContrast.Value = r.Contrast * 100;
+            EnhBrightness.Value = r.Brightness * 100; EnhGamma.Value = r.Gamma * 100; EnhContrast.Value = r.Contrast * 100;
             EnhTemperature.Value = r.Temperature * 100; EnhTint.Value = r.Tint * 100;
             EnhSharpness.Value = r.Sharpness * 100; EnhVibrance.Value = r.Vibrance * 100;
             _restoring = false;

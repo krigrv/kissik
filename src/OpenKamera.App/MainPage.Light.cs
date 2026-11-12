@@ -92,10 +92,17 @@ public sealed partial class MainPage
                     Children =
                     {
                         new FontIcon { Glyph = "", FontSize = 40, Foreground = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(170, 255, 255, 255)) },
-                        new TextBlock
+                        // The name sits on a dark pill: the card's light end is near white for the cooler looks.
+                        new Border
                         {
-                            Text = look.Name, FontSize = 16, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, Margin = new Thickness(12, 0, 0, 10),
-                            VerticalAlignment = VerticalAlignment.Bottom, Foreground = new SolidColorBrush(Microsoft.UI.Colors.White),
+                            Margin = new Thickness(10, 0, 0, 10), Padding = new Thickness(8, 2, 8, 3), CornerRadius = new CornerRadius(8),
+                            VerticalAlignment = VerticalAlignment.Bottom, HorizontalAlignment = HorizontalAlignment.Left,
+                            Background = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(185, 0, 0, 0)),
+                            Child = new TextBlock
+                            {
+                                Text = look.Name, FontSize = 16, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                                Foreground = new SolidColorBrush(Microsoft.UI.Colors.White),
+                            },
                         },
                     },
                 },

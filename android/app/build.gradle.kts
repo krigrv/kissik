@@ -11,8 +11,8 @@ android {
         applicationId = "app.kissik.camera"
         minSdk = 26
         targetSdk = 35
-        versionCode = 3
-        versionName = "1.0.2"
+        versionCode = 4
+        versionName = "1.0.3"
     }
     // Releases are signed with the project's permanent key (GitHub secrets in CI, environment variables locally),
     // so every version installs over the last one. Without the key, a release build stays unsigned.
